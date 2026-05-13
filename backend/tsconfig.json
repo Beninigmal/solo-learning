@@ -3,15 +3,20 @@
     "target": "ES2022",
     "module": "CommonJS",
     "lib": [
-      "ESNext"
+      "ES2022",
+      "DOM"
     ],
     "skipLibCheck": true,
     "esModuleInterop": true,
     "strict": true,
     "outDir": "./dist",
     "rootDir": "./src",
+    "moduleResolution": "Node16",
     "typeRoots": [
       "./node_modules/@types"
+    ],
+    "types": [
+      "node"
     ]
   },
   "include": [
