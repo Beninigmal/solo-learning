@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  nome      String
+  nickname  String?  @unique
+  cpf       String   @unique
+  role      String   @default("ALUNO") // ADMIN, PROFESSOR, ALUNO
+  turno     String?  // MATUTINO, VESPERTINO, NOTURNO (Para os alunos)
+  xp        Int      @default(0)
+  level     Int      @default(1)
+  
+  turmaId   String?
+  turma     Turma?   @relation(fields: [turmaId], references: [id])
+
+  /// Token Expo para envio de push notifications
+  expoPushToken String?
+
+  disciplinas DisciplinaProfessor[] // Relacionamento apenas para Professores
+  
+  raids           RaidParticipant[]
+  questDeliveries QuestDelivery[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Turma {
+  id        String   @id @default(uuid())
+  nome      String   @unique // ex: "3º Ano A"
+  users     User[]
+}
+
+model Disciplina {
+  id          String   @id @default(uuid())
+  nome        String   @unique // ex: "Matemática", "Física"
+  professores DisciplinaProfessor[]
+  quests      Quest[]
+}
+
+model DisciplinaProfessor {
+  professorId   String
+  disciplinaId  String
+  professor     User       @relation(fields: [professorId], references: [id])
+  disciplina    Disciplina @relation(fields: [disciplinaId], references: [id])
+
+  @@id([professorId, disciplinaId])
+}
+
+model Quest {
+  id           String     @id @default(uuid())
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id])
+  
+  enunciado    String
+  gabarito     String?
+  xp           Int        @default(200)
+  nivel        String     @default("FACIL") // FACIL, MEDIO, DIFICIL
+
+  /// Identifica o lote de 3 quests geradas juntas pelo professor
+  batchId      String?
+  /// Ordem de entrega dentro do lote (1 = fácil, 2 = médio, 3 = difícil)
+  ordem        Int        @default(1)
+
+  turmaAlvoId  String?    // Se a quest for específica para uma turma
+
+  status       String     @default("ATIVA") // ATIVA, EXPIRADA
+
+  /// Janela total de entrega: 120 minutos a partir da criação
+  windowEnd    DateTime?
+
+  deliveries   QuestDelivery[]
+
+  createdAt    DateTime   @default(now())
+}
+
+/// Rastreia o estado individual de cada entrega de quest para um aluno
+model QuestDelivery {
+  id          String   @id @default(uuid())
+  questId     String
+  quest       Quest    @relation(fields: [questId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  /// SCHEDULED → ainda não disparou | DELIVERED → apareceu na tela
+  /// WAITING → aluno clicou Aguardar | COMPLETED → respondida | EXPIRED → TTL estourou
+  status      String   @default("SCHEDULED")
+
+  scheduledAt  DateTime  // quando deve ser disparada ao aluno
+  deliveredAt  DateTime?
+  waitingSince DateTime?
+  expiresAt    DateTime? // = waitingSince + 40 min (TTL da fila de espera)
+  answeredAt   DateTime?
+
+  createdAt   DateTime @default(now())
+
+  @@unique([questId, userId]) // 1 entrega por quest por aluno
+}
+
+model Raid {
+  id           String            @id @default(uuid())
+  codigo       String            @unique // Código para entrar
+  xpBonus      Int               @default(500)
+  status       String            @default("OPEN") // OPEN, CLEARED, FAILED
+  participantes RaidParticipant[]
+}
+
+model RaidParticipant {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  raidId    String
+  raid      Raid     @relation(fields: [raidId], references: [id])
+  acertos   Int      @default(0) // Checkpoint individual
+  
+  @@unique([userId, raidId])
+}
