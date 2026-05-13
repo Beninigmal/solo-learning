@@ -220,7 +220,7 @@ Retorne APENAS um JSON válido neste formato exato, sem markdown:
       //    Q2 e Q3 são liberadas pelo endpoint /submit após a anterior ser respondida
       if (alunos.length > 0) {
         await prisma.questDelivery.createMany({
-          data: alunos.map(aluno => ({
+          data: alunos.map((aluno: any) => ({
             questId: questFacil.id,
             userId: aluno.id,
             status: 'SCHEDULED',
@@ -230,11 +230,11 @@ Retorne APENAS um JSON válido neste formato exato, sem markdown:
 
         // 7. Enviar push notification para todos os alunos com token registrado
         const tokens = alunos
-          .map(a => a.expoPushToken)
-          .filter((t): t is string => !!t && t.startsWith('ExponentPushToken'));
+          .map((a: any) => a.expoPushToken)
+          .filter((t: string | null): t is string => !!t && t.startsWith('ExponentPushToken'));
 
         if (tokens.length > 0) {
-          const messages = tokens.map(to => ({
+          const messages = tokens.map((to: string) => ({
             to,
             sound: 'default',
             title: '⚔️ Nova Missão Disponível!',
