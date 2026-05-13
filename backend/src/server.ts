@@ -25,8 +25,9 @@ server.register(professorRoutes, { prefix: '/professor' });
 
 const start = async () => {
   try {
-    await server.listen({ port: 3333, host: '0.0.0.0' });
-    console.log('Servidor rodando em http://localhost:3333');
+    const port = Number(process.env.PORT) || 3333;
+    await server.listen({ port, host: '0.0.0.0' });
+    console.log(`Servidor rodando na porta ${port}`);
   } catch (err) {
     server.log.error(err);
     process.exit(1);
