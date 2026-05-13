@@ -1,25 +1,23 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "CommonJS",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "lib": [
       "ES2022",
       "DOM"
     ],
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "strict": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "moduleResolution": "Node16",
-    "typeRoots": [
-      "./node_modules/@types"
-    ],
-    "types": [
-      "node"
-    ]
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
   },
   "include": [
     "src/**/*"
+  ],
+  "exclude": [
+    "node_modules"
   ]
 }
