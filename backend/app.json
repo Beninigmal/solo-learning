@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "b6745ac8-ba0b-4459-97f9-453c63ff0ee3"
+      }
+    },
+    "android": {
+      "package": "com.beninigmal.backend"
+    }
+  }
+}
