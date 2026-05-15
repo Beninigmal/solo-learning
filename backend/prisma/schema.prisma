@@ -31,6 +31,7 @@ model User {
   
   raids           RaidParticipant[]
   questDeliveries QuestDelivery[]
+  wrongAnswers    WrongAnswer[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -87,11 +88,13 @@ model Quest {
 
   semana       String?
   tema         String?
+  tags         String[]
 
   /// Janela total de entrega: 120 minutos a partir da criação
   windowEnd    DateTime?
 
   deliveries   QuestDelivery[]
+  wrongAnswers WrongAnswer[]
 
   createdAt    DateTime   @default(now())
 }
@@ -113,6 +116,7 @@ model QuestDelivery {
   waitingSince DateTime?
   expiresAt    DateTime? // = waitingSince + 40 min (TTL da fila de espera)
   answeredAt   DateTime?
+  isCorrect    Boolean?
 
   createdAt   DateTime @default(now())
 
@@ -136,4 +140,17 @@ model RaidParticipant {
   acertos   Int      @default(0) // Checkpoint individual
   
   @@unique([userId, raidId])
+}
+
+model WrongAnswer {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  questId   String
+  quest     Quest    @relation(fields: [questId], references: [id])
+  tentativas Int      @default(0)
+  resolvido Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, questId])
 }

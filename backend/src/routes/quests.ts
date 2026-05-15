@@ -24,13 +24,33 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
       const history = await prisma.quest.findMany({
         where: {
           turmaAlvo: request.user.role === 'ADMIN' ? {} : { professorId: request.user.id },
-          ordem: 1 // Pega apenas a primeira do lote para representar o batch
+          ordem: 1
         },
-        include: { turmaAlvo: true },
+        include: { 
+          turmaAlvo: true,
+          deliveries: {
+            select: { isCorrect: true, status: true }
+          }
+        },
         orderBy: { createdAt: 'desc' }
       });
 
-      return reply.send(history);
+      const formattedHistory = history.map(q => {
+        const total = q.deliveries.length;
+        const correct = q.deliveries.filter(d => d.isCorrect === true).length;
+        const successRate = total > 0 ? Math.round((correct / total) * 100) : 0;
+        
+        // Remove deliveries array from response to keep it clean
+        const { deliveries, ...questData } = q;
+        
+        return {
+          ...questData,
+          successRate,
+          totalDeliveries: total
+        };
+      });
+
+      return reply.send(formattedHistory);
     } catch (error: any) {
       return reply.status(500).send({ error: 'Erro ao buscar histórico.', details: error.message });
     }
@@ -258,18 +278,97 @@ REGRAS IMPORTANTES:
       responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
       const validation = JSON.parse(responseText);
 
+      const isCorrect = validation.status === 'success';
+
       await prisma.questDelivery.update({
         where: { id: deliveryId },
-        data: { status: 'COMPLETED', answeredAt: new Date() }
+        data: { 
+          status: 'COMPLETED', 
+          answeredAt: new Date(),
+          isCorrect
+        }
       });
 
-      if (validation.status === 'success') {
+      if (isCorrect) {
         await prisma.user.update({ where: { id: userId }, data: { xp: { increment: delivery.quest.xp } } });
+      } else {
+        // Criar WrongAnswer para o aluno (Baú)
+        await prisma.wrongAnswer.upsert({
+          where: { 
+            userId_questId: { userId, questId: delivery.questId } 
+          },
+          update: { tentativas: { increment: 1 } },
+          create: { userId, questId: delivery.questId, tentativas: 1 }
+        });
       }
 
       return reply.send(validation);
     } catch (error: any) {
       return reply.status(500).send({ error: 'Erro ao submeter resposta.' });
+    }
+  });
+
+  // ─── GET /quests/wrong-answers ─────────────────────────────────────────────
+  fastify.get('/wrong-answers', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    const userId = request.user.id;
+    try {
+      const wrongAnswers = await prisma.wrongAnswer.findMany({
+        where: { userId, resolvido: false },
+        include: { quest: true }
+      });
+      return reply.send(wrongAnswers);
+    } catch (error: any) {
+      return reply.status(500).send({ error: 'Erro ao buscar baú de perguntas.', details: error.message });
+    }
+  });
+
+  // ─── POST /quests/wrong-answers/:id/retry ──────────────────────────────────
+  fastify.post<{ Params: { id: string }; Body: { answer: string } }>('/wrong-answers/:id/retry', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    const { id } = request.params;
+    const { answer } = request.body;
+    const userId = request.user.id;
+
+    try {
+      const wrongAnswer = await prisma.wrongAnswer.findUnique({
+        where: { id },
+        include: { quest: true }
+      });
+
+      if (!wrongAnswer || wrongAnswer.userId !== userId) {
+        return reply.status(404).send({ error: 'Registro não encontrado.' });
+      }
+
+      const { GoogleGenerativeAI } = require('@google/generative-ai');
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const prompt = `Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". Retorne JSON: {"status": "success/error", "message": "..."}`;
+      const result = await model.generateContent(prompt);
+      let responseText = result.response.text().trim();
+      responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+      const validation = JSON.parse(responseText);
+
+      if (validation.status === 'success') {
+        await prisma.wrongAnswer.update({
+          where: { id },
+          data: { resolvido: true }
+        });
+
+        const xpGanho = Math.round(wrongAnswer.quest.xp * 0.1);
+        await prisma.user.update({
+          where: { id: userId },
+          data: { xp: { increment: xpGanho } }
+        });
+
+        return reply.send({ ...validation, xpGanho });
+      } else {
+        await prisma.wrongAnswer.update({
+          where: { id },
+          data: { tentativas: { increment: 1 } }
+        });
+        return reply.send(validation);
+      }
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao processar tentativa.' });
     }
   });
 };

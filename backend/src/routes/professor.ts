@@ -157,4 +157,61 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
       return reply.status(404).send({ error: 'Aluno não encontrado ou sem permissão.' });
     }
   });
+
+  // Cadastrar Alunos em Lote
+  fastify.post<{ Body: { students: { nome: string; matricula: string; turno?: string }[]; turmaId: string } }>('/students/batch', async (request, reply) => {
+    const { students, turmaId } = request.body;
+
+    if (!students || !Array.isArray(students) || !turmaId) {
+      return reply.status(400).send({ error: 'Lista de estudantes e turmaId são obrigatórios.' });
+    }
+
+    try {
+      const turma = await prisma.turma.findUnique({
+        where: { id: turmaId, professorId: request.user.role === 'ADMIN' ? undefined : request.user.id }
+      });
+
+      if (!turma) {
+        return reply.status(404).send({ error: 'Turma não encontrada ou sem permissão.' });
+      }
+
+      let createdCount = 0;
+      let errors: string[] = [];
+
+      for (const s of students) {
+        if (!s.nome || !s.matricula) {
+          errors.push(`Aluno sem nome ou matrícula ignorado.`);
+          continue;
+        }
+
+        try {
+          await prisma.user.create({
+            data: {
+              nome: s.nome,
+              matricula: s.matricula.toLowerCase(),
+              role: 'ALUNO',
+              turno: s.turno || 'MATUTINO',
+              turmaId: turma.id,
+              password: 'SUMMONING_CODE'
+            }
+          });
+          createdCount++;
+        } catch (e: any) {
+          if (e.code === 'P2002') {
+            errors.push(`Matrícula ${s.matricula} já existe.`);
+          } else {
+            errors.push(`Erro ao criar ${s.nome}: ${e.message}`);
+          }
+        }
+      }
+
+      return reply.status(201).send({ 
+        message: `${createdCount} alunos cadastrados com sucesso.`,
+        errors: errors.length > 0 ? errors : undefined
+      });
+
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao processar lote.' });
+    }
+  });
 };
