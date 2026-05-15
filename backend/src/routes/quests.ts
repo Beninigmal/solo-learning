@@ -135,7 +135,7 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
       // 3. Gerar 3 perguntas progressivas com Gemini
       const { GoogleGenerativeAI } = require('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
       const prompt = `Você é um assistente educacional para alunos de escola pública brasileira.
 Crie EXATAMENTE 3 perguntas sobre o tema "${tema}" para a Semana ${semana}.
@@ -338,7 +338,7 @@ Retorne APENAS um JSON válido neste formato exato, sem markdown:
       // Validar resposta com Gemini
       const { GoogleGenerativeAI } = require('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
       const prompt = `Você é um corretor de exercícios escolares para crianças e adolescentes.
 A pergunta foi: "${question}"
