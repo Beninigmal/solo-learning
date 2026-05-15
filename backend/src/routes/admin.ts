@@ -1,9 +1,10 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { prisma } from '../prisma';
+import bcrypt from 'bcryptjs';
 
 export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   
-  // Rota restrita para ADMINs
+  // Middleware de autorização para ADMIN
   fastify.addHook('preValidation', fastify.authenticate);
   fastify.addHook('preHandler', async (request, reply) => {
     if (request.user.role !== 'ADMIN') {
@@ -11,42 +12,92 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     }
   });
 
-  // Cadastro manual de usuários (Professores ou Alunos)
-  fastify.post<{ Body: { cpf: string; nome: string; nickname?: string; role: string; turmaId?: string } }>('/users', async (request, reply) => {
-    const { cpf, nome, nickname, role, turmaId } = request.body;
+  // ─── GESTÃO DE MESTRES ──────────────────────────────────────────────────
 
-    if (!cpf || !nome || !role) {
-      return reply.status(400).send({ error: 'CPF, Nome e Role são obrigatórios.' });
+  // Criar Mestre
+  fastify.post<{ Body: { matricula: string; nome: string; nickname?: string } }>('/masters', async (request, reply) => {
+    const { matricula, nome, nickname } = request.body;
+
+    if (!matricula || !nome) {
+      return reply.status(400).send({ error: 'Matrícula e Nome são obrigatórios.' });
     }
 
     try {
-      const existing = await prisma.user.findUnique({ where: { cpf } });
-      if (existing) {
-        return reply.status(400).send({ error: 'CPF já cadastrado no Sistema.' });
-      }
-
+      const defaultPassword = await bcrypt.hash('Solen2026', 10);
       const user = await prisma.user.create({
         data: {
-          cpf,
+          matricula: matricula.toLowerCase(),
           nome,
-          nickname,
-          role,
-          turmaId: turmaId || null
+          nickname: nickname || null,
+          role: 'PROFESSOR',
+          password: defaultPassword,
+          isFirstAccess: true
         }
       });
 
-      return reply.status(201).send({ message: 'Usuário cadastrado com sucesso!', user });
-    } catch (error) {
-      request.log.error(error);
-      return reply.status(500).send({ error: 'Erro ao cadastrar usuário.' });
+      return reply.status(201).send({ message: 'Mestre cadastrado com sucesso!', user });
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        return reply.status(400).send({ error: 'Matrícula já cadastrada.' });
+      }
+      return reply.status(500).send({ error: 'Erro ao cadastrar mestre.' });
     }
   });
 
-  // Listar usuários
-  fastify.get('/users', async (request, reply) => {
-    const users = await prisma.user.findMany({
-      select: { id: true, nome: true, cpf: true, role: true, level: true }
+  // Listar Mestres
+  fastify.get('/masters', async (request, reply) => {
+    const masters = await prisma.user.findMany({
+      where: { role: 'PROFESSOR' },
+      select: { id: true, nome: true, nickname: true, matricula: true, createdAt: true }
     });
-    return reply.status(200).send(users);
+    return reply.status(200).send(masters);
+  });
+
+  // Editar Mestre
+  fastify.put<{ Params: { id: string }; Body: { nome?: string; nickname?: string } }>('/masters/:id', async (request, reply) => {
+    const { id } = request.params;
+    const { nome, nickname } = request.body;
+
+    try {
+      const updated = await prisma.user.update({
+        where: { id, role: 'PROFESSOR' },
+        data: { nome, nickname }
+      });
+      return reply.send(updated);
+    } catch (error) {
+      return reply.status(404).send({ error: 'Mestre não encontrado.' });
+    }
+  });
+
+  // ─── GESTÃO GLOBAL DE ALUNOS ─────────────────────────────────────────────
+
+  // Listar todos os alunos (opcionalmente filtrado por turma)
+  fastify.get<{ Querystring: { turmaId?: string } }>('/students', async (request, reply) => {
+    const { turmaId } = request.query;
+    const students = await prisma.user.findMany({
+      where: { 
+        role: 'ALUNO',
+        ...(turmaId ? { turmaId } : {})
+      },
+      include: { turma: true },
+      orderBy: { nome: 'asc' }
+    });
+    return reply.status(200).send(students);
+  });
+
+  // Editar Aluno (Arquiteto)
+  fastify.put<{ Params: { id: string }; Body: { nome?: string; nickname?: string } }>('/students/:id', async (request, reply) => {
+    const { id } = request.params;
+    const { nome, nickname } = request.body;
+
+    try {
+      const updated = await prisma.user.update({
+        where: { id, role: 'ALUNO' },
+        data: { nome, nickname }
+      });
+      return reply.send(updated);
+    } catch (error) {
+      return reply.status(404).send({ error: 'Aluno não encontrado.' });
+    }
   });
 };

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
+import bcrypt from 'bcryptjs';
 
 const pool = new pg.Pool({ 
   connectionString: process.env.DATABASE_URL,
@@ -11,48 +12,75 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('🌱 Iniciando seeding completo (via Adapter)...');
+  console.log('🌱 Iniciando seeding completo (Novo Schema)...');
 
-  // 1. Criar Turma Alpha
-  const turma = await prisma.turma.upsert({
-    where: { nome: 'Turma Alpha' },
-    update: {},
-    create: { nome: 'Turma Alpha' },
-  });
+  const defaultPassword = await bcrypt.hash('Solen2026', 10);
 
-  // 2. Criar Arquiteto (ADMIN)
+  // 1. Criar Arquiteto (ADMIN)
   await prisma.user.upsert({
-    where: { cpf: '00000000000' },
-    update: { role: 'ADMIN' },
+    where: { matricula: 'admin' },
+    update: { 
+      role: 'ADMIN',
+      password: defaultPassword,
+      isFirstAccess: false
+    },
     create: {
-      cpf: '00000000000',
+      matricula: 'admin',
       nome: 'Arquiteto do Sistema',
       nickname: 'arquiteto',
+      password: defaultPassword,
+      isFirstAccess: false,
       role: 'ADMIN',
     },
   });
 
-  // 3. Criar Professor (MESTRE)
-  await prisma.user.upsert({
-    where: { cpf: '22222222222' },
-    update: { role: 'PROFESSOR', turmaId: turma.id },
+  // 2. Criar Mestre (PROFESSOR)
+  const mestre = await prisma.user.upsert({
+    where: { matricula: 'mestre' },
+    update: { 
+      role: 'PROFESSOR',
+      password: defaultPassword,
+      isFirstAccess: false
+    },
     create: {
-      cpf: '22222222222',
+      matricula: 'mestre',
       nome: 'Mestre Solen',
       nickname: 'mestre',
+      password: defaultPassword,
+      isFirstAccess: false,
       role: 'PROFESSOR',
-      turmaId: turma.id
+    },
+  });
+
+  // 3. Criar Turma Alpha vinculada ao Mestre
+  const turma = await prisma.turma.upsert({
+    where: { nome: 'TURMA ALPHA' },
+    update: { 
+      professorId: mestre.id,
+      ano: '2026'
+    },
+    create: { 
+      nome: 'TURMA ALPHA',
+      ano: '2026',
+      professorId: mestre.id
     },
   });
 
   // 4. Criar Aluno (PLAYER) - Ashes2Ashes
   await prisma.user.upsert({
-    where: { cpf: '11111111111' },
-    update: { role: 'ALUNO', turmaId: turma.id },
+    where: { matricula: 'player01' },
+    update: { 
+      role: 'ALUNO', 
+      turmaId: turma.id,
+      password: defaultPassword,
+      isFirstAccess: true
+    },
     create: {
-      cpf: '11111111111',
+      matricula: 'player01',
       nome: 'Ashes To Ashes',
       nickname: 'Ashes2Ashes',
+      password: defaultPassword,
+      isFirstAccess: true,
       role: 'ALUNO',
       turmaId: turma.id,
       xp: 0,

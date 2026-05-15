@@ -8,17 +8,21 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  nome      String
-  nickname  String?  @unique
-  cpf       String   @unique
-  role      String   @default("ALUNO") // ADMIN, PROFESSOR, ALUNO
-  turno     String?  // MATUTINO, VESPERTINO, NOTURNO (Para os alunos)
-  xp        Int      @default(0)
-  level     Int      @default(1)
+  id            String   @id @default(uuid())
+  nome          String
+  nickname      String?  @unique
+  matricula     String   @unique
+  password      String
+  isFirstAccess Boolean  @default(true)
+  role          String   @default("ALUNO") // ADMIN, PROFESSOR, ALUNO
+  turno         String?  // MATUTINO, VESPERTINO, NOTURNO (Para os alunos)
+  xp            Int      @default(0)
+  level         Int      @default(1)
   
   turmaId   String?
-  turma     Turma?   @relation(fields: [turmaId], references: [id])
+  turma     Turma?   @relation("TurmaAlunos", fields: [turmaId], references: [id])
+
+  managedTurmas Turma[] @relation("ProfessorTurmas")
 
   /// Token Expo para envio de push notifications
   expoPushToken String?
@@ -33,9 +37,16 @@ model User {
 }
 
 model Turma {
-  id        String   @id @default(uuid())
-  nome      String   @unique // ex: "3º Ano A"
-  users     User[]
+  id              String   @id @default(uuid())
+  nome            String   @unique // ex: "3º Ano A"
+  ano             String?
+  codigoInvocacao String?  @default("1234")
+  
+  professorId String?
+  professor   User?    @relation("ProfessorTurmas", fields: [professorId], references: [id])
+
+  users       User[]   @relation("TurmaAlunos")
+  quests      Quest[]  @relation("TurmaQuests")
 }
 
 model Disciplina {
@@ -70,8 +81,12 @@ model Quest {
   ordem        Int        @default(1)
 
   turmaAlvoId  String?    // Se a quest for específica para uma turma
+  turmaAlvo    Turma?     @relation("TurmaQuests", fields: [turmaAlvoId], references: [id])
 
   status       String     @default("ATIVA") // ATIVA, EXPIRADA
+
+  semana       String?
+  tema         String?
 
   /// Janela total de entrega: 120 minutos a partir da criação
   windowEnd    DateTime?
