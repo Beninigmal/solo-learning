@@ -9,9 +9,30 @@ interface GenerateQuestBody {
   semana: string;
   turmaId: string;
   tema: string;
+  complexidade: string;
 }
 
 export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
+
+  const { GoogleGenerativeAI } = require('@google/generative-ai');
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+  const callGemini = async (prompt: string, image?: { data: string, mimeType: string }) => {
+    const parts: any[] = [prompt];
+    if (image) {
+      parts.push({
+        inlineData: {
+          data: image.data,
+          mimeType: image.mimeType
+        }
+      });
+    }
+    const result = await model.generateContent(parts);
+    let raw = result.response.text().trim();
+    raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+    return raw;
+  };
 
   // ─── GET /quests/history ──────────────────────────────────────────────────
   // Professor visualiza o histórico de missões geradas
@@ -78,7 +99,8 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           deliveryId: delivered.id,
           question: delivered.quest.enunciado,
           xp: delivered.quest.xp,
-          nivel: delivered.quest.nivel
+          nivel: delivered.quest.nivel,
+          tags: delivered.quest.tags
         });
       }
 
@@ -98,7 +120,8 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           question: waiting.quest.enunciado,
           xp: waiting.quest.xp,
           nivel: waiting.quest.nivel,
-          fromQueue: true
+          fromQueue: true,
+          tags: waiting.quest.tags
         });
       }
 
@@ -117,7 +140,8 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           deliveryId: updated.id,
           question: scheduled.quest.enunciado,
           xp: scheduled.quest.xp,
-          nivel: scheduled.quest.nivel
+          nivel: scheduled.quest.nivel,
+          tags: scheduled.quest.tags
         });
       }
 
@@ -134,9 +158,9 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
       return reply.status(403).send({ error: 'Acesso negado.' });
     }
 
-    const { semana, turmaId, tema } = request.body;
-    if (!semana || !turmaId || !tema) {
-      return reply.status(400).send({ error: 'Campos obrigatórios: semana, turmaId, tema.' });
+    const { semana, turmaId, tema, complexidade } = request.body;
+    if (!semana || !turmaId || !tema || !complexidade) {
+      return reply.status(400).send({ error: 'Campos obrigatórios: semana, turmaId, tema, complexidade.' });
     }
 
     try {
@@ -148,23 +172,25 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
         disciplina = await prisma.disciplina.create({ data: { nome: 'Missões Gerais' } });
       }
 
-      const { GoogleGenerativeAI } = require('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
       const prompt = `Você é um assistente educacional para alunos de escola pública brasileira.
 Crie EXATAMENTE 3 perguntas sobre o tema "${tema}" para a Semana "${semana}".
+Nível de ensino/Complexidade alvo: ${complexidade} (FUNDAMENTAL, MEDIO ou LIVRE).
 
 REGRAS IMPORTANTES:
 - Linguagem simples e direta.
-- Cada pergunta deve ter resposta numérica (um número inteiro).
+- As respostas podem ser numéricas ou em texto (uma palavra ou frase curta), dependendo do que for mais adequado para a pergunta.
 - Não dê a resposta.
 - Progressão: FÁCIL, MÉDIO, DIFÍCIL.
-- Retorne APENAS um JSON: {"facil": "...", "medio": "...", "dificil": "..."}`;
+- Adeque a complexidade das perguntas ao nível "${complexidade}".
+- Para cada pergunta, identifique se ela exige cálculos matemáticos ou físicos complexos que o aluno precisaria fazer no papel (ex: equações, fórmulas, funções).
+- Retorne APENAS um JSON no seguinte formato:
+{
+  "facil": { "enunciado": "...", "requiresCalculation": true/false },
+  "medio": { "enunciado": "...", "requiresCalculation": true/false },
+  "dificil": { "enunciado": "...", "requiresCalculation": true/false }
+}`;
 
-      const result = await model.generateContent(prompt);
-      let raw = result.response.text().trim();
-      raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+      const raw = await callGemini(prompt);
       const questions = JSON.parse(raw);
 
       const now = new Date();
@@ -174,7 +200,8 @@ REGRAS IMPORTANTES:
       const q1 = await prisma.quest.create({
         data: {
           disciplinaId: disciplina.id,
-          enunciado: questions.facil,
+          enunciado: questions.facil.enunciado,
+          tags: questions.facil.requiresCalculation ? ['CALCULO'] : [],
           xp: 100,
           nivel: 'FACIL',
           batchId,
@@ -189,7 +216,8 @@ REGRAS IMPORTANTES:
       await prisma.quest.create({
         data: {
           disciplinaId: disciplina.id,
-          enunciado: questions.medio,
+          enunciado: questions.medio.enunciado,
+          tags: questions.medio.requiresCalculation ? ['CALCULO'] : [],
           xp: 150,
           nivel: 'MEDIO',
           batchId,
@@ -204,7 +232,8 @@ REGRAS IMPORTANTES:
       await prisma.quest.create({
         data: {
           disciplinaId: disciplina.id,
-          enunciado: questions.dificil,
+          enunciado: questions.dificil.enunciado,
+          tags: questions.dificil.requiresCalculation ? ['CALCULO'] : [],
           xp: 200,
           nivel: 'DIFICIL',
           batchId,
@@ -261,21 +290,24 @@ REGRAS IMPORTANTES:
   });
 
   // ─── POST /quests/daily/submit ─────────────────────────────────────────────
-  fastify.post<{ Body: { deliveryId: string; question: string; answer: string } }>('/daily/submit', { preValidation: [fastify.authenticate] }, async (request, reply) => {
-    const { deliveryId, question, answer } = request.body;
+  fastify.post<{ Body: { deliveryId: string; question: string; answer: string; image?: string } }>('/daily/submit', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    const { deliveryId, question, answer, image } = request.body;
     const userId = request.user.id;
     if (!deliveryId || !question || !answer) return reply.status(400).send({ error: 'Campos obrigatórios faltando.' });
     try {
       const delivery = await prisma.questDelivery.findUnique({ where: { id: deliveryId }, include: { quest: true } });
       if (!delivery || delivery.userId !== userId) return reply.status(404).send({ error: 'Entrega não encontrada.' });
       
-      const { GoogleGenerativeAI } = require('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-      const prompt = `Valide a resposta "${answer}" para a pergunta "${question}". Retorne JSON: {"status": "success/error", "message": "..."}`;
-      const result = await model.generateContent(prompt);
-      let responseText = result.response.text().trim();
-      responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+      const prompt = answer === 'Cálculo na imagem'
+        ? `Valide a resposta para a pergunta "${question}". O aluno não digitou a resposta, ela está contida na imagem junto com o raciocínio. Analise a imagem para extrair a resposta final e o raciocínio matemático. Verifique se estão corretos. Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro ou parabéns"}`
+        : `Valide a resposta "${answer}" para a pergunta "${question}". Se uma imagem foi enviada, ela contém o raciocínio matemático do aluno. Analise-o para ver se está correto e se bate com a resposta digitada. Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro ou parabéns"}`;
+
+      let imageData = image;
+      if (image && image.startsWith('data:')) {
+        imageData = image.split(',')[1];
+      }
+
+      const responseText = await callGemini(prompt, imageData ? { data: imageData, mimeType: 'image/jpeg' } : undefined);
       const validation = JSON.parse(responseText);
 
       const isCorrect = validation.status === 'success';
@@ -338,13 +370,8 @@ REGRAS IMPORTANTES:
         return reply.status(404).send({ error: 'Registro não encontrado.' });
       }
 
-      const { GoogleGenerativeAI } = require('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const prompt = `Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". Retorne JSON: {"status": "success/error", "message": "..."}`;
-      const result = await model.generateContent(prompt);
-      let responseText = result.response.text().trim();
-      responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+      const responseText = await callGemini(prompt);
       const validation = JSON.parse(responseText);
 
       if (validation.status === 'success') {

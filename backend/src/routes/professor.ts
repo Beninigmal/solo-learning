@@ -69,7 +69,7 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
 
   // ─── GESTÃO DE ALUNOS (PLAYERS) ─────────────────────────────────────────
 
-  // Criar Aluno
+  // Criar Aluno (ou associar existente)
   fastify.post<{ Body: { matricula: string; nome: string; turmaId: string; turno: string } }>('/students', async (request, reply) => {
     const { matricula, nome, turmaId, turno } = request.body;
     if (!matricula || !nome || !turmaId) return reply.status(400).send({ error: 'Dados obrigatórios faltando.' });
@@ -79,6 +79,19 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
         where: { id: turmaId, professorId: request.user.role === 'ADMIN' ? undefined : request.user.id }
       });
       if (!turma) return reply.status(403).send({ error: 'Turma não encontrada ou sem permissão.' });
+
+      const existingStudent = await prisma.user.findUnique({
+        where: { matricula: matricula.toLowerCase() }
+      });
+
+      if (existingStudent) {
+        // Atualiza a turma e turno do aluno existente
+        const updatedStudent = await prisma.user.update({
+          where: { id: existingStudent.id },
+          data: { turmaId, turno }
+        });
+        return reply.status(200).send(updatedStudent);
+      }
 
       // No cadastro, a senha inicial é irrelevante se usarmos o código de invocação no primeiro login,
       // mas vamos salvar um hash aleatório por segurança.
@@ -95,8 +108,7 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
       });
       return reply.status(201).send(student);
     } catch (error: any) {
-      if (error.code === 'P2002') return reply.status(400).send({ error: 'Matrícula já está em uso.' });
-      return reply.status(500).send({ error: 'Erro ao cadastrar aluno.' });
+      return reply.status(500).send({ error: 'Erro ao processar cadastro de aluno.', details: error.message });
     }
   });
 
@@ -124,16 +136,21 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
   });
 
   // Listar Alunos
-  fastify.get<{ Querystring: { turmaId?: string } }>('/students', async (request, reply) => {
-    const { turmaId } = request.query;
+  fastify.get<{ Querystring: { turmaId?: string; unassigned?: string } }>('/students', async (request, reply) => {
+    const { turmaId, unassigned } = request.query;
+    
+    const where: any = { role: 'ALUNO' };
+    
+    if (unassigned === 'true') {
+      where.turmaId = null;
+    } else if (turmaId) {
+      where.turma = { id: turmaId, professorId: request.user.role === 'ADMIN' ? undefined : request.user.id };
+    } else {
+      where.turma = { professorId: request.user.role === 'ADMIN' ? undefined : request.user.id };
+    }
+
     const students = await prisma.user.findMany({
-      where: {
-        role: 'ALUNO',
-        turma: {
-          id: turmaId || undefined,
-          professorId: request.user.role === 'ADMIN' ? undefined : request.user.id
-        }
-      },
+      where,
       include: { turma: true },
       orderBy: { nome: 'asc' }
     });
