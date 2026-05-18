@@ -1,3 +1,4 @@
+// Forçando restart do servidor após gerar prisma client
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { prisma } from '../prisma';
 import bcrypt from 'bcryptjs';
@@ -65,7 +66,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
 
     } catch (error: any) {
       request.log.error(error);
-      return reply.status(500).send({ error: 'Erro interno ao autenticar.', details: error.message });
+      return reply.status(500).send({ error: `Erro interno ao autenticar: ${error.message}` });
     }
   });
 

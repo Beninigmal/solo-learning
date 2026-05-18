@@ -11,6 +11,7 @@ interface GenerateQuestBody {
   tema: string;
   complexidade: string;
   exigeCalculo: boolean;
+  disciplinaId: string;
 }
 
 export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
@@ -45,8 +46,13 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
     try {
       const history = await prisma.quest.findMany({
         where: {
-          turmaAlvo: request.user.role === 'ADMIN' ? {} : { professorId: request.user.id },
-          ordem: 1
+          turmaAlvo: request.user.role === 'ADMIN' ? {} : {
+            turmaDisciplinas: {
+              some: {
+                professorId: request.user.id
+              }
+            }
+          }
         },
         include: { 
           turmaAlvo: true,
@@ -159,19 +165,32 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
       return reply.status(403).send({ error: 'Acesso negado.' });
     }
 
-    const { semana, turmaId, tema, complexidade, exigeCalculo } = request.body;
+    const { semana, turmaId, tema, complexidade, exigeCalculo, disciplinaId } = request.body;
     console.log('GENERATE QUEST BODY:', request.body);
-    if (!semana || !turmaId || !tema || !complexidade) {
-      return reply.status(400).send({ error: 'Campos obrigatórios: semana, turmaId, tema, complexidade.' });
+    if (!semana || !turmaId || !tema || !complexidade || !disciplinaId) {
+      return reply.status(400).send({ error: 'Campos obrigatórios: semana, turmaId, tema, complexidade, disciplinaId.' });
     }
 
     try {
       const turma = await prisma.turma.findUnique({ where: { id: turmaId } });
       if (!turma) return reply.status(404).send({ error: 'Turma não encontrada.' });
 
-      let disciplina = await prisma.disciplina.findUnique({ where: { nome: 'Missões Gerais' } });
-      if (!disciplina) {
-        disciplina = await prisma.disciplina.create({ data: { nome: 'Missões Gerais' } });
+      const disciplina = await prisma.disciplina.findUnique({ where: { id: disciplinaId } });
+      if (!disciplina) return reply.status(404).send({ error: 'Disciplina não encontrada.' });
+
+      // Verificar vínculo se não for Admin
+      if (request.user.role !== 'ADMIN') {
+        const vinculo = await prisma.turmaDisciplina.findFirst({
+          where: {
+            turmaId,
+            disciplinaId,
+            professorId: request.user.id
+          }
+        });
+
+        if (!vinculo) {
+          return reply.status(403).send({ error: 'Você não tem permissão para criar quests desta disciplina para esta turma.' });
+        }
       }
 
       const prompt = `Você é um assistente educacional para alunos de escola pública brasileira.

@@ -52,18 +52,40 @@ async function main() {
     },
   });
 
-  // 3. Criar Turma Alpha vinculada ao Mestre
+  // 3. Criar Turma Alpha
   const turma = await prisma.turma.upsert({
     where: { nome: 'TURMA ALPHA' },
     update: { 
-      professorId: mestre.id,
       ano: '2026'
     },
     create: { 
       nome: 'TURMA ALPHA',
       ano: '2026',
+    },
+  });
+
+  // 3.5 Criar Disciplina e Vínculo
+  const disciplina = await prisma.disciplina.upsert({
+    where: { nome: 'Matemática' },
+    update: {},
+    create: { nome: 'Matemática' }
+  });
+
+  await prisma.turmaDisciplina.upsert({
+    where: {
+      turmaId_disciplinaId: {
+        turmaId: turma.id,
+        disciplinaId: disciplina.id
+      }
+    },
+    update: {
       professorId: mestre.id
     },
+    create: {
+      turmaId: turma.id,
+      disciplinaId: disciplina.id,
+      professorId: mestre.id
+    }
   });
 
   // 4. Criar Aluno (PLAYER) - Ashes2Ashes

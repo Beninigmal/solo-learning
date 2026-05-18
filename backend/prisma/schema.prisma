@@ -16,13 +16,14 @@ model User {
   isFirstAccess Boolean  @default(true)
   role          String   @default("ALUNO") // ADMIN, PROFESSOR, ALUNO
   turno         String?  // MATUTINO, VESPERTINO, NOTURNO (Para os alunos)
+  instituicao   String?  // Instituição de ensino
   xp            Int      @default(0)
   level         Int      @default(1)
   
   turmaId   String?
   turma     Turma?   @relation("TurmaAlunos", fields: [turmaId], references: [id])
 
-  managedTurmas Turma[] @relation("ProfessorTurmas")
+  turmaDisciplinas TurmaDisciplina[]
 
   /// Token Expo para envio de push notifications
   expoPushToken String?
@@ -43,8 +44,7 @@ model Turma {
   ano             String?
   codigoInvocacao String?  @default("1234")
   
-  professorId String?
-  professor   User?    @relation("ProfessorTurmas", fields: [professorId], references: [id])
+  turmaDisciplinas TurmaDisciplina[]
 
   users       User[]   @relation("TurmaAlunos")
   quests      Quest[]  @relation("TurmaQuests")
@@ -55,6 +55,7 @@ model Disciplina {
   nome        String   @unique // ex: "Matemática", "Física"
   professores DisciplinaProfessor[]
   quests      Quest[]
+  turmaDisciplinas TurmaDisciplina[]
 }
 
 model DisciplinaProfessor {
@@ -153,4 +154,19 @@ model WrongAnswer {
   createdAt DateTime @default(now())
 
   @@unique([userId, questId])
+}
+
+model TurmaDisciplina {
+  id           String     @id @default(uuid())
+  turmaId      String
+  professorId  String
+  disciplinaId String
+
+  turma        Turma      @relation(fields: [turmaId], references: [id])
+  professor    User       @relation(fields: [professorId], references: [id])
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id])
+
+  createdAt    DateTime   @default(now())
+
+  @@unique([turmaId, disciplinaId])
 }

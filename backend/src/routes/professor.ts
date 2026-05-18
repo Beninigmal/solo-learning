@@ -13,34 +13,18 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
 
   // ─── GESTÃO DE TURMAS ──────────────────────────────────────────────────
 
-  // Criar Turma
-  fastify.post<{ Body: { nome: string; ano: string; codigoInvocacao?: string } }>('/turmas', async (request, reply) => {
-    const { nome, ano, codigoInvocacao } = request.body;
 
-    if (!nome || !ano) {
-      return reply.status(400).send({ error: 'Nome e Ano são obrigatórios.' });
-    }
-
-    try {
-      const turma = await prisma.turma.create({
-        data: {
-          nome: nome.toUpperCase(),
-          ano,
-          codigoInvocacao: codigoInvocacao || "1234",
-          professorId: request.user.id
-        }
-      });
-      return reply.status(201).send(turma);
-    } catch (error: any) {
-      if (error.code === 'P2002') return reply.status(400).send({ error: 'Já existe uma turma com este nome.' });
-      return reply.status(500).send({ error: 'Erro ao criar turma.' });
-    }
-  });
 
   // Listar Turmas do Mestre
   fastify.get('/turmas', async (request, reply) => {
     const turmas = await prisma.turma.findMany({
-      where: request.user.role === 'ADMIN' ? {} : { professorId: request.user.id },
+      where: request.user.role === 'ADMIN' ? {} : {
+        turmaDisciplinas: {
+          some: {
+            professorId: request.user.id
+          }
+        }
+      },
       include: { _count: { select: { users: true } } },
       orderBy: { nome: 'asc' }
     });
@@ -54,7 +38,16 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
 
     try {
       const updated = await prisma.turma.update({
-        where: { id, professorId: request.user.role === 'ADMIN' ? undefined : request.user.id },
+        where: { 
+          id,
+          ...(request.user.role !== 'ADMIN' ? {
+            turmaDisciplinas: {
+              some: {
+                professorId: request.user.id
+              }
+            }
+          } : {})
+        },
         data: { 
           ...(nome ? { nome: nome.toUpperCase() } : {}),
           ano,
@@ -76,7 +69,16 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
 
     try {
       const turma = await prisma.turma.findFirst({
-        where: { id: turmaId, professorId: request.user.role === 'ADMIN' ? undefined : request.user.id }
+        where: { 
+          id: turmaId,
+          ...(request.user.role !== 'ADMIN' ? {
+            turmaDisciplinas: {
+              some: {
+                professorId: request.user.id
+              }
+            }
+          } : {})
+        }
       });
       if (!turma) return reply.status(403).send({ error: 'Turma não encontrada ou sem permissão.' });
 
@@ -121,7 +123,13 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
         where: { 
           id, 
           role: 'ALUNO',
-          turma: { professorId: request.user.role === 'ADMIN' ? undefined : request.user.id }
+          turma: request.user.role === 'ADMIN' ? {} : {
+            turmaDisciplinas: {
+              some: {
+                professorId: request.user.id
+              }
+            }
+          }
         },
         data: { 
           isFirstAccess: true,
@@ -144,9 +152,26 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
     if (unassigned === 'true') {
       where.turmaId = null;
     } else if (turmaId) {
-      where.turma = { id: turmaId, professorId: request.user.role === 'ADMIN' ? undefined : request.user.id };
+      where.turmaId = turmaId;
+      if (request.user.role !== 'ADMIN') {
+        where.turma = {
+          turmaDisciplinas: {
+            some: {
+              professorId: request.user.id
+            }
+          }
+        };
+      }
     } else {
-      where.turma = { professorId: request.user.role === 'ADMIN' ? undefined : request.user.id };
+      if (request.user.role !== 'ADMIN') {
+        where.turma = {
+          turmaDisciplinas: {
+            some: {
+              professorId: request.user.id
+            }
+          }
+        };
+      }
     }
 
     const students = await prisma.user.findMany({
@@ -164,8 +189,15 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
     try {
       const updated = await prisma.user.update({
         where: { 
-          id, role: 'ALUNO',
-          turma: { professorId: request.user.role === 'ADMIN' ? undefined : request.user.id }
+          id, 
+          role: 'ALUNO',
+          turma: request.user.role === 'ADMIN' ? {} : {
+            turmaDisciplinas: {
+              some: {
+                professorId: request.user.id
+              }
+            }
+          }
         },
         data: { nome, matricula, nickname, turno }
       });
@@ -184,8 +216,17 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
     }
 
     try {
-      const turma = await prisma.turma.findUnique({
-        where: { id: turmaId, professorId: request.user.role === 'ADMIN' ? undefined : request.user.id }
+      const turma = await prisma.turma.findFirst({
+        where: { 
+          id: turmaId,
+          ...(request.user.role !== 'ADMIN' ? {
+            turmaDisciplinas: {
+              some: {
+                professorId: request.user.id
+              }
+            }
+          } : {})
+        }
       });
 
       if (!turma) {
@@ -230,5 +271,18 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
     } catch (error) {
       return reply.status(500).send({ error: 'Erro ao processar lote.' });
     }
+  });
+
+  // Listar Disciplinas do Mestre
+  fastify.get('/disciplinas', async (request, reply) => {
+    const vinculos = await prisma.turmaDisciplina.findMany({
+      where: { professorId: request.user.id },
+      include: { disciplina: true }
+    });
+    
+    // Remove duplicatas
+    const disciplinas = Array.from(new Map(vinculos.map(v => [v.disciplina.id, v.disciplina])).values());
+    
+    return reply.send(disciplinas);
   });
 };
