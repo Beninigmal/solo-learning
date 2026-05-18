@@ -161,7 +161,6 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
 
     const { semana, turmaId, tema, complexidade, exigeCalculo } = request.body;
     console.log('GENERATE QUEST BODY:', request.body);
-    require('fs').writeFileSync('/home/beni/Documentos/Estudos/Projetos/Solen/backend/src/generate_log.txt', JSON.stringify({ semana, turmaId, tema, complexidade, exigeCalculo }, null, 2));
     if (!semana || !turmaId || !tema || !complexidade) {
       return reply.status(400).send({ error: 'Campos obrigatórios: semana, turmaId, tema, complexidade.' });
     }
