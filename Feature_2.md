@@ -29,10 +29,23 @@ As missões não são estáticas; elas seguem uma fila de prioridade.
 - **Duração Dinâmica:** O tempo para expiração (Penalty Quest) deve ser calculado pela IA com base na complexidade da questão e perfil socioeconômico (Escola Pública).
 - **Aguardar:** A notificação fica minimizada no "Quest Log" da tela principal.
 
-## 3. Sistema de RAID (Party de Estudo)
-- **Mecânica:** Alunos criam grupos para resolver um set de questões mais complexas.
-- **Vitória:** XP compartilhado + bônus individual.
-- **Condição de Sucesso:** Cada membro deve atingir um mínimo de acertos (Checkpoint Individual) para que a Raid seja considerada "CLEARED".
+## 3. Sistema de RAID e BOSS (Party de Estudo)
+- **Party System:** Alunos podem formar grupos (Party) de no máximo 3 membros da mesma turma para resolver missões em conjunto e cooperar.
+- **Mini Boss:**
+  - **Invocação:** Invocado ao completar exatamente 6 missões (de forma solo ou em grupo). As 6 missões podem ser combinadas como:
+    - 3 missões de uma matéria (máximo diário gerado na forja por matéria) + 3 missões de outra matéria;
+    - Ou 2 + 2 + 2 missões de três matérias diferentes.
+  - **Enfrentamento:** O combate é feito pela Party de no máximo 3 jogadores.
+  - **Dificuldade:** A pergunta do Mini Boss é de nível moderado (mais difícil que as comuns, porém perfeitamente respondível para os alunos, sem ser insana).
+  - **Recompensa:** Concede XP compartilhado e chance (RNG) de dropar artefatos raros diretamente para o inventário.
+- **Boss (General):**
+  - **Invocação:** Invocado manualmente pelo Mestre através de um evento global na forja.
+  - **Dificuldade:** Pergunta de nível altamente complexo/muito difícil sobre o assunto selecionado.
+  - **Regras:** Erros não amaldiçoam o Boss (não perdem 25% de XP a cada erro, sempre dando a pontuação máxima).
+  - **Duração:** O Mestre define a duração/tempo limite do Boss em **dias** diretamente na forja durante a invocação.
+- **Uso de Artefatos:**
+  - **Modal de Resposta:** Durante qualquer missão (diária, baú ou boss), um ícone de uso de artefato aparecerá no modal de resposta. Ao clicar, o aluno acessará seus artefatos para facilitar a resolução da missão.
+  - **Bolsa e Baú:** Os artefatos são exibidos na bolsa do jogador, mas podem ser consumidos diretamente na bolsa ou no **Baú de Quests Perdidas** para auxiliar a responder as missões acumuladas.
 
 ## 4. Requisitos Técnicos para o Agente
 - **Backend:** - Implementar JWT (JSON Web Token) para diferenciar os perfis.

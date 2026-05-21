@@ -91,7 +91,10 @@ model Quest {
   tema         String?
   tags         String[]
 
-  /// Janela total de entrega: 120 minutos a partir da criação
+  /// Data de expiração da Quest (7 dias após criação)
+  expiresAt    DateTime?
+
+  /// Janela de entrega legada (mantida para compatibilidade)
   windowEnd    DateTime?
 
   deliveries   QuestDelivery[]
@@ -118,6 +121,7 @@ model QuestDelivery {
   expiresAt    DateTime? // = waitingSince + 40 min (TTL da fila de espera)
   answeredAt   DateTime?
   isCorrect    Boolean?
+  erros        Int       @default(0) // Contador de erros para cálculo da maldição 25%
 
   createdAt   DateTime @default(now())
 

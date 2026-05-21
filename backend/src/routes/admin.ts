@@ -97,14 +97,18 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
   });
 
   // Editar Aluno (Arquiteto)
-  fastify.put<{ Params: { id: string }; Body: { nome?: string; nickname?: string } }>('/students/:id', async (request, reply) => {
+  fastify.put<{ Params: { id: string }; Body: { nome?: string; nickname?: string; turmaId?: string } }>('/students/:id', async (request, reply) => {
     const { id } = request.params;
-    const { nome, nickname } = request.body;
+    const { nome, nickname, turmaId } = request.body;
 
     try {
       const updated = await prisma.user.update({
         where: { id, role: 'ALUNO' },
-        data: { nome, nickname }
+        data: { 
+          nome, 
+          nickname,
+          ...(turmaId !== undefined ? { turmaId: turmaId || null } : {})
+        }
       });
       return reply.send(updated);
     } catch (error) {

@@ -6,8 +6,8 @@ import bcrypt from 'bcryptjs';
 export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   
   // ─── POST /login ──────────────────────────────────────────────────────────
-  fastify.post<{ Body: { matricula: string; password?: string } }>('/login', async (request, reply) => {
-    const { matricula, password } = request.body;
+  fastify.post<{ Body: { matricula: string; password?: string; role?: string } }>('/login', async (request, reply) => {
+    const { matricula, password, role } = request.body;
 
     if (!matricula || !password) {
       return reply.status(400).send({ error: 'Matrícula e Senha são obrigatórios.' });
@@ -21,6 +21,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
 
       if (!user) {
         return reply.status(401).send({ error: 'Credenciais inválidas.' });
+      }
+
+      if (role && user.role !== role) {
+        return reply.status(401).send({ error: 'Nível de acesso incorreto para esta conta.' });
       }
 
       // Se for o PRIMEIRO ACESSO de um ALUNO, a senha é o Código de Invocação da Turma
