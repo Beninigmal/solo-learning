@@ -15,26 +15,78 @@ interface GenerateQuestBody {
   disciplinaId: string;
 }
 
+class GeminiRotator {
+  private keys: string[] = [];
+  private currentIndex: number = 0;
+
+  constructor() {
+    this.reloadKeys();
+  }
+
+  public reloadKeys(): void {
+    const rawKeys = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || "";
+    this.keys = rawKeys.split(",").map(k => k.trim()).filter(k => k.length > 0);
+  }
+
+  public getActiveKey(): string {
+    if (this.keys.length === 0) {
+      this.reloadKeys();
+    }
+    if (this.keys.length === 0) {
+      throw new Error("Nenhuma API Key do Gemini configurada.");
+    }
+    return this.keys[this.currentIndex];
+  }
+
+  public rotateKey(): void {
+    if (this.keys.length <= 1) return;
+    const oldIndex = this.currentIndex;
+    this.currentIndex = (this.currentIndex + 1) % this.keys.length;
+    console.warn(`[Gemini Rotator] Chave ${oldIndex} esgotada. Rotacionando para a chave ${this.currentIndex}.`);
+  }
+
+  public get totalKeys(): number {
+    return this.keys.length;
+  }
+}
+
+const rotator = new GeminiRotator();
+
 export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
 
-  const { GoogleGenerativeAI } = require('@google/generative-ai');
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const callGemini = async (prompt: string, image?: { data: string, mimeType: string }, attempt: number = 0): Promise<string> => {
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    
+    try {
+      const activeKey = rotator.getActiveKey();
+      const genAI = new GoogleGenerativeAI(activeKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-  const callGemini = async (prompt: string, image?: { data: string, mimeType: string }) => {
-    const parts: any[] = [prompt];
-    if (image) {
-      parts.push({
-        inlineData: {
-          data: image.data,
-          mimeType: image.mimeType
-        }
-      });
+      const parts: any[] = [prompt];
+      if (image) {
+        parts.push({
+          inlineData: {
+            data: image.data,
+            mimeType: image.mimeType
+          }
+        });
+      }
+      
+      const result = await model.generateContent(parts);
+      let raw = result.response.text().trim();
+      raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+      return raw;
+
+    } catch (error: any) {
+      const status = error.status || error.statusCode || 500;
+      const isRateLimit = status === 429 || error.message?.includes("RESOURCE_EXHAUSTED") || error.message?.includes("quota");
+
+      if (isRateLimit && attempt < rotator.totalKeys - 1) {
+        rotator.rotateKey();
+        return callGemini(prompt, image, attempt + 1);
+      }
+      throw error;
     }
-    const result = await model.generateContent(parts);
-    let raw = result.response.text().trim();
-    raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
-    return raw;
   };
 
   // ─── GET /quests/history ──────────────────────────────────────────────────
@@ -223,14 +275,17 @@ ${exigeCalculo
   : '- As perguntas devem ser teóricas ou de resposta direta, sem necessidade de desenvolvimento de cálculos complexos.'
 }
 - A pergunta 6 deve ser uma pergunta "BOSS": altamente complexa, que desafie o aluno e exija o uso de todo o conhecimento do tema.
-- Retorne APENAS um JSON no seguinte formato: {
-  "q1": "pergunta fácil",
-  "q2": "pergunta média",
-  "q3": "pergunta difícil",
-  "q4": "pergunta difícil",
-  "q5": "pergunta difícil",
-  "q6": "pergunta BOSS"
-}`;
+- Retorne APENAS um JSON no formato especificado abaixo. Não inclua texto explicativo adicional.
+Exemplo de formato esperado:
+{
+  "q1": "Escreva a lei da função que representa o valor...",
+  "q2": "Dada a função f(x) = 3x - 9, determine...",
+  "q3": "Um reservatório com 500 litros de água apresenta...",
+  "q4": "A função f(x) = ax + b passa pelos pontos...",
+  "q5": "Uma empresa vende um produto por R$ 50,00...",
+  "q6": "Um projétil é lançado verticalmente com velocidade..."
+}
+`;
 
       let raw = await callGemini(prompt);
       
@@ -334,9 +389,10 @@ ${exigeCalculo
       const prompt = `Você é um assistente educacional para alunos de escola pública brasileira.
 Crie uma pergunta épica e desafiadora de nível "BOSS" sobre o tema "${tema}".
 Esta pergunta deve ser complexa e exigir que o aluno demonstre domínio sobre o assunto.
-Retorne APENAS um JSON no seguinte formato:
+Retorne APENAS um JSON no formato especificado abaixo. Não inclua texto explicativo adicional.
+Exemplo de formato esperado:
 {
-  "pergunta": "Texto da pergunta aqui..."
+  "pergunta": "Um foguete de testes é lançado de uma base militar..."
 }`;
 
       let raw = await callGemini(prompt);
@@ -416,13 +472,69 @@ Retorne APENAS um JSON no seguinte formato:
   });
 
   // ─── POST /quests/request-next ─────────────────────────────────────────────
-  fastify.post('/request-next', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+  fastify.post<{ Body: { disciplinaId?: string } }>('/request-next', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    const { disciplinaId } = request.body || {};
     const userId = request.user.id;
     const now = new Date();
+
     try {
-      // Busca a última quest completada pelo usuário
+      // 1. Verificar se já existe uma quest WAITING para este usuário que possamos reativar
+      const waiting = await prisma.questDelivery.findFirst({
+        where: {
+          userId,
+          status: 'WAITING',
+          expiresAt: { gt: now },
+          quest: {
+            nivel: { notIn: ['BOSS', 'MINIBOSS'] },
+            ...(disciplinaId ? { disciplinaId } : {})
+          }
+        },
+        include: { quest: true },
+        orderBy: { waitingSince: 'asc' }
+      });
+
+      if (waiting) {
+        await prisma.questDelivery.update({
+          where: { id: waiting.id },
+          data: { status: 'DELIVERED', deliveredAt: now }
+        });
+        return reply.status(200).send({ message: 'Missão reativada com sucesso!' });
+      }
+
+      // 2. Buscar se já existe uma entrega SCHEDULED pré-criada no banco
+      const scheduled = await prisma.questDelivery.findFirst({
+        where: {
+          userId,
+          status: 'SCHEDULED',
+          scheduledAt: { lte: now },
+          quest: {
+            nivel: { notIn: ['BOSS', 'MINIBOSS'] },
+            ...(disciplinaId ? { disciplinaId } : {})
+          }
+        },
+        include: { quest: true },
+        orderBy: { scheduledAt: 'asc' }
+      });
+
+      if (scheduled) {
+        await prisma.questDelivery.update({
+          where: { id: scheduled.id },
+          data: { status: 'DELIVERED', deliveredAt: now }
+        });
+        return reply.status(200).send({ message: 'Missão invocada com sucesso!' });
+      }
+
+      // 3. Caso contrário, buscar dinamicamente a próxima quest sequencial na disciplina
+      // Busca a última quest completada pelo usuário para esta disciplina (ou no geral se disciplinaId for nulo)
       const lastCompleted = await prisma.questDelivery.findFirst({
-        where: { userId, status: 'COMPLETED' },
+        where: {
+          userId,
+          status: 'COMPLETED',
+          quest: {
+            nivel: { notIn: ['BOSS', 'MINIBOSS'] },
+            ...(disciplinaId ? { disciplinaId } : {})
+          }
+        },
         include: { quest: true },
         orderBy: { answeredAt: 'desc' }
       });
@@ -435,7 +547,11 @@ Retorne APENAS um JSON no seguinte formato:
 
         // Busca a próxima quest no mesmo lote
         nextQuest = await prisma.quest.findFirst({
-          where: { batchId, ordem: currentOrdem + 1 }
+          where: {
+            batchId,
+            ordem: currentOrdem + 1,
+            nivel: { notIn: ['BOSS', 'MINIBOSS'] }
+          }
         });
       }
 
@@ -447,38 +563,34 @@ Retorne APENAS um JSON no seguinte formato:
         }
 
         const latestQuest = await prisma.quest.findFirst({
-          where: { turmaAlvoId: user.turmaId },
+          where: { 
+            turmaAlvoId: user.turmaId,
+            nivel: { notIn: ['BOSS', 'MINIBOSS'] },
+            ...(disciplinaId ? { disciplinaId } : {})
+          },
           orderBy: { createdAt: 'desc' }
         });
 
         if (latestQuest) {
           const batchId = latestQuest.batchId;
-          nextQuest = await prisma.quest.findFirst({
+          const firstInBatch = await prisma.quest.findFirst({
             where: { batchId, ordem: 1 }
           });
+
+          if (firstInBatch) {
+            // Verificar se já existe entrega para essa primeira quest do lote
+            const hasDelivery = await prisma.questDelivery.findFirst({
+              where: { userId, questId: firstInBatch.id }
+            });
+            if (!hasDelivery) {
+              nextQuest = firstInBatch;
+            }
+          }
         }
       }
 
-      if (!nextQuest) {
-        return reply.status(404).send({ error: 'Todos os portais foram fechados!' });
-      }
-
-      // Verifica se já existe uma entrega para esta quest
-      const existingDelivery = await prisma.questDelivery.findFirst({
-        where: { userId, questId: nextQuest.id }
-      });
-
-      if (existingDelivery) {
-        if (existingDelivery.status === 'DELIVERED') {
-          return reply.status(200).send({ message: 'Missão já invocada!' });
-        }
-        // Se estava agendada ou em outro estado, atualiza para entregue
-        await prisma.questDelivery.update({
-          where: { id: existingDelivery.id },
-          data: { status: 'DELIVERED', deliveredAt: now }
-        });
-      } else {
-        // Cria nova entrega
+      if (nextQuest) {
+        // Cria nova entrega como DELIVERED
         await prisma.questDelivery.create({
           data: {
             questId: nextQuest.id,
@@ -488,12 +600,13 @@ Retorne APENAS um JSON no seguinte formato:
             scheduledAt: now
           }
         });
+        return reply.status(200).send({ message: 'Missão invocada com sucesso!' });
       }
 
-      return reply.status(200).send({ message: 'Missão invocada com sucesso!' });
+      return reply.status(404).send({ error: 'Todas as dungeons desta matéria estão seladas no momento.' });
     } catch (error: any) {
       request.log.error(error);
-      return reply.status(500).send({ error: 'Erro ao invocar missão.' });
+      return reply.status(500).send({ error: 'Erro ao invocar missão.', details: error.message });
     }
   });
 
@@ -796,10 +909,18 @@ Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro
           data: { resolvido: true }
         });
 
-        let xpGanho = 10; // Fixo em 10 XP conforme solicitado
+        const questXp = wrongAnswer.quest.xp;
+        const totalErros = wrongAnswer.tentativas;
+        const isBoss = wrongAnswer.quest.nivel === 'BOSS' || wrongAnswer.quest.nivel === 'MINIBOSS';
+
+        let xpGanho = isBoss 
+          ? questXp 
+          : Math.max(Math.round(questXp * Math.pow(0.75, totalErros)), 25);
+
         if (artifactId === 'elixir_dourado') {
-          xpGanho = 20; // Duplica o XP
+          xpGanho *= 2; // Duplica o XP
         }
+
         await prisma.user.update({
           where: { id: userId },
           data: { xp: { increment: xpGanho } }
@@ -813,8 +934,9 @@ Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro
         });
         return reply.send(validation);
       }
-    } catch (error) {
-      return reply.status(500).send({ error: 'Erro ao processar tentativa.' });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao processar tentativa.', details: error.message, stack: error.stack });
     }
   });
 
@@ -995,6 +1117,265 @@ Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro
       return reply.send({ message: 'Você saiu da Party com sucesso.' });
     } catch (e) {
       return reply.status(500).send({ error: 'Erro ao sair da Party.' });
+    }
+  });
+
+  // ─── GET /quests/subject-stats ──────────────────────────────────────────────
+  fastify.get('/subject-stats', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    const userId = request.user.id;
+    try {
+      const student = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { turmaId: true }
+      });
+
+      if (!student || !student.turmaId) {
+        return reply.send([]);
+      }
+
+      // Buscar disciplinas vinculadas à turma
+      const turmaDisciplinas = await prisma.turmaDisciplina.findMany({
+        where: { turmaId: student.turmaId },
+        include: { disciplina: true }
+      });
+
+      const stats = [];
+
+      for (const td of turmaDisciplinas) {
+        const disciplina = td.disciplina;
+
+        // X (Acertos): COMPLETED com isCorrect = true
+        const acertos = await prisma.questDelivery.count({
+          where: {
+            userId,
+            isCorrect: true,
+            quest: {
+              disciplinaId: disciplina.id,
+              nivel: { notIn: ['BOSS', 'MINIBOSS'] }
+            }
+          }
+        });
+
+        // F (Falhas): Com erro > 0 ou isCorrect = false
+        const falhas = await prisma.questDelivery.count({
+          where: {
+            userId,
+            quest: {
+              disciplinaId: disciplina.id,
+              nivel: { notIn: ['BOSS', 'MINIBOSS'] }
+            },
+            OR: [
+              { erros: { gt: 0 } },
+              { isCorrect: false }
+            ]
+          }
+        });
+
+        // Y (Disponíveis): Quests no banco daquela disciplina menos as que já foram entregues
+        const totalQuestsInClass = await prisma.quest.count({
+          where: {
+            turmaAlvoId: student.turmaId,
+            disciplinaId: disciplina.id,
+            nivel: { notIn: ['BOSS', 'MINIBOSS'] }
+          }
+        });
+
+        const totalDeliveredQuests = await prisma.questDelivery.count({
+          where: {
+            userId,
+            quest: {
+              disciplinaId: disciplina.id,
+              nivel: { notIn: ['BOSS', 'MINIBOSS'] }
+            },
+            status: { in: ['DELIVERED', 'WAITING', 'COMPLETED', 'EXPIRED'] }
+          }
+        });
+
+        const disponiveis = Math.max(totalQuestsInClass - totalDeliveredQuests, 0);
+
+        stats.push({
+          disciplinaId: disciplina.id,
+          nome: disciplina.nome,
+          acertos,
+          falhas,
+          disponiveis
+        });
+      }
+
+      return reply.send(stats);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao buscar estatísticas de matérias.', details: error.message });
+    }
+  });
+
+  // ==========================================
+  // FEATURE: PERGUNTA DOURADA (DIRETOR <-> ALUNO)
+  // ==========================================
+
+  // 1. Criar Pergunta Dourada (Apenas Diretor/ADMIN/PROFESSOR)
+  fastify.post<{ Body: { enunciado: string; turmaId: string } }>('/golden-question', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'PROFESSOR')) {
+        return reply.status(403).send({ error: 'Apenas diretores e mestres podem forjar perguntas douradas.' });
+      }
+
+      const { enunciado, turmaId } = request.body;
+      if (!enunciado || !turmaId) {
+        return reply.status(400).send({ error: 'Campos enunciado e turmaId são obrigatórios.' });
+      }
+
+      const goldenQuestion = await prisma.goldenQuestion.create({
+        data: {
+          enunciado,
+          turmaId
+        }
+      });
+
+      return reply.status(201).send(goldenQuestion);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao criar pergunta dourada.', details: error.message });
+    }
+  });
+
+  // 2. Listar Perguntas Douradas e Respostas (Apenas Diretor/ADMIN/PROFESSOR)
+  fastify.get('/golden-questions', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'PROFESSOR')) {
+        return reply.status(403).send({ error: 'Apenas diretores e mestres podem ver o histórico de perguntas douradas.' });
+      }
+
+      const questions = await prisma.goldenQuestion.findMany({
+        include: {
+          turma: {
+            include: {
+              users: {
+                where: { role: 'ALUNO' }
+              }
+            }
+          },
+          respostas: {
+            include: {
+              user: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      const formatted = questions.map((q: any) => {
+        const totalStudents = q.turma.users.length;
+        const answeredCount = q.respostas.length;
+        const rate = totalStudents > 0 ? Math.round((answeredCount / totalStudents) * 100) : 0;
+
+        return {
+          id: q.id,
+          enunciado: q.enunciado,
+          turmaId: q.turmaId,
+          turmaNome: q.turma.nome,
+          totalAlunos: totalStudents,
+          respostasContadas: answeredCount,
+          taxaResposta: rate,
+          respostas: q.respostas.map((r: any) => ({
+            id: r.id,
+            alunoNome: r.user.nome,
+            alunoMatricula: r.user.matricula,
+            resposta: r.resposta,
+            createdAt: r.createdAt
+          })),
+          createdAt: q.createdAt
+        };
+      });
+
+      return reply.send(formatted);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao listar perguntas douradas.', details: error.message });
+    }
+  });
+
+  // 3. Obter Pergunta Dourada Ativa (Apenas Aluno)
+  fastify.get('/golden-question/active', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const student = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!student || student.role !== 'ALUNO' || !student.turmaId) {
+        return reply.send(null);
+      }
+
+      // Busca a pergunta dourada mais recente para a turma do aluno
+      const latestQuestion = await prisma.goldenQuestion.findFirst({
+        where: { turmaId: student.turmaId },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (!latestQuestion) {
+        return reply.send(null);
+      }
+
+      // Verifica se o aluno já respondeu a esta pergunta específica
+      const answered = await prisma.goldenAnswer.findUnique({
+        where: {
+          goldenQuestionId_userId: {
+            goldenQuestionId: latestQuestion.id,
+            userId: student.id
+          }
+        }
+      });
+
+      if (answered) {
+        return reply.send(null);
+      }
+
+      return reply.send(latestQuestion);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao buscar pergunta dourada ativa.', details: error.message });
+    }
+  });
+
+  // 4. Responder a Pergunta Dourada (Apenas Aluno)
+  fastify.post<{ Body: { goldenQuestionId: string; resposta: string } }>('/golden-question/answer', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const student = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!student || student.role !== 'ALUNO') {
+        return reply.status(403).send({ error: 'Apenas alunos podem responder a perguntas douradas.' });
+      }
+
+      const { goldenQuestionId, resposta } = request.body;
+      if (!goldenQuestionId || !resposta || resposta.trim() === '') {
+        return reply.status(400).send({ error: 'Campos goldenQuestionId e resposta são obrigatórios.' });
+      }
+
+      // Verifica se a pergunta realmente existe e pertence à turma do aluno
+      const question = await prisma.goldenQuestion.findUnique({ where: { id: goldenQuestionId } });
+      if (!question || question.turmaId !== student.turmaId) {
+        return reply.status(404).send({ error: 'Pergunta dourada não encontrada ou indisponível para sua turma.' });
+      }
+
+      const answer = await prisma.goldenAnswer.upsert({
+        where: {
+          goldenQuestionId_userId: {
+            goldenQuestionId,
+            userId: student.id
+          }
+        },
+        update: {
+          resposta
+        },
+        create: {
+          goldenQuestionId,
+          userId: student.id,
+          resposta
+        }
+      });
+
+      return reply.status(201).send(answer);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao registrar resposta da pergunta dourada.', details: error.message });
     }
   });
 };

@@ -33,6 +33,7 @@ model User {
   raids           RaidParticipant[]
   questDeliveries QuestDelivery[]
   wrongAnswers    WrongAnswer[]
+  goldenAnswers   GoldenAnswer[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -46,8 +47,9 @@ model Turma {
   
   turmaDisciplinas TurmaDisciplina[]
 
-  users       User[]   @relation("TurmaAlunos")
-  quests      Quest[]  @relation("TurmaQuests")
+  users           User[]   @relation("TurmaAlunos")
+  quests          Quest[]  @relation("TurmaQuests")
+  goldenQuestions GoldenQuestion[]
 }
 
 model Disciplina {
@@ -173,4 +175,26 @@ model TurmaDisciplina {
   createdAt    DateTime   @default(now())
 
   @@unique([turmaId, disciplinaId])
+}
+
+model GoldenQuestion {
+  id        String   @id @default(uuid())
+  enunciado String
+  turmaId   String
+  turma     Turma    @relation(fields: [turmaId], references: [id])
+  createdAt DateTime @default(now())
+
+  respostas GoldenAnswer[]
+}
+
+model GoldenAnswer {
+  id               String         @id @default(uuid())
+  goldenQuestionId String
+  goldenQuestion   GoldenQuestion @relation(fields: [goldenQuestionId], references: [id])
+  userId           String
+  user             User           @relation(fields: [userId], references: [id])
+  resposta         String
+  createdAt        DateTime       @default(now())
+
+  @@unique([goldenQuestionId, userId])
 }
