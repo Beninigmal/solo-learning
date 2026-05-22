@@ -1063,7 +1063,7 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
               participantes: {
                 include: {
                   user: {
-                    select: { nome: true, nickname: true, xp: true }
+                    select: { nome: true, nickname: true, xp: true, lastActiveAt: true }
                   }
                 }
               }
@@ -1109,7 +1109,7 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
           participantes: {
             include: {
               user: {
-                select: { nome: true, nickname: true, xp: true }
+                select: { nome: true, nickname: true, xp: true, lastActiveAt: true }
               }
             }
           }
@@ -1188,7 +1188,7 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
           participantes: {
             include: {
               user: {
-                select: { nome: true, nickname: true, xp: true }
+                select: { nome: true, nickname: true, xp: true, lastActiveAt: true }
               }
             }
           }
@@ -1792,7 +1792,8 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
             select: {
               id: true,
               nome: true,
-              nickname: true
+              nickname: true,
+              lastActiveAt: true
             }
           }
         },
@@ -1828,7 +1829,8 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
             select: {
               id: true,
               nome: true,
-              nickname: true
+              nickname: true,
+              lastActiveAt: true
             }
           }
         }

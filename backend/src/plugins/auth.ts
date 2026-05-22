@@ -1,6 +1,7 @@
 import fp from 'fastify-plugin';
 import fastifyJwt from '@fastify/jwt';
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { prisma } from '../prisma';
 
 export default fp(async (fastify: FastifyInstance) => {
   fastify.register(fastifyJwt, {
@@ -10,6 +11,13 @@ export default fp(async (fastify: FastifyInstance) => {
   fastify.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       await request.jwtVerify();
+      if (request.user && request.user.id) {
+        // Atualiza o timestamp de atividade em background (fire-and-forget)
+        prisma.user.update({
+          where: { id: request.user.id },
+          data: { lastActiveAt: new Date() }
+        }).catch(err => console.error('Erro ao atualizar lastActiveAt:', err));
+      }
     } catch (err) {
       reply.status(401).send({ error: 'Não autorizado.' });
     }
