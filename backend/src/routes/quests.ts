@@ -1340,7 +1340,8 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
       const goldenQuestion = await prisma.goldenQuestion.create({
         data: {
           enunciado,
-          turmaId
+          turmaId,
+          criadorId: user.id
         }
       });
 
@@ -1351,7 +1352,7 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
     }
   });
 
-  // 2. Listar Perguntas Douradas e Respostas (Apenas Diretor/ADMIN/PROFESSOR)
+  // 2. Listar Perguntas Douradas e Respostas (Apenas Diretor/ADMIN/PROFESSOR - Filtradas por Criador)
   fastify.get('/golden-questions', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     try {
       const user = await prisma.user.findUnique({ where: { id: request.user.id } });
@@ -1360,6 +1361,9 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
       }
 
       const questions = await prisma.goldenQuestion.findMany({
+        where: {
+          criadorId: user.id
+        },
         include: {
           turma: {
             include: {
@@ -1487,6 +1491,352 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
     } catch (error: any) {
       request.log.error(error);
       return reply.status(500).send({ error: 'Erro ao registrar resposta da pergunta dourada.', details: error.message });
+    }
+  });
+
+  // ==========================================
+  // 5. ATUALIZAR UNIDADE DA TURMA (Mestre/Diretor)
+  // ==========================================
+  fastify.put<{ Params: { id: string }; Body: { unidade: number } }>('/turmas/:id/unidade', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'PROFESSOR')) {
+        return reply.status(403).send({ error: 'Apenas diretores e mestres podem alterar a unidade da turma.' });
+      }
+      const { id } = request.params;
+      const { unidade } = request.body;
+      if (unidade < 1 || unidade > 3) {
+        return reply.status(400).send({ error: 'Unidade inválida. Escolha entre 1, 2 ou 3.' });
+      }
+      const updated = await prisma.turma.update({
+        where: { id },
+        data: { unidade }
+      });
+      return reply.send({ message: 'Unidade atualizada com sucesso.', turma: updated });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao atualizar unidade.', details: error.message });
+    }
+  });
+
+  // ==========================================
+  // 6. MANEJO DE DISCIPLINAS (Matérias)
+  // ==========================================
+  fastify.post<{ Body: { nome: string } }>('/disciplinas', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || user.role !== 'ADMIN') {
+        return reply.status(403).send({ error: 'Apenas o Diretor/ADMIN pode criar matérias.' });
+      }
+      const { nome } = request.body;
+      if (!nome || nome.trim() === '') {
+        return reply.status(400).send({ error: 'Nome da matéria é obrigatório.' });
+      }
+      const exists = await prisma.disciplina.findFirst({ where: { nome: { equals: nome.trim(), mode: 'insensitive' } } });
+      if (exists) {
+        return reply.status(400).send({ error: 'Uma matéria com este nome já existe.' });
+      }
+      const created = await prisma.disciplina.create({
+        data: { nome: nome.trim() }
+      });
+      return reply.status(201).send(created);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao criar matéria.', details: error.message });
+    }
+  });
+
+  fastify.get('/disciplinas', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const disciplines = await prisma.disciplina.findMany({
+        include: {
+          professores: {
+            include: {
+              professor: true
+            }
+          }
+        },
+        orderBy: { nome: 'asc' }
+      });
+      const formatted = disciplines.map(d => ({
+        id: d.id,
+        nome: d.nome,
+        professores: d.professores.map(p => ({
+          id: p.professor.id,
+          nome: p.professor.nome,
+          nickname: p.professor.nickname,
+          matricula: p.professor.matricula,
+          temp: p.temp
+        }))
+      }));
+      return reply.send(formatted);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao listar matérias.', details: error.message });
+    }
+  });
+
+  fastify.post<{ Body: { professorId: string; disciplinaId: string; temp?: any } }>('/disciplinas/professor', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || user.role !== 'ADMIN') {
+        return reply.status(403).send({ error: 'Apenas o Diretor/ADMIN pode vincular professores.' });
+      }
+      const { professorId, disciplinaId, temp } = request.body;
+      const parsedTemp = temp === true || temp === 'true';
+      const relation = await prisma.disciplinaProfessor.upsert({
+        where: {
+          professorId_disciplinaId: { professorId, disciplinaId }
+        },
+        update: {
+          temp: parsedTemp
+        },
+        create: { 
+          professorId, 
+          disciplinaId,
+          temp: parsedTemp
+        }
+      });
+      return reply.status(201).send({ message: 'Professor vinculado com sucesso!', relation });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao vincular professor.', details: error.message });
+    }
+  });
+
+  fastify.delete<{ Body: { professorId: string; disciplinaId: string } }>('/disciplinas/professor', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || user.role !== 'ADMIN') {
+        return reply.status(403).send({ error: 'Apenas o Diretor/ADMIN pode desvincular professores.' });
+      }
+      const { professorId, disciplinaId } = request.body;
+      await prisma.disciplinaProfessor.delete({
+        where: {
+          professorId_disciplinaId: { professorId, disciplinaId }
+        }
+      });
+      return reply.send({ message: 'Vínculo do professor removido com sucesso!' });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao remover vínculo.', details: error.message });
+    }
+  });
+
+  // ==========================================
+  // 7. GRADE DE HORÁRIOS (Timetable)
+  // ==========================================
+  fastify.get<{ Params: { turmaId: string } }>('/turmas/:turmaId/timetable', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const { turmaId } = request.params;
+      const slots = await prisma.timetableSlot.findMany({
+        where: { turmaId },
+        include: {
+          disciplina: true
+        },
+        orderBy: [
+          { diaSemana: 'asc' },
+          { posicao: 'asc' }
+        ]
+      });
+      return reply.send(slots);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao buscar grade de horários.', details: error.message });
+    }
+  });
+
+  fastify.post<{ Params: { turmaId: string }; Body: { slots: { diaSemana: string; posicao: number; disciplinaId: string }[] } }>('/turmas/:turmaId/timetable', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'PROFESSOR')) {
+        return reply.status(403).send({ error: 'Apenas diretores e mestres podem editar a grade de horários.' });
+      }
+      const { turmaId } = request.params;
+      const { slots } = request.body;
+
+      const createdSlots = [];
+      for (const slot of slots) {
+        const s = await prisma.timetableSlot.upsert({
+          where: {
+            turmaId_diaSemana_posicao: {
+              turmaId,
+              diaSemana: slot.diaSemana,
+              posicao: slot.posicao
+            }
+          },
+          update: {
+            disciplinaId: slot.disciplinaId
+          },
+          create: {
+            turmaId,
+            diaSemana: slot.diaSemana,
+            posicao: slot.posicao,
+            disciplinaId: slot.disciplinaId
+          }
+        });
+        createdSlots.push(s);
+      }
+      return reply.send({ message: 'Grade de horários atualizada com sucesso!', slots: createdSlots });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao salvar grade de horários.', details: error.message });
+    }
+  });
+
+  // ==========================================
+  // 8. AGENDA E CALENDÁRIO
+  // ==========================================
+  fastify.get('/calendar/events', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user) return reply.status(404).send({ error: 'Usuário não encontrado.' });
+
+      let events;
+      if (user.role === 'ALUNO') {
+        if (!user.turmaId) return reply.send([]);
+        events = await prisma.calendarEvent.findMany({
+          where: { turmaId: user.turmaId },
+          include: {
+            professor: true,
+            turma: true
+          },
+          orderBy: { data: 'asc' }
+        });
+      } else {
+        events = await prisma.calendarEvent.findMany({
+          where: { professorId: user.id },
+          include: {
+            professor: true,
+            turma: true
+          },
+          orderBy: { data: 'asc' }
+        });
+      }
+
+      const formatted = events.map(e => ({
+        id: e.id,
+        titulo: e.titulo,
+        descricao: e.descricao,
+        data: e.data.toISOString(),
+        tipo: e.tipo,
+        turmaNome: e.turma.nome,
+        turmaId: e.turmaId,
+        professorNome: e.professor.nome
+      }));
+
+      return reply.send(formatted);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao listar agenda.', details: error.message });
+    }
+  });
+
+  fastify.post<{ Body: { titulo: string; descricao?: string; data: string; tipo: string; turmaId: string } }>('/calendar/events', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'PROFESSOR')) {
+        return reply.status(403).send({ error: 'Apenas mestres e diretores podem adicionar datas na agenda.' });
+      }
+      const { titulo, descricao, data, tipo, turmaId } = request.body;
+      if (!titulo || !data || !tipo || !turmaId) {
+        return reply.status(400).send({ error: 'Campos titulo, data, tipo e turmaId são obrigatórios.' });
+      }
+      const event = await prisma.calendarEvent.create({
+        data: {
+          titulo,
+          descricao,
+          data: new Date(data),
+          tipo,
+          turmaId,
+          professorId: user.id
+        }
+      });
+      return reply.status(201).send(event);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao criar evento na agenda.', details: error.message });
+    }
+  });
+
+  fastify.delete<{ Params: { id: string } }>('/calendar/events/:id', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'PROFESSOR')) {
+        return reply.status(403).send({ error: 'Apenas mestres e diretores podem apagar da agenda.' });
+      }
+      const { id } = request.params;
+      const event = await prisma.calendarEvent.findUnique({ where: { id } });
+      if (!event) {
+        return reply.status(404).send({ error: 'Evento não encontrado.' });
+      }
+      if (event.professorId !== user.id && user.role !== 'ADMIN') {
+        return reply.status(403).send({ error: 'Você não tem permissão para remover este apontamento.' });
+      }
+      await prisma.calendarEvent.delete({ where: { id } });
+      return reply.send({ message: 'Apontamento removido com sucesso!' });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao remover apontamento da agenda.', details: error.message });
+    }
+  });
+
+  // RAID TEXT CHAT ROUTES
+  fastify.get<{ Params: { raidId: string } }>('/raids/:raidId/messages', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const { raidId } = request.params;
+      const messages = await prisma.raidMessage.findMany({
+        where: { raidId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              nome: true,
+              nickname: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'asc'
+        }
+      });
+      return messages;
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao buscar mensagens do chat.' });
+    }
+  });
+
+  fastify.post<{ Params: { raidId: string }; Body: { content: string } }>('/raids/:raidId/messages', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const { raidId } = request.params;
+      const { content } = request.body;
+      const userId = request.user.id;
+
+      if (!content || !content.trim()) {
+        return reply.status(400).send({ error: 'Mensagem vazia.' });
+      }
+
+      const message = await prisma.raidMessage.create({
+        data: {
+          raidId,
+          userId,
+          content
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              nome: true,
+              nickname: true
+            }
+          }
+        }
+      });
+      return message;
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao enviar mensagem.' });
     }
   });
 };
