@@ -1320,6 +1320,102 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
     }
   });
 
+  // ─── GET /quests/subject-stats/:userId ──────────────────────────────────────
+  fastify.get<{ Params: { userId: string } }>('/subject-stats/:userId', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    const { userId } = request.params;
+    console.log(`[Backend] GET /quests/subject-stats/${userId} - Caller Role: ${request.user.role}`);
+    
+    if (request.user.role !== 'ADMIN' && request.user.role !== 'PROFESSOR') {
+      return reply.status(403).send({ error: 'Acesso negado. Apenas Mestres ou Arquitetos podem visualizar o desempenho de outros alunos.' });
+    }
+
+    try {
+      const student = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, nome: true, turmaId: true }
+      });
+
+      console.log(`[Backend] Student found:`, student);
+
+      if (!student || !student.turmaId) {
+        console.log(`[Backend] Student has no turmaId or was not found.`);
+        return reply.send([]);
+      }
+
+      const turmaDisciplinas = await prisma.turmaDisciplina.findMany({
+        where: { turmaId: student.turmaId },
+        include: { disciplina: true }
+      });
+
+      console.log(`[Backend] TurmaDisciplinas count:`, turmaDisciplinas.length);
+
+      const stats = [];
+
+      for (const td of turmaDisciplinas) {
+        const disciplina = td.disciplina;
+
+        const acertos = await prisma.questDelivery.count({
+          where: {
+            userId,
+            isCorrect: true,
+            quest: {
+              disciplinaId: disciplina.id,
+              nivel: { notIn: ['BOSS', 'MINIBOSS'] }
+            }
+          }
+        });
+
+        const falhas = await prisma.questDelivery.count({
+          where: {
+            userId,
+            quest: {
+              disciplinaId: disciplina.id,
+              nivel: { notIn: ['BOSS', 'MINIBOSS'] }
+            },
+            OR: [
+              { erros: { gt: 0 } },
+              { isCorrect: false }
+            ]
+          }
+        });
+
+        const totalQuestsInClass = await prisma.quest.count({
+          where: {
+            turmaAlvoId: student.turmaId,
+            disciplinaId: disciplina.id,
+            nivel: { notIn: ['BOSS', 'MINIBOSS'] }
+          }
+        });
+
+        const totalDeliveredQuests = await prisma.questDelivery.count({
+          where: {
+            userId,
+            quest: {
+              disciplinaId: disciplina.id,
+              nivel: { notIn: ['BOSS', 'MINIBOSS'] }
+            },
+            status: { in: ['DELIVERED', 'WAITING', 'COMPLETED', 'EXPIRED'] }
+          }
+        });
+
+        const disponiveis = Math.max(totalQuestsInClass - totalDeliveredQuests, 0);
+
+        stats.push({
+          disciplinaId: disciplina.id,
+          nome: disciplina.nome,
+          acertos,
+          falhas,
+          disponiveis
+        });
+      }
+
+      return reply.send(stats);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao buscar estatísticas de matérias para o aluno.', details: error.message });
+    }
+  });
+
   // ==========================================
   // FEATURE: PERGUNTA DOURADA (DIRETOR <-> ALUNO)
   // ==========================================

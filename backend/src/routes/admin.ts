@@ -145,6 +145,12 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
   // Listar Turmas
   fastify.get('/turmas', async (request, reply) => {
     const turmas = await prisma.turma.findMany({
+      include: {
+        users: {
+          where: { role: 'ALUNO' },
+          orderBy: { nome: 'asc' }
+        }
+      },
       orderBy: { nome: 'asc' }
     });
     return reply.status(200).send(turmas);
