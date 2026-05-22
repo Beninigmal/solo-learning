@@ -525,25 +525,40 @@ Exemplo de formato esperado:
       }
 
       // 3. Caso contrário, buscar dinamicamente a próxima quest sequencial na disciplina
-      // Busca a última quest completada pelo usuário para esta disciplina (ou no geral se disciplinaId for nulo)
-      const lastCompleted = await prisma.questDelivery.findFirst({
+      // Verificar se o aluno já tem uma quest DELIVERED (ativa na tela) desta matéria
+      const active = await prisma.questDelivery.findFirst({
         where: {
           userId,
-          status: 'COMPLETED',
+          status: 'DELIVERED',
+          quest: {
+            nivel: { notIn: ['BOSS', 'MINIBOSS'] },
+            ...(disciplinaId ? { disciplinaId } : {})
+          }
+        }
+      });
+
+      if (active) {
+        return reply.status(400).send({ error: 'Você já possui uma missão ativa na sua tela desta matéria. Resolva-a primeiro!' });
+      }
+
+      // Buscar a última quest entregue ao usuário nesta disciplina (independentemente do status: COMPLETED, WAITING ou EXPIRED)
+      const lastDelivered = await prisma.questDelivery.findFirst({
+        where: {
+          userId,
           quest: {
             nivel: { notIn: ['BOSS', 'MINIBOSS'] },
             ...(disciplinaId ? { disciplinaId } : {})
           }
         },
         include: { quest: true },
-        orderBy: { answeredAt: 'desc' }
+        orderBy: { quest: { ordem: 'desc' } }
       });
 
       let nextQuest;
 
-      if (lastCompleted) {
-        const batchId = lastCompleted.quest.batchId;
-        const currentOrdem = lastCompleted.quest.ordem;
+      if (lastDelivered) {
+        const batchId = lastDelivered.quest.batchId;
+        const currentOrdem = lastDelivered.quest.ordem;
 
         // Busca a próxima quest no mesmo lote
         nextQuest = await prisma.quest.findFirst({
@@ -555,7 +570,7 @@ Exemplo de formato esperado:
         });
       }
 
-      // Se não houver completadas ou não houver próxima no lote, busca a primeira do último lote da turma do aluno
+      // Se não houver entregues ou não houver próxima no lote, busca a primeira do último lote da turma do aluno
       if (!nextQuest) {
         const user = await prisma.user.findUnique({ where: { id: userId } });
         if (!user || !user.turmaId) {
@@ -620,13 +635,15 @@ Exemplo de formato esperado:
       if (!delivery || delivery.userId !== userId) return reply.status(404).send({ error: 'Entrega não encontrada.' });
       
       let prompt = answer === 'Cálculo na imagem'
-        ? `Você é um tutor educacional que avalia respostas de alunos de escola pública brasileira.
+        ? `Você é um tutor educacional rigoroso que avalia respostas de alunos de escola pública brasileira.
+REGRA CRÍTICA: Respostas vazias, evasivas, de brincadeira, ou que apenas digam que o aluno não sabe a resposta (ex: "Não sei", "não entendi", "...", "sei lá", "não faço ideia") devem ser marcadas como ABSOLUTAMENTE INCORRETAS com status "error". Nunca marque admissões de desconhecimento como corretas.
 A pergunta foi: "${question}".
 O aluno optou por desenvolver o raciocínio na imagem. Analise APENAS a imagem e avalie a resposta.
 
 Se CORRETO: retorne JSON: {"status": "success", "message": "Mensagem motivacional curta de parabenização"}
 Se ERRADO: retorne JSON: {"status": "error", "message": "Explique de forma educativa o que errou e dê uma dica sobre o raciocínio correto, MAS NÃO revele a resposta final."}`
-        : `Você é um tutor educacional que avalia respostas de alunos de escola pública brasileira.
+        : `Você é um tutor educacional rigoroso que avalia respostas de alunos de escola pública brasileira.
+REGRA CRÍTICA: Respostas vazias, evasivas, de brincadeira, ou que apenas digam que o aluno não sabe a resposta (ex: "Não sei", "não entendi", "...", "sei lá", "não faço ideia") devem ser marcadas como ABSOLUTAMENTE INCORRETAS com status "error". Nunca marque admissões de desconhecimento como corretas, mesmo que sejam honestas.
 A pergunta foi: "${question}".
 A resposta do aluno foi: "${answer}".
 
@@ -656,9 +673,10 @@ Se ERRADO: retorne JSON: {"status": "error", "message": "Explique de forma educa
       if (isCorrect) {
         // Calcular XP com maldição de 25% por erro acumulado (Boss e Mini Boss não sofrem maldição)
         const isBoss = delivery.quest.nivel === 'BOSS' || delivery.quest.nivel === 'MINIBOSS';
+        const effectiveErros = artifactId === 'escudo_arcano' ? 0 : delivery.erros;
         let xpFinal = isBoss
           ? delivery.quest.xp
-          : Math.max(Math.round(delivery.quest.xp * Math.pow(0.75, delivery.erros)), 25);
+          : Math.max(Math.round(delivery.quest.xp * Math.pow(0.75, effectiveErros)), 25);
         
         if (artifactId === 'elixir_dourado') {
           xpFinal *= 2;
@@ -787,8 +805,8 @@ Retorne APENAS um JSON no seguinte formato:
 
         return reply.send({ ...validation, xpGanho: xpFinal, miniBossSpawned });
       } else {
-        // Incrementar erro e manter DELIVERED para nova tentativa (escudo arcano cancela aumento de erro)
-        const novosErros = artifactId === 'escudo_arcano' ? delivery.erros : delivery.erros + 1;
+        // Incrementar erro e manter DELIVERED para nova tentativa (escudo arcano cancela aumento de erro e remove maldição anterior)
+        const novosErros = artifactId === 'escudo_arcano' ? 0 : delivery.erros + 1;
         await prisma.questDelivery.update({
           where: { id: deliveryId },
           data: { erros: novosErros }
@@ -874,11 +892,15 @@ Retorne APENAS um JSON no seguinte formato:
       }
 
       let prompt = answer === 'Cálculo na imagem'
-        ? `Atenção: O aluno NÃO digitou a resposta em texto. A resposta dele e o raciocínio estão EXCLUSIVAMENTE na imagem enviada.
+        ? `Você é um tutor educacional rigoroso.
+REGRA CRÍTICA: Respostas vazias, evasivas, de brincadeira, ou que apenas digam que o aluno não sabe a resposta (ex: "Não sei", "não entendi", "...", "sei lá", "não faço ideia") devem ser marcadas como ABSOLUTAMENTE INCORRETAS com status "error". Nunca marque admissões de desconhecimento como corretas.
+Atenção: O aluno NÃO digitou a resposta em texto. A resposta dele e o raciocínio estão EXCLUSIVAMENTE na imagem enviada.
 Ignore a mensagem 'Cálculo na imagem'.
-Analise a imagem para extrair a resposta final e o raciocínio. Verifique se la resposta encontrada na imagem está correta para a pergunta: "${wrongAnswer.quest.enunciado}".
+Analise a imagem para extrair a resposta final e o raciocínio. Verifique se a resposta encontrada na imagem está correta para a pergunta: "${wrongAnswer.quest.enunciado}".
 Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro ou parabéns"}`
-        : `Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". Se uma imagem foi enviada, ela contém o raciocínio matemático do aluno. Analise-o para ver se está correto e se bate com a resposta digitada. Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro ou parabéns"}`;
+        : `Você é um tutor educacional rigoroso.
+REGRA CRÍTICA: Respostas vazias, evasivas, de brincadeira, ou que apenas digam que o aluno não sabe a resposta (ex: "Não sei", "não entendi", "...", "sei lá", "não faço ideia") devem ser marcadas como ABSOLUTAMENTE INCORRETAS com status "error". Nunca marque admissões de desconhecimento como corretas, mesmo que sejam honestas.
+Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". Se uma imagem foi enviada, ela contém o raciocínio matemático do aluno. Analise-o para ver se está correto e se bate com a resposta digitada. Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro ou parabéns"}`;
 
       if (artifactId === 'sapatilhas_veloz') {
         prompt += `\nNOTA: O aluno usou o artefato 'Sapatilhas do Veloz' que reduz a dificuldade. Seja benevolente na avaliação, aceitando aproximações ou pequenos erros de digitação.`;
@@ -909,13 +931,30 @@ Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro
           data: { resolvido: true }
         });
 
+        // Atualizar a entrega original para COMPLETED e isCorrect: true
+        await prisma.questDelivery.update({
+          where: {
+            questId_userId: {
+              questId: wrongAnswer.questId,
+              userId
+            }
+          },
+          data: {
+            status: 'COMPLETED',
+            isCorrect: true,
+            answeredAt: new Date()
+          }
+        }).catch(err => {
+          console.error('[QuestDelivery Update Error in Baú Retry]', err);
+        });
+
         const questXp = wrongAnswer.quest.xp;
-        const totalErros = wrongAnswer.tentativas;
+        const effectiveErros = artifactId === 'escudo_arcano' ? 0 : wrongAnswer.tentativas;
         const isBoss = wrongAnswer.quest.nivel === 'BOSS' || wrongAnswer.quest.nivel === 'MINIBOSS';
 
         let xpGanho = isBoss 
           ? questXp 
-          : Math.max(Math.round(questXp * Math.pow(0.75, totalErros)), 25);
+          : Math.max(Math.round(questXp * Math.pow(0.75, effectiveErros)), 25);
 
         if (artifactId === 'elixir_dourado') {
           xpGanho *= 2; // Duplica o XP
@@ -926,12 +965,27 @@ Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro
           data: { xp: { increment: xpGanho } }
         });
 
+        // Se acertou usando escudo arcano, remove a maldição do QuestDelivery no BD resetando erros para 0!
+        if (artifactId === 'escudo_arcano') {
+          await prisma.questDelivery.updateMany({
+            where: { userId, questId: wrongAnswer.questId },
+            data: { erros: 0 }
+          }).catch(console.error);
+        }
+
         return reply.send({ ...validation, xpGanho });
       } else {
+        const novasTentativas = artifactId === 'escudo_arcano' ? 0 : undefined;
         await prisma.wrongAnswer.update({
           where: { id },
-          data: { tentativas: { increment: 1 } }
+          data: novasTentativas !== undefined ? { tentativas: novasTentativas } : { tentativas: { increment: 1 } }
         });
+        if (artifactId === 'escudo_arcano') {
+          await prisma.questDelivery.updateMany({
+            where: { userId, questId: wrongAnswer.questId },
+            data: { erros: 0 }
+          }).catch(console.error);
+        }
         return reply.send(validation);
       }
     } catch (error: any) {
