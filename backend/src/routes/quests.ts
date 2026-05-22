@@ -975,10 +975,10 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
 
         return reply.send({ ...validation, xpGanho });
       } else {
-        const novasTentativas = artifactId === 'escudo_arcano' ? 0 : undefined;
+        const novasTentativas = artifactId === 'escudo_arcano' ? 0 : wrongAnswer.tentativas + 1;
         await prisma.wrongAnswer.update({
           where: { id },
-          data: novasTentativas !== undefined ? { tentativas: novasTentativas } : { tentativas: { increment: 1 } }
+          data: { tentativas: novasTentativas }
         });
         if (artifactId === 'escudo_arcano') {
           await prisma.questDelivery.updateMany({
@@ -986,12 +986,69 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
             data: { erros: 0 }
           }).catch(console.error);
         }
-        return reply.send(validation);
+
+        const isBoss = wrongAnswer.quest.nivel === 'BOSS' || wrongAnswer.quest.nivel === 'MINIBOSS';
+        const xpRestante = isBoss
+          ? wrongAnswer.quest.xp
+          : Math.max(Math.round(wrongAnswer.quest.xp * Math.pow(0.75, novasTentativas)), 25);
+
+        return reply.send({ ...validation, xpRestante, erros: novasTentativas });
       }
     } catch (error: any) {
       request.log.error(error);
       return reply.status(500).send({ error: 'Erro ao processar tentativa.', details: error.message, stack: error.stack });
     }
+  });
+
+  // ─── GET /quests/party/join-redirect ───────────────────────────────────────
+  fastify.get<{ Querystring: { code: string } }>('/party/join-redirect', async (request, reply) => {
+    const { code } = request.query;
+    return reply.type('text/html').send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Portal Solen</title>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <style>
+            body {
+              background-color: #020617;
+              color: #f8fafc;
+              font-family: system-ui, -apple-system, sans-serif;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              height: 100vh;
+              margin: 0;
+              text-align: center;
+            }
+            .spinner {
+              border: 4px solid rgba(255,255,255,0.1);
+              width: 50px;
+              height: 50px;
+              border-radius: 50%;
+              border-left-color: #00f3ff;
+              animation: spin 1s linear infinite;
+              margin-bottom: 20px;
+            }
+            @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+            h1 { font-size: 1.5rem; margin-bottom: 10px; color: #00f3ff; text-transform: uppercase; letter-spacing: 2px; }
+            p { color: #94a3b8; font-size: 0.9rem; max-width: 300px; line-height: 1.5; }
+          </style>
+        </head>
+        <body>
+          <div class="spinner"></div>
+          <h1>Abrindo o Portal Solen...</h1>
+          <p>Você será redirecionado para a Party em instantes.</p>
+          <script>
+            setTimeout(() => {
+              window.location.href = "solen://party/join?code=${code}";
+            }, 1000);
+          </script>
+        </body>
+      </html>
+    `);
   });
 
   // ─── GET /quests/party/active ──────────────────────────────────────────────
