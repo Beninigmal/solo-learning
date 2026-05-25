@@ -105,7 +105,8 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
           turmaId,
           turno,
           password: 'INITIAL_SUMMONING_CODE_LOGIN', // Placeholder
-          isFirstAccess: true
+          isFirstAccess: true,
+          instituicao: request.user.instituicao
         }
       });
       return reply.status(201).send(student);
@@ -250,7 +251,8 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
               role: 'ALUNO',
               turno: s.turno || 'MATUTINO',
               turmaId: turma.id,
-              password: 'SUMMONING_CODE'
+              password: 'SUMMONING_CODE',
+              instituicao: request.user.instituicao
             }
           });
           createdCount++;

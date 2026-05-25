@@ -14,8 +14,17 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
     }
 
     try {
-      const user = await prisma.user.findUnique({
-        where: { matricula: matricula.toLowerCase() },
+      const searchKey = matricula.trim();
+      const isNickname = searchKey.startsWith('@');
+      const cleanKey = isNickname ? searchKey.substring(1) : searchKey;
+
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { matricula: { equals: cleanKey, mode: 'insensitive' } },
+            { nickname: { equals: cleanKey, mode: 'insensitive' } }
+          ]
+        },
         include: { turma: true }
       });
 
@@ -23,9 +32,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
         return reply.status(401).send({ error: 'Credenciais inválidas.' });
       }
 
-      if (role && user.role !== role) {
-        return reply.status(401).send({ error: 'Nível de acesso incorreto para esta conta.' });
+      if (user.blocked) {
+        return reply.status(403).send({ error: 'Sua conta está bloqueada pelo Administrador.' });
       }
+
+
 
       // Se for o PRIMEIRO ACESSO de um ALUNO, a senha é o Código de Invocação da Turma
       if (user.role === 'ALUNO' && user.isFirstAccess) {
@@ -51,6 +62,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
         id: user.id,
         nome: user.nome,
         role: user.role,
+        instituicao: user.instituicao,
         turmaId: user.turmaId,
         isFirstAccess: user.isFirstAccess
       }, { expiresIn: '7d' });
@@ -62,6 +74,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
           nome: user.nome,
           nickname: user.nickname,
           role: user.role,
+          instituicao: user.instituicao,
           xp: user.xp,
           level: user.level,
           isFirstAccess: user.isFirstAccess

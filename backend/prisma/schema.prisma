@@ -19,6 +19,7 @@ model User {
   instituicao   String?  // Instituição de ensino
   xp            Int      @default(0)
   level         Int      @default(1)
+  blocked       Boolean  @default(false)
   
   turmaId   String?
   turma     Turma?   @relation("TurmaAlunos", fields: [turmaId], references: [id])
@@ -45,8 +46,9 @@ model User {
 
 model Turma {
   id              String   @id @default(uuid())
-  nome            String   @unique // ex: "3º Ano A"
+  nome            String   // ex: "3º Ano A"
   ano             String?
+  instituicao     String?
   codigoInvocacao String?  @default("1234")
   
   turmaDisciplinas TurmaDisciplina[]
@@ -61,7 +63,8 @@ model Turma {
 
 model Disciplina {
   id          String   @id @default(uuid())
-  nome        String   @unique // ex: "Matemática", "Física"
+  nome        String   // ex: "Matemática", "Física"
+  instituicao String?
   professores DisciplinaProfessor[]
   quests      Quest[]
   turmaDisciplinas TurmaDisciplina[]
@@ -245,4 +248,10 @@ model GoldenAnswer {
   createdAt        DateTime       @default(now())
 
   @@unique([goldenQuestionId, userId])
+}
+
+model Institution {
+  id        String   @id @default(uuid())
+  nome      String   @unique
+  createdAt DateTime @default(now())
 }

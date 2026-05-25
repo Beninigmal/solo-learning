@@ -12,33 +12,63 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('🌱 Iniciando seeding completo (Novo Schema)...');
+  console.log('🌱 Iniciando seeding completo (Novo Schema com Super Admin e Instituições)...');
 
   const defaultPassword = await bcrypt.hash('Solen2026', 10);
 
-  // 1. Criar Arquiteto (ADMIN)
+  // 1. Criar Super Admin (ADMIN)
   await prisma.user.upsert({
-    where: { matricula: 'admin' },
+    where: { matricula: 'superadmin' },
     update: { 
       role: 'ADMIN',
       password: defaultPassword,
       isFirstAccess: false
     },
     create: {
-      matricula: 'admin',
-      nome: 'Arquiteto do Sistema',
-      nickname: 'arquiteto',
+      matricula: 'superadmin',
+      nome: 'Super Admin do Sistema',
+      nickname: 'superadmin',
       password: defaultPassword,
       isFirstAccess: false,
       role: 'ADMIN',
     },
   });
 
-  // 2. Criar Mestre (PROFESSOR)
+  // 2. Criar Instituição
+  const escola = await prisma.institution.upsert({
+    where: { nome: 'Escola Solen' },
+    update: {},
+    create: { nome: 'Escola Solen' },
+  });
+  console.log('🏫 Instituição Escola Solen garantida.');
+
+  // 3. Criar Arquiteto da Escola (ARQUITETO)
+  await prisma.user.upsert({
+    where: { matricula: 'admin' },
+    update: { 
+      role: 'ARQUITETO',
+      instituicao: escola.nome,
+      password: defaultPassword,
+      isFirstAccess: false
+    },
+    create: {
+      matricula: 'admin',
+      nome: 'Arquiteto Solen',
+      nickname: 'arquiteto',
+      password: defaultPassword,
+      isFirstAccess: false,
+      role: 'ARQUITETO',
+      instituicao: escola.nome,
+    },
+  });
+  console.log('🏛️ Arquiteto Escola Solen garantido.');
+
+  // 4. Criar Mestre (PROFESSOR)
   const mestre = await prisma.user.upsert({
     where: { matricula: 'mestre' },
     update: { 
       role: 'PROFESSOR',
+      instituicao: escola.nome,
       password: defaultPassword,
       isFirstAccess: false
     },
@@ -49,26 +79,38 @@ async function main() {
       password: defaultPassword,
       isFirstAccess: false,
       role: 'PROFESSOR',
+      instituicao: escola.nome,
     },
   });
 
-  // 3. Criar Turma Alpha
+  // 5. Criar Turma Alpha
   const turma = await prisma.turma.upsert({
-    where: { nome: 'TURMA ALPHA' },
+    where: { id: 'turma-alpha-id' },
     update: { 
-      ano: '2026'
-    },
-    create: { 
       nome: 'TURMA ALPHA',
       ano: '2026',
+      instituicao: escola.nome,
+    },
+    create: { 
+      id: 'turma-alpha-id',
+      nome: 'TURMA ALPHA',
+      ano: '2026',
+      instituicao: escola.nome,
     },
   });
 
-  // 3.5 Criar Disciplina e Vínculo
+  // 6. Criar Disciplina e Vínculo
   const disciplina = await prisma.disciplina.upsert({
-    where: { nome: 'Matemática' },
-    update: {},
-    create: { nome: 'Matemática' }
+    where: { id: 'math-disc-id' },
+    update: {
+      nome: 'Matemática',
+      instituicao: escola.nome,
+    },
+    create: { 
+      id: 'math-disc-id',
+      nome: 'Matemática',
+      instituicao: escola.nome,
+    }
   });
 
   await prisma.turmaDisciplina.upsert({
@@ -88,12 +130,13 @@ async function main() {
     }
   });
 
-  // 4. Criar Aluno (PLAYER) - Ashes2Ashes
+  // 7. Criar Aluno (PLAYER) - Ashes2Ashes
   await prisma.user.upsert({
     where: { matricula: 'player01' },
     update: { 
       role: 'ALUNO', 
       turmaId: turma.id,
+      instituicao: escola.nome,
       password: defaultPassword,
       isFirstAccess: true
     },
@@ -105,6 +148,7 @@ async function main() {
       isFirstAccess: true,
       role: 'ALUNO',
       turmaId: turma.id,
+      instituicao: escola.nome,
       xp: 0,
       level: 1
     },

@@ -261,29 +261,25 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
       }
 
       const prompt = `Você é um assistente educacional para alunos de escola pública brasileira.
-Crie EXATAMENTE 6 perguntas sobre o tema "${tema}" para a Semana "${semana}".
+Crie EXATAMENTE 3 perguntas sobre o tema "${tema}" para a Semana "${semana}".
 Nível de ensino/Complexidade alvo: ${complexidade} (FUNDAMENTAL, MEDIO ou LIVRE).
 
 REGRAS IMPORTANTES:
 - Linguagem simples e direta.
 - As respostas podem ser numéricas ou em texto (uma palavra ou frase curta), dependendo do que for mais adequado para a pergunta.
 - Não dê a resposta.
-- Progressão de dificuldade de 1 a 6.
+- Progressão de dificuldade de 1 a 3.
 - Adeque a complexidade das perguntas ao nível "${complexidade}".
 ${exigeCalculo 
-  ? '- As perguntas DEVEM exigir que o aluno desenvolva cálculos matemáticos ou físicos no papel para chegar à resposta. EVITE perguntas puramente teóricas ou de identificação. Foque em problemas que exijam contas.'
+  ? '- TODAS as 3 perguntas geradas DEVEM obrigatoriamente exigir que o aluno desenvolva cálculos matemáticos ou físicos no papel para chegar à resposta. EVITE perguntas puramente teóricas ou de identificação de conceitos. Foque em problemas numéricos ou de equações que exijam contas para todas as 3.'
   : '- As perguntas devem ser teóricas ou de resposta direta, sem necessidade de desenvolvimento de cálculos complexos.'
 }
-- A pergunta 6 deve ser uma pergunta "BOSS": altamente complexa, que desafie o aluno e exija o uso de todo o conhecimento do tema.
 - Retorne APENAS um JSON no formato especificado abaixo. Não inclua texto explicativo adicional.
 Exemplo de formato esperado:
 {
   "q1": "Escreva a lei da função que representa o valor...",
   "q2": "Dada a função f(x) = 3x - 9, determine...",
-  "q3": "Um reservatório com 500 litros de água apresenta...",
-  "q4": "A função f(x) = ax + b passa pelos pontos...",
-  "q5": "Uma empresa vende um produto por R$ 50,00...",
-  "q6": "Um projétil é lançado verticalmente com velocidade..."
+  "q3": "Um reservatório com 500 litros de água apresenta..."
 }
 `;
 
@@ -305,19 +301,16 @@ Exemplo de formato esperado:
       const expiresAt = new Date(now.getTime() + QUEST_EXPIRES_DAYS * 24 * 60 * 60 * 1000); // 7 dias
       const batchId = crypto.randomUUID();
 
-      // Mapeamento de XP e Nível por ordem
+      // Mapeamento de XP e Nível por ordem (Lote de 3 quests sequenciais)
       const questConfig = [
         { level: 'FACIL', xp: 100 },
         { level: 'MEDIO', xp: 150 },
-        { level: 'DIFICIL', xp: 200 },
-        { level: 'DIFICIL', xp: 200 },
-        { level: 'DIFICIL', xp: 200 },
-        { level: 'BOSS', xp: 500 } // BOSS vale mais XP!
+        { level: 'DIFICIL', xp: 200 }
       ];
 
       let firstQuestId = '';
 
-      for (let i = 1; i <= 6; i++) {
+      for (let i = 1; i <= 3; i++) {
         const key = `q${i}`;
         const enunciado = questions[key] || questions[key.toUpperCase()]; // Tenta minúsculo e maiúsculo
         
@@ -381,9 +374,9 @@ Exemplo de formato esperado:
       const turma = await prisma.turma.findUnique({ where: { id: turmaId } });
       if (!turma) return reply.status(404).send({ error: 'Turma não encontrada.' });
 
-      let disciplina = await prisma.disciplina.findUnique({ where: { nome: 'Missões Gerais' } });
+      let disciplina = await prisma.disciplina.findFirst({ where: { nome: 'Missões Gerais', instituicao: request.user.instituicao || null } });
       if (!disciplina) {
-        disciplina = await prisma.disciplina.create({ data: { nome: 'Missões Gerais' } });
+        disciplina = await prisma.disciplina.create({ data: { nome: 'Missões Gerais', instituicao: request.user.instituicao || null } });
       }
 
       const prompt = `Você é um assistente educacional para alunos de escola pública brasileira.
@@ -1325,7 +1318,7 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
     const { userId } = request.params;
     console.log(`[Backend] GET /quests/subject-stats/${userId} - Caller Role: ${request.user.role}`);
     
-    if (request.user.role !== 'ADMIN' && request.user.role !== 'PROFESSOR') {
+    if (request.user.role !== 'ADMIN' && request.user.role !== 'PROFESSOR' && request.user.role !== 'ARQUITETO') {
       return reply.status(403).send({ error: 'Acesso negado. Apenas Mestres ou Arquitetos podem visualizar o desempenho de outros alunos.' });
     }
 
@@ -1424,7 +1417,7 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
   fastify.post<{ Body: { enunciado: string; turmaId: string } }>('/golden-question', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     try {
       const user = await prisma.user.findUnique({ where: { id: request.user.id } });
-      if (!user || (user.role !== 'ADMIN' && user.role !== 'PROFESSOR')) {
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'PROFESSOR' && user.role !== 'ARQUITETO')) {
         return reply.status(403).send({ error: 'Apenas diretores e mestres podem forjar perguntas douradas.' });
       }
 
@@ -1452,7 +1445,7 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
   fastify.get('/golden-questions', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     try {
       const user = await prisma.user.findUnique({ where: { id: request.user.id } });
-      if (!user || (user.role !== 'ADMIN' && user.role !== 'PROFESSOR')) {
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'PROFESSOR' && user.role !== 'ARQUITETO')) {
         return reply.status(403).send({ error: 'Apenas diretores e mestres podem ver o histórico de perguntas douradas.' });
       }
 
@@ -1621,8 +1614,8 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
   fastify.post<{ Body: { nome: string } }>('/disciplinas', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     try {
       const user = await prisma.user.findUnique({ where: { id: request.user.id } });
-      if (!user || user.role !== 'ADMIN') {
-        return reply.status(403).send({ error: 'Apenas o Diretor/ADMIN pode criar matérias.' });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+        return reply.status(403).send({ error: 'Apenas coordenadores e diretores podem criar matérias.' });
       }
       const { nome } = request.body;
       if (!nome || nome.trim() === '') {
@@ -1639,6 +1632,71 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
     } catch (error: any) {
       request.log.error(error);
       return reply.status(500).send({ error: 'Erro ao criar matéria.', details: error.message });
+    }
+  });
+
+  fastify.put<{ Params: { id: string }; Body: { nome: string } }>('/disciplinas/:id', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+        return reply.status(403).send({ error: 'Apenas coordenadores e diretores podem editar matérias.' });
+      }
+      const { id } = request.params;
+      const { nome } = request.body;
+      if (!nome || nome.trim() === '') {
+        return reply.status(400).send({ error: 'Nome da matéria é obrigatório.' });
+      }
+      
+      const exists = await prisma.disciplina.findFirst({
+        where: {
+          nome: { equals: nome.trim(), mode: 'insensitive' },
+          id: { not: id }
+        }
+      });
+      if (exists) {
+        return reply.status(400).send({ error: 'Uma matéria com este nome já existe.' });
+      }
+
+      const updated = await prisma.disciplina.update({
+        where: { id },
+        data: { nome: nome.trim() }
+      });
+      return reply.send(updated);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao editar matéria.', details: error.message });
+    }
+  });
+
+  fastify.delete<{ Params: { id: string } }>('/disciplinas/:id', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+        return reply.status(403).send({ error: 'Apenas coordenadores e diretores podem excluir matérias.' });
+      }
+      const { id } = request.params;
+
+      // 1. Deletar DisciplinaProfessor
+      await prisma.disciplinaProfessor.deleteMany({ where: { disciplinaId: id } });
+
+      // 2. Deletar TurmaDisciplina
+      await prisma.turmaDisciplina.deleteMany({ where: { disciplinaId: id } });
+
+      // 3. Deletar TimetableSlot
+      await prisma.timetableSlot.deleteMany({ where: { disciplinaId: id } });
+
+      // 4. Deletar StudentQuests e Quests associadas
+      const questIds = (await prisma.quest.findMany({ where: { disciplinaId: id }, select: { id: true } })).map(q => q.id);
+      await prisma.questDelivery.deleteMany({ where: { questId: { in: questIds } } });
+      await prisma.quest.deleteMany({ where: { disciplinaId: id } });
+
+      // 5. Deletar a Disciplina
+      await prisma.disciplina.delete({ where: { id } });
+
+      return reply.send({ message: 'Matéria excluída com sucesso!' });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao excluir matéria.', details: error.message });
     }
   });
 
@@ -1745,8 +1803,8 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
   fastify.post<{ Params: { turmaId: string }; Body: { slots: { diaSemana: string; posicao: number; disciplinaId: string }[] } }>('/turmas/:turmaId/timetable', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     try {
       const user = await prisma.user.findUnique({ where: { id: request.user.id } });
-      if (!user || (user.role !== 'ADMIN' && user.role !== 'PROFESSOR')) {
-        return reply.status(403).send({ error: 'Apenas diretores e mestres podem editar a grade de horários.' });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+        return reply.status(403).send({ error: 'Apenas diretores e arquitetos podem editar a grade de horários.' });
       }
       const { turmaId } = request.params;
       const { slots } = request.body;
@@ -1777,6 +1835,32 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
     } catch (error: any) {
       request.log.error(error);
       return reply.status(500).send({ error: 'Erro ao salvar grade de horários.', details: error.message });
+    }
+  });
+
+  fastify.delete<{ Params: { turmaId: string }; Body: { diaSemana: string; posicao: number } }>('/turmas/:turmaId/timetable', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+        return reply.status(403).send({ error: 'Apenas diretores e arquitetos podem editar a grade de horários.' });
+      }
+      const { turmaId } = request.params;
+      const { diaSemana, posicao } = request.body;
+
+      await prisma.timetableSlot.delete({
+        where: {
+          turmaId_diaSemana_posicao: {
+            turmaId,
+            diaSemana,
+            posicao
+          }
+        }
+      });
+
+      return reply.send({ message: 'Horário removido com sucesso!' });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao remover horário.', details: error.message });
     }
   });
 

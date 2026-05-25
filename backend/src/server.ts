@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import { questsRoutes } from './routes/quests';
 import { adminRoutes } from './routes/admin';
 import { professorRoutes } from './routes/professor';
+import { superadminRoutes } from './routes/superadmin';
 
 import cors from '@fastify/cors';
 import authPlugin from './plugins/auth';
@@ -22,6 +23,7 @@ server.register(authRoutes, { prefix: '/auth' });
 server.register(adminRoutes, { prefix: '/admin' });
 server.register(questsRoutes, { prefix: '/quests' });
 server.register(professorRoutes, { prefix: '/professor' });
+server.register(superadminRoutes, { prefix: '/superadmin' });
 
 const start = async () => {
   try {
