@@ -7,6 +7,7 @@ import { superadminRoutes } from './routes/superadmin';
 
 import cors from '@fastify/cors';
 import authPlugin from './plugins/auth';
+import securityPlugin from './plugins/security';
 import { authRoutes } from './routes/auth';
 
 const server = Fastify({
@@ -17,6 +18,7 @@ const server = Fastify({
 // Registrando plugins
 server.register(cors, { origin: '*' });
 server.register(authPlugin);
+server.register(securityPlugin);
 
 // Registrando rotas
 server.register(authRoutes, { prefix: '/auth' });

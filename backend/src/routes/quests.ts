@@ -53,6 +53,8 @@ class GeminiRotator {
 const rotator = new GeminiRotator();
 
 export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
+  fastify.addHook('preValidation', fastify.authenticate);
+  fastify.addHook('preHandler', fastify.validateInstitution);
 
   const callGemini = async (prompt: string, image?: { data: string, mimeType: string }, attempt: number = 0): Promise<string> => {
     const { GoogleGenerativeAI } = require('@google/generative-ai');

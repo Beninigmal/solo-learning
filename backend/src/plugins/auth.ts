@@ -37,6 +37,7 @@ declare module '@fastify/jwt' {
       role: string;
       nome: string;
       instituicao?: string | null;
+      institutionId?: string | null;
       turmaId?: string | null;
       turno?: string | null;
     }

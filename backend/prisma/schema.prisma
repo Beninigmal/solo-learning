@@ -17,6 +17,10 @@ model User {
   role          String   @default("ALUNO") // ADMIN, PROFESSOR, ALUNO
   turno         String?  // MATUTINO, VESPERTINO, NOTURNO (Para os alunos)
   instituicao   String?  // Instituição de ensino
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+  acceptedTermsAt DateTime?
+  parentConsentName String?
   xp            Int      @default(0)
   level         Int      @default(1)
   blocked       Boolean  @default(false)
@@ -49,6 +53,8 @@ model Turma {
   nome            String   // ex: "3º Ano A"
   ano             String?
   instituicao     String?
+  institutionId   String?
+  institution     Institution? @relation(fields: [institutionId], references: [id])
   codigoInvocacao String?  @default("1234")
   
   turmaDisciplinas TurmaDisciplina[]
@@ -62,10 +68,12 @@ model Turma {
 }
 
 model Disciplina {
-  id          String   @id @default(uuid())
-  nome        String   // ex: "Matemática", "Física"
-  instituicao String?
-  professores DisciplinaProfessor[]
+  id            String   @id @default(uuid())
+  nome          String   // ex: "Matemática", "Física"
+  instituicao   String?
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+  professores   DisciplinaProfessor[]
   quests      Quest[]
   turmaDisciplinas TurmaDisciplina[]
   timetableSlots  TimetableSlot[]
@@ -251,7 +259,10 @@ model GoldenAnswer {
 }
 
 model Institution {
-  id        String   @id @default(uuid())
-  nome      String   @unique
-  createdAt DateTime @default(now())
+  id          String       @id @default(uuid())
+  nome        String       @unique
+  createdAt   DateTime     @default(now())
+  users       User[]
+  turmas      Turma[]
+  disciplinas Disciplina[]
 }

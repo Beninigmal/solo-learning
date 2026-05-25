@@ -63,6 +63,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
         nome: user.nome,
         role: user.role,
         instituicao: user.instituicao,
+        institutionId: user.institutionId,
         turmaId: user.turmaId,
         isFirstAccess: user.isFirstAccess
       }, { expiresIn: '7d' });
@@ -77,7 +78,9 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
           instituicao: user.instituicao,
           xp: user.xp,
           level: user.level,
-          isFirstAccess: user.isFirstAccess
+          isFirstAccess: user.isFirstAccess,
+          acceptedTermsAt: user.acceptedTermsAt,
+          parentConsentName: user.parentConsentName
         }
       });
 
@@ -152,6 +155,77 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
         return reply.status(200).send({ ok: true });
       } catch (error: any) {
         return reply.status(500).send({ error: 'Erro ao salvar push token.' });
+      }
+    }
+  );
+
+  fastify.post<{ Body: { parentConsentName?: string } }>(
+    '/accept-terms',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const { parentConsentName } = request.body;
+        const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+        if (!user) return reply.status(404).send({ error: 'Usuário não encontrado.' });
+
+        if (user.role === 'ALUNO' && !parentConsentName?.trim()) {
+          return reply.status(400).send({ error: 'O nome do responsável é obrigatório para caçadores menores de idade.' });
+        }
+
+        const updatedUser = await prisma.user.update({
+          where: { id: request.user.id },
+          data: {
+            acceptedTermsAt: new Date(),
+            parentConsentName: user.role === 'ALUNO' && parentConsentName ? parentConsentName.trim() : null
+          }
+        });
+
+        return reply.status(200).send({
+          message: 'Termos aceitos com sucesso!',
+          user: {
+            id: updatedUser.id,
+            acceptedTermsAt: updatedUser.acceptedTermsAt,
+            parentConsentName: updatedUser.parentConsentName
+          }
+        });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao aceitar termos de privacidade.' });
+      }
+    }
+  );
+
+  fastify.delete(
+    '/delete-account',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) return reply.status(404).send({ error: 'Usuário não encontrado.' });
+
+        console.log(`[DELETE ACCOUNT] Iniciando exclusão segura em cascata do usuário: ${user.nome} (${userId})`);
+
+        await prisma.$transaction(async (tx) => {
+          await tx.goldenAnswer.deleteMany({ where: { userId } });
+          await tx.wrongAnswer.deleteMany({ where: { userId } });
+          await tx.questDelivery.deleteMany({ where: { userId } });
+
+          if (user.role === 'PROFESSOR') {
+            await tx.disciplinaProfessor.deleteMany({ where: { professorId: userId } });
+            await tx.turmaDisciplina.deleteMany({ where: { professorId: userId } });
+            await tx.calendarEvent.deleteMany({ where: { professorId: userId } });
+          }
+
+          await tx.raidParticipant.deleteMany({ where: { userId } });
+          await tx.user.delete({ where: { id: userId } });
+        });
+
+        console.log(`[DELETE ACCOUNT] Conta excluída com sucesso!`);
+        return reply.status(200).send({ message: 'Conta e todos os dados associados foram completamente apagados do sistema.' });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro de integridade relacional ao apagar conta.', details: error.message });
       }
     }
   );

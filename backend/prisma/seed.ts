@@ -48,6 +48,7 @@ async function main() {
     update: { 
       role: 'ARQUITETO',
       instituicao: escola.nome,
+      institutionId: escola.id,
       password: defaultPassword,
       isFirstAccess: false
     },
@@ -59,6 +60,7 @@ async function main() {
       isFirstAccess: false,
       role: 'ARQUITETO',
       instituicao: escola.nome,
+      institutionId: escola.id,
     },
   });
   console.log('🏛️ Arquiteto Escola Solen garantido.');
@@ -69,6 +71,7 @@ async function main() {
     update: { 
       role: 'PROFESSOR',
       instituicao: escola.nome,
+      institutionId: escola.id,
       password: defaultPassword,
       isFirstAccess: false
     },
@@ -80,6 +83,7 @@ async function main() {
       isFirstAccess: false,
       role: 'PROFESSOR',
       instituicao: escola.nome,
+      institutionId: escola.id,
     },
   });
 
@@ -90,12 +94,14 @@ async function main() {
       nome: 'TURMA ALPHA',
       ano: '2026',
       instituicao: escola.nome,
+      institutionId: escola.id,
     },
     create: { 
       id: 'turma-alpha-id',
       nome: 'TURMA ALPHA',
       ano: '2026',
       instituicao: escola.nome,
+      institutionId: escola.id,
     },
   });
 
@@ -105,11 +111,13 @@ async function main() {
     update: {
       nome: 'Matemática',
       instituicao: escola.nome,
+      institutionId: escola.id,
     },
     create: { 
       id: 'math-disc-id',
       nome: 'Matemática',
       instituicao: escola.nome,
+      institutionId: escola.id,
     }
   });
 
@@ -137,6 +145,7 @@ async function main() {
       role: 'ALUNO', 
       turmaId: turma.id,
       instituicao: escola.nome,
+      institutionId: escola.id,
       password: defaultPassword,
       isFirstAccess: true
     },
@@ -149,6 +158,7 @@ async function main() {
       role: 'ALUNO',
       turmaId: turma.id,
       instituicao: escola.nome,
+      institutionId: escola.id,
       xp: 0,
       level: 1
     },

@@ -5,6 +5,8 @@ import bcrypt from 'bcryptjs';
 export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   
   fastify.addHook('preValidation', fastify.authenticate);
+  fastify.addHook('preHandler', fastify.validateInstitution);
+  
   fastify.addHook('preHandler', async (request, reply) => {
     if (request.user.role !== 'PROFESSOR' && request.user.role !== 'ADMIN') {
       return reply.status(403).send({ error: 'Acesso negado. Apenas o Mestre tem permissão.' });

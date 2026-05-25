@@ -6,6 +6,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
   
   // Middleware de autorização para ARQUITETO
   fastify.addHook('preValidation', fastify.authenticate);
+  fastify.addHook('preHandler', fastify.validateInstitution);
+  
   fastHookUserRoleCheck: fastify.addHook('preHandler', async (request, reply) => {
     if (request.user.role !== 'ARQUITETO') {
       return reply.status(403).send({ error: 'Acesso negado. Apenas o Arquiteto tem permissão.' });
