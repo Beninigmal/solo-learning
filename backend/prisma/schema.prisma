@@ -10,7 +10,7 @@ datasource db {
 model User {
   id            String   @id @default(uuid())
   nome          String
-  nickname      String?  @unique
+  nickname      String?
   matricula     String   @unique
   password      String
   isFirstAccess Boolean  @default(true)

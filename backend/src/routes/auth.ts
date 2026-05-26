@@ -120,12 +120,30 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
       }
 
       try {
+        const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+        if (!user) return reply.status(404).send({ error: 'Usuário não encontrado.' });
+
+        const existingWithNick = await prisma.user.findFirst({
+          where: {
+            nickname: { equals: nickname.trim(), mode: 'insensitive' },
+            id: { not: request.user.id },
+            OR: [
+              { institutionId: user.institutionId || 'NO_INSTITUTION' },
+              { instituicao: user.instituicao || 'NO_INSTITUTION' }
+            ]
+          }
+        });
+
+        if (existingWithNick) {
+          return reply.status(400).send({ error: 'Este nickname já está em uso na sua instituição.' });
+        }
+
         const hashedPassword = await bcrypt.hash(newPassword, 10);
 
         const updatedUser = await prisma.user.update({
           where: { id: request.user.id },
           data: {
-            nickname,
+            nickname: nickname.trim(),
             password: hashedPassword,
             isFirstAccess: false
           }
@@ -141,9 +159,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
         });
 
       } catch (error: any) {
-        if (error.code === 'P2002') {
-          return reply.status(400).send({ error: 'Este nickname já está em uso.' });
-        }
         request.log.error(error);
         return reply.status(500).send({ error: 'Erro ao atualizar primeiro acesso.' });
       }

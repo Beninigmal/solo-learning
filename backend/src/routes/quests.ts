@@ -145,6 +145,41 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
     const now = new Date();
 
     try {
+      // Buscar todas as entregas de Mini Boss ativas (status DELIVERED, nivel MINIBOSS)
+      const activeMiniBosses = await prisma.questDelivery.findMany({
+        where: {
+          userId,
+          status: 'DELIVERED',
+          quest: { nivel: 'MINIBOSS' }
+        },
+        include: { quest: { include: { disciplina: true } } },
+        orderBy: { quest: { createdAt: 'desc' } }
+      });
+
+      if (activeMiniBosses.length > 0) {
+        return reply.status(200).send({
+          isMultiBoss: true,
+          bosses: activeMiniBosses.map(d => {
+            const monsterMatch = d.quest.enunciado.match(/O inimigo (.*?) surgiu/);
+            const monsterName = monsterMatch ? monsterMatch[1] : 'Monstro';
+            
+            const parts = d.quest.enunciado.split('\n\n');
+            const cleanQuestion = parts.slice(1).join('\n\n') || d.quest.enunciado;
+
+            return {
+              deliveryId: d.id,
+              question: cleanQuestion,
+              rawEnunciado: d.quest.enunciado,
+              xp: Math.max(Math.round(d.quest.xp * Math.pow(0.75, d.erros)), 25),
+              nivel: d.quest.nivel,
+              subjectName: d.quest.disciplina?.nome || 'Estudos Gerais',
+              erros: d.erros,
+              monsterName
+            };
+          })
+        });
+      }
+
       // Expirar quests de 7 dias ultrapassadas
       await prisma.questDelivery.updateMany({
         where: {
@@ -334,6 +369,7 @@ Exemplo de formato esperado:
             turmaAlvoId: turma.id,
             semana,
             tema,
+            status: 'PENDENTE',
             expiresAt
           }
         });
@@ -343,24 +379,242 @@ Exemplo de formato esperado:
         }
       }
 
-      const alunos = await prisma.user.findMany({ where: { turmaId: turma.id, role: 'ALUNO' } });
-
-      if (alunos.length > 0) {
-        await prisma.questDelivery.createMany({
-          data: alunos.map((aluno: any) => ({
-            questId: firstQuestId,
-            userId: aluno.id,
-            status: 'SCHEDULED',
-            scheduledAt: now
-          }))
-        });
-      }
-
-      return reply.status(201).send({ batch: batchId, count: alunos.length });
+      return reply.status(201).send({ batch: batchId, count: 3 });
 
     } catch (error: any) {
       request.log.error(error);
       return reply.status(500).send({ error: 'Erro ao gerar quests.', details: error.message });
+    }
+  });
+
+  // ─── GET /quests/pending ──────────────────────────────────────────────────
+  fastify.get('/pending', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    if (request.user.role !== 'PROFESSOR' && request.user.role !== 'ADMIN') {
+      return reply.status(403).send({ error: 'Acesso negado.' });
+    }
+
+    try {
+      const whereClause: any = { status: 'PENDENTE' };
+      if (request.user.role === 'PROFESSOR') {
+        const vinculos = await prisma.turmaDisciplina.findMany({
+          where: { professorId: request.user.id }
+        });
+        const turmaIds = vinculos.map(v => v.turmaId);
+        const disciplinaIds = vinculos.map(v => v.disciplinaId);
+
+        whereClause.turmaAlvoId = { in: turmaIds };
+        whereClause.disciplinaId = { in: disciplinaIds };
+      }
+
+      const pendingQuests = await prisma.quest.findMany({
+        where: whereClause,
+        include: {
+          turmaAlvo: { select: { nome: true } },
+          disciplina: { select: { nome: true } }
+        },
+        orderBy: [
+          { createdAt: 'desc' },
+          { ordem: 'asc' }
+        ]
+      });
+
+      const groups: { [batchId: string]: any } = {};
+      pendingQuests.forEach(q => {
+        const bId = q.batchId || 'no-batch';
+        if (!groups[bId]) {
+          groups[bId] = {
+            batchId: bId,
+            turmaNome: q.turmaAlvo?.nome || 'Sem Turma',
+            turmaId: q.turmaAlvoId,
+            disciplinaNome: q.disciplina?.nome || 'Sem Disciplina',
+            disciplinaId: q.disciplinaId,
+            tema: q.tema || 'Sem Tema',
+            semana: q.semana || 'Sem Semana',
+            createdAt: q.createdAt,
+            quests: []
+          };
+        }
+        groups[bId].quests.push({
+          id: q.id,
+          enunciado: q.enunciado,
+          nivel: q.nivel,
+          xp: q.xp,
+          ordem: q.ordem,
+          tags: q.tags
+        });
+      });
+
+      const result = Object.values(groups).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return reply.send(result);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao buscar rascunhos.', details: error.message });
+    }
+  });
+
+  // ─── POST /quests/batch/:batchId/approve ──────────────────────────────────
+  fastify.post<{ Params: { batchId: string } }>('/batch/:batchId/approve', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    if (request.user.role !== 'PROFESSOR' && request.user.role !== 'ADMIN') {
+      return reply.status(403).send({ error: 'Acesso negado.' });
+    }
+
+    const { batchId } = request.params;
+
+    try {
+      const quests = await prisma.quest.findMany({
+        where: { batchId, status: 'PENDENTE' },
+        orderBy: { ordem: 'asc' }
+      });
+
+      if (quests.length === 0) {
+        return reply.status(404).send({ error: 'Lote de rascunhos não encontrado ou já aprovado.' });
+      }
+
+      await prisma.quest.updateMany({
+        where: { batchId },
+        data: { status: 'ATIVA' }
+      });
+
+      const firstQuest = quests.find(q => q.ordem === 1) || quests[0];
+      const now = new Date();
+
+      if (firstQuest.turmaAlvoId) {
+        const alunos = await prisma.user.findMany({
+          where: { turmaId: firstQuest.turmaAlvoId, role: 'ALUNO' }
+        });
+
+        if (alunos.length > 0) {
+          await prisma.questDelivery.createMany({
+            data: alunos.map(aluno => ({
+              questId: firstQuest.id,
+              userId: aluno.id,
+              status: 'SCHEDULED',
+              scheduledAt: now
+            }))
+          });
+        }
+      }
+
+      return reply.send({ message: 'Lote de missões ativado com sucesso!', count: quests.length });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao aprovar lote.', details: error.message });
+    }
+  });
+
+  // ─── POST /quests/:id/regenerate ──────────────────────────────────────────
+  fastify.post<{ Params: { id: string } }>('/:id/regenerate', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    if (request.user.role !== 'PROFESSOR' && request.user.role !== 'ADMIN') {
+      return reply.status(403).send({ error: 'Acesso negado.' });
+    }
+
+    const { id } = request.params;
+
+    try {
+      const quest = await prisma.quest.findUnique({
+        where: { id }
+      });
+
+      if (!quest) {
+        return reply.status(404).send({ error: 'Quest não encontrada.' });
+      }
+
+      const prompt = `Você é um assistente educacional para alunos de escola pública brasileira.
+Crie UMA única pergunta sobre o tema "${quest.tema || 'Geral'}" no nível "${quest.nivel || 'MEDIO'}".
+Regras:
+- Resposta curta e objetiva.
+- Linguagem extremamente simples e voltada a estudantes locais.
+- Retorne APENAS o enunciado da pergunta. Sem numeração, sem aspas adicionais, sem introduções ou explicações.
+`;
+
+      const raw = await callGemini(prompt);
+      const enunciado = raw.trim();
+
+      const updated = await prisma.quest.update({
+        where: { id },
+        data: { enunciado }
+      });
+
+      return reply.send(updated);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao regenerar quest.', details: error.message });
+    }
+  });
+
+  // ─── POST /quests/:id/refine ──────────────────────────────────────────────
+  fastify.post<{ Params: { id: string }; Body: { prompt: string } }>('/:id/refine', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    if (request.user.role !== 'PROFESSOR' && request.user.role !== 'ADMIN') {
+      return reply.status(403).send({ error: 'Acesso negado.' });
+    }
+
+    const { id } = request.params;
+    const { prompt: userPrompt } = request.body;
+
+    if (!userPrompt || !userPrompt.trim()) {
+      return reply.status(400).send({ error: 'Instruções de refinamento são obrigatórias.' });
+    }
+
+    try {
+      const quest = await prisma.quest.findUnique({
+        where: { id }
+      });
+
+      if (!quest) {
+        return reply.status(404).send({ error: 'Quest não encontrada.' });
+      }
+
+      const systemPrompt = `Você é um assistente educacional de física/matemática/ciências para escolas públicas brasileiras.
+Temos esta pergunta existente:
+"${quest.enunciado}"
+
+O professor deu o seguinte feedback de refinamento/ajuste:
+"${userPrompt}"
+
+Com base nesse feedback, reescreva a pergunta de forma excelente.
+Regras:
+- Mantendo o mesmo nível "${quest.nivel}" e tema "${quest.tema || 'Geral'}".
+- Retorne APENAS o novo enunciado da pergunta. Sem numeração, sem aspas adicionais, sem introduções ou explicações.
+`;
+
+      const raw = await callGemini(systemPrompt);
+      const enunciado = raw.trim();
+
+      const updated = await prisma.quest.update({
+        where: { id },
+        data: { enunciado }
+      });
+
+      return reply.send(updated);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao afiar quest.', details: error.message });
+    }
+  });
+
+  // ─── PUT /quests/:id ──────────────────────────────────────────────────────
+  fastify.put<{ Params: { id: string }; Body: { enunciado: string } }>('/:id', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    if (request.user.role !== 'PROFESSOR' && request.user.role !== 'ADMIN') {
+      return reply.status(403).send({ error: 'Acesso negado.' });
+    }
+
+    const { id } = request.params;
+    const { enunciado } = request.body;
+
+    if (!enunciado || !enunciado.trim()) {
+      return reply.status(400).send({ error: 'O enunciado é obrigatório.' });
+    }
+
+    try {
+      const updated = await prisma.quest.update({
+        where: { id },
+        data: { enunciado: enunciado.trim() }
+      });
+
+      return reply.send(updated);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao atualizar quest.', details: error.message });
     }
   });
   // ─── POST /quests/mock-boss ────────────────────────────────────────────────
@@ -560,6 +814,7 @@ Exemplo de formato esperado:
           where: {
             batchId,
             ordem: currentOrdem + 1,
+            status: 'ATIVA',
             nivel: { notIn: ['BOSS', 'MINIBOSS'] }
           }
         });
@@ -575,6 +830,7 @@ Exemplo de formato esperado:
         const latestQuest = await prisma.quest.findFirst({
           where: { 
             turmaAlvoId: user.turmaId,
+            status: 'ATIVA',
             nivel: { notIn: ['BOSS', 'MINIBOSS'] },
             ...(disciplinaId ? { disciplinaId } : {})
           },
@@ -584,7 +840,7 @@ Exemplo de formato esperado:
         if (latestQuest) {
           const batchId = latestQuest.batchId;
           const firstInBatch = await prisma.quest.findFirst({
-            where: { batchId, ordem: 1 }
+            where: { batchId, ordem: 1, status: 'ATIVA' }
           });
 
           if (firstInBatch) {
@@ -709,11 +965,11 @@ Se ERRADO: retorne JSON: {"status": "error", "message": "Explique de forma educa
               subjectCounts[discId] = (subjectCounts[discId] || 0) + 1;
             }
 
-            const counts = Object.values(subjectCounts);
-            const hasThreeAndThree = counts.filter(c => c >= 3).length >= 2;
-            const hasTwoTwoTwo = counts.filter(c => c >= 2).length >= 3;
+            const candidateSubjects = Object.keys(subjectCounts).filter(discId => subjectCounts[discId] >= 2);
+            const targetSubjects = candidateSubjects.slice(0, 3);
+            const numBosses = targetSubjects.length;
 
-            if (hasThreeAndThree || hasTwoTwoTwo) {
+            if (numBosses >= 2) {
               // Verificar se já spawnou um Mini Boss hoje para este usuário
               const alreadyTriggered = await prisma.quest.findFirst({
                 where: {
@@ -726,13 +982,22 @@ Se ERRADO: retorne JSON: {"status": "error", "message": "Explique de forma educa
               });
 
               if (!alreadyTriggered) {
-                // Selecionar disciplina candidata
-                const candidateSubjects = Object.keys(subjectCounts).filter(discId => subjectCounts[discId] >= 2);
-                const chosenSubjectId = candidateSubjects[0] || todayCompleted[0]?.quest.disciplinaId;
+                const xpPerBoss = Math.round(600 / numBosses);
+                const sharedBatchId = crypto.randomUUID();
 
-                if (chosenSubjectId) {
+                const dndMonsters = [
+                  'Beholder', 'Lich', 'Dragão Vermelho', 'Mind Flayer', 
+                  'Tarrasque', 'Demogorgon', 'Gorgon', 'Quimera', 
+                  'Hidra', 'Cavaleiro da Morte', 'Mímico', 'Urso-Coruja'
+                ];
+
+                for (let i = 0; i < targetSubjects.length; i++) {
+                  const chosenSubjectId = targetSubjects[i];
                   const discipline = await prisma.disciplina.findUnique({ where: { id: chosenSubjectId } });
                   const subjectName = discipline ? discipline.nome : 'Estudos Gerais';
+
+                  const monsterIndex = Math.floor(Math.random() * dndMonsters.length);
+                  const monsterName = dndMonsters.splice(monsterIndex, 1)[0];
 
                   const miniBossPrompt = `Você é um assistente educacional para alunos de escola pública brasileira.
 Crie uma pergunta desafiadora de nível "MINIBOSS" sobre o assunto "${subjectName}".
@@ -741,26 +1006,55 @@ Retorne APENAS um JSON no seguinte formato:
 {
   "pergunta": "Texto da pergunta aqui..."
 }`;
-                  const rawResponse = await callGemini(miniBossPrompt);
-                  let cleaned = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-                  const firstBraceIndex = cleaned.indexOf('{');
-                  const lastBraceIndex = cleaned.lastIndexOf('}');
-                  if (firstBraceIndex !== -1 && lastBraceIndex !== -1) {
-                    cleaned = cleaned.substring(firstBraceIndex, lastBraceIndex + 1);
-                  }
-                  const parsed = JSON.parse(cleaned);
-                  const enunciadoMiniBoss = parsed.pergunta || parsed.PERGUNTA;
 
-                  if (enunciadoMiniBoss) {
+                  let rawQuestionText = '';
+                  try {
+                    const rawResponse = await callGemini(miniBossPrompt);
+                    let cleaned = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const firstBraceIndex = cleaned.indexOf('{');
+                    const lastBraceIndex = cleaned.lastIndexOf('}');
+                    if (firstBraceIndex !== -1 && lastBraceIndex !== -1) {
+                      cleaned = cleaned.substring(firstBraceIndex, lastBraceIndex + 1);
+                    }
+                    const parsed = JSON.parse(cleaned);
+                    rawQuestionText = parsed.pergunta || parsed.PERGUNTA || '';
+                  } catch (geminiErr) {
+                    request.log.warn({ err: geminiErr }, 'Falha na chamada Gemini para Mini Boss. Usando fallback estático.');
+                    
+                    const subNameLower = subjectName.toLowerCase();
+                    if (subNameLower.includes('portug') || subNameLower.includes('gramat') || subNameLower.includes('redac')) {
+                      rawQuestionText = "Analise o uso da crase na frase: 'Refiro-me àquelas alunas que estudam à noite'. Justifique a ocorrência do acento grave em ambos os casos.";
+                    } else if (subNameLower.includes('ingl') || subNameLower.includes('english')) {
+                      rawQuestionText = "Rewrite the following sentence using the present perfect continuous tense: 'She started studying English two hours ago and she is still studying now'.";
+                    } else if (subNameLower.includes('matemat') || subNameLower.includes('calcul') || subNameLower.includes('algebra')) {
+                      rawQuestionText = "Seja a função f(x) = 3x² - 12x + 9. Determine as coordenadas do vértice da parábola e indique se este ponto representa um valor máximo ou mínimo da função.";
+                    } else if (subNameLower.includes('fisic') || subNameLower.includes('mecanic')) {
+                      rawQuestionText = "Um objeto é lançado verticalmente para cima com uma velocidade inicial de 20 m/s. Desprezando a resistência do ar e adotando g = 10 m/s², calcule a altura máxima atingida pelo objeto.";
+                    } else if (subNameLower.includes('quimic')) {
+                      rawQuestionText = "Uma solução aquosa de hidróxido de sódio (NaOH) apresenta concentração de 0,1 mol/L. Calcule o pH dessa solução a 25°C, sabendo que o NaOH é uma base forte completamente dissociada.";
+                    } else if (subNameLower.includes('biolog')) {
+                      rawQuestionText = "Explique a diferença funcional e estrutural entre as células procariontes e eucariontes, citando pelo menos duas organelas membranasas exclusivas destas últimas.";
+                    } else if (subNameLower.includes('histor')) {
+                      rawQuestionText = "Discorra sobre as principais características do feudalismo na Europa Ocidental durante a Idade Média, destacando a relação de suserania e vassalagem.";
+                    } else if (subNameLower.includes('geograf')) {
+                      rawQuestionText = "Explique o fenômeno da 'El Niño' e seus impactos climáticos globais, destacando como ele altera o regime de chuvas e temperaturas na América do Sul.";
+                    } else {
+                      rawQuestionText = "Resolva o seguinte desafio de raciocínio lógico: Três pessoas (A, B e C) fazem declarações. A diz: 'B mente'. B diz: 'C mente'. C diz: 'A e B mentem'. Quem está dizendo a verdade?";
+                    }
+                  }
+
+                  if (rawQuestionText) {
+                    const finalEnunciado = `O inimigo ${monsterName} surgiu! Desafio de ${subjectName}:\n\n${rawQuestionText}`;
+
                     const quest = await prisma.quest.create({
                       data: {
                         disciplinaId: chosenSubjectId,
-                        enunciado: enunciadoMiniBoss,
+                        enunciado: finalEnunciado,
                         tags: ['MINIBOSS'],
-                        xp: 300,
+                        xp: xpPerBoss,
                         nivel: 'MINIBOSS',
-                        batchId: crypto.randomUUID(),
-                        ordem: 1,
+                        batchId: sharedBatchId,
+                        ordem: i + 1,
                         turmaAlvoId: user.turmaId,
                         semana: 'Mini Boss',
                         tema: `Mini Boss - ${subjectName}`,
