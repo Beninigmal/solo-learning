@@ -78,7 +78,7 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
             role: 'ARQUITETO',
             instituicao,
             institutionId: inst.id,
-            isFirstAccess: false
+            isFirstAccess: true
           }
         });
 
