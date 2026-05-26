@@ -18,7 +18,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
       const isNickname = searchKey.startsWith('@');
       const cleanKey = isNickname ? searchKey.substring(1) : searchKey;
 
-      const user = await prisma.user.findFirst({
+      let user = await prisma.user.findFirst({
         where: {
           OR: [
             { matricula: { equals: cleanKey, mode: 'insensitive' } },
@@ -30,6 +30,20 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
 
       if (!user) {
         return reply.status(401).send({ error: 'Credenciais inválidas.' });
+      }
+
+      // SELF-HEALING: If user has instituicao string but no institutionId, resolve and update it on the fly
+      if (!user.institutionId && user.instituicao) {
+        const inst = await prisma.institution.findFirst({
+          where: { nome: { equals: user.instituicao, mode: 'insensitive' } }
+        });
+        if (inst) {
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: { institutionId: inst.id },
+            include: { turma: true }
+          });
+        }
       }
 
       if (user.blocked) {
@@ -137,10 +151,24 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
   );
   
   fastify.get('/me', { preValidation: [fastify.authenticate] }, async (request, reply) => {
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { id: request.user.id },
       include: { turma: true }
     });
+    
+    if (user && !user.institutionId && user.instituicao) {
+      const inst = await prisma.institution.findFirst({
+        where: { nome: { equals: user.instituicao, mode: 'insensitive' } }
+      });
+      if (inst) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { institutionId: inst.id },
+          include: { turma: true }
+        });
+      }
+    }
+    
     return reply.status(200).send({ user });
   });
 

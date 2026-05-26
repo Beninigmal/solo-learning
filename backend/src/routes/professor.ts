@@ -92,7 +92,12 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
         // Atualiza a turma e turno do aluno existente
         const updatedStudent = await prisma.user.update({
           where: { id: existingStudent.id },
-          data: { turmaId, turno }
+          data: {
+            turmaId,
+            turno,
+            instituicao: request.user.instituicao,
+            institutionId: request.user.institutionId || null
+          }
         });
         return reply.status(200).send(updatedStudent);
       }
@@ -108,7 +113,8 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
           turno,
           password: 'INITIAL_SUMMONING_CODE_LOGIN', // Placeholder
           isFirstAccess: true,
-          instituicao: request.user.instituicao
+          instituicao: request.user.instituicao,
+          institutionId: request.user.institutionId || null
         }
       });
       return reply.status(201).send(student);
@@ -254,7 +260,8 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
               turno: s.turno || 'MATUTINO',
               turmaId: turma.id,
               password: 'SUMMONING_CODE',
-              instituicao: request.user.instituicao
+              instituicao: request.user.instituicao,
+              institutionId: request.user.institutionId || null
             }
           });
           createdCount++;

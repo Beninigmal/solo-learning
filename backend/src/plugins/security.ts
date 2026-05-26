@@ -10,7 +10,16 @@ export default fp(async (fastify: FastifyInstance) => {
         return;
       }
 
-      const userInstitutionId = request.user?.institutionId;
+      let userInstitutionId = request.user?.institutionId;
+      if (!userInstitutionId && request.user?.instituicao) {
+        const inst = await prisma.institution.findFirst({
+          where: { nome: { equals: request.user.instituicao, mode: 'insensitive' } }
+        });
+        if (inst) {
+          userInstitutionId = inst.id;
+        }
+      }
+
       if (!userInstitutionId) {
         return reply.status(403).send({ error: 'Acesso negado: Usuário sem instituição vinculada.' });
       }
@@ -39,10 +48,14 @@ export default fp(async (fastify: FastifyInstance) => {
       if (turmaId) {
         const turma = await prisma.turma.findUnique({
           where: { id: turmaId },
-          select: { institutionId: true }
+          select: { institutionId: true, instituicao: true }
         });
-        if (turma && turma.institutionId !== userInstitutionId) {
-          return reply.status(403).send({ error: 'Acesso negado: Esta guilda/turma pertence a outra instituição.' });
+        if (turma) {
+          const hasRelMatch = !!(turma.institutionId && userInstitutionId && turma.institutionId === userInstitutionId);
+          const hasStrMatch = !!(turma.instituicao && request.user.instituicao && turma.instituicao === request.user.instituicao);
+          if (!hasRelMatch && !hasStrMatch) {
+            return reply.status(403).send({ error: 'Acesso negado: Esta guilda/turma pertence a outra instituição.' });
+          }
         }
       }
 
@@ -50,10 +63,14 @@ export default fp(async (fastify: FastifyInstance) => {
       if (disciplinaId) {
         const disciplina = await prisma.disciplina.findUnique({
           where: { id: disciplinaId },
-          select: { institutionId: true }
+          select: { institutionId: true, instituicao: true }
         });
-        if (disciplina && disciplina.institutionId !== userInstitutionId) {
-          return reply.status(403).send({ error: 'Acesso negado: Esta matéria pertence a outra instituição.' });
+        if (disciplina) {
+          const hasRelMatch = !!(disciplina.institutionId && userInstitutionId && disciplina.institutionId === userInstitutionId);
+          const hasStrMatch = !!(disciplina.instituicao && request.user.instituicao && disciplina.instituicao === request.user.instituicao);
+          if (!hasRelMatch && !hasStrMatch) {
+            return reply.status(403).send({ error: 'Acesso negado: Esta matéria pertence a outra instituição.' });
+          }
         }
       }
 
@@ -61,10 +78,14 @@ export default fp(async (fastify: FastifyInstance) => {
       if (targetUserId) {
         const targetUser = await prisma.user.findUnique({
           where: { id: targetUserId },
-          select: { institutionId: true }
+          select: { institutionId: true, instituicao: true }
         });
-        if (targetUser && targetUser.institutionId !== userInstitutionId) {
-          return reply.status(403).send({ error: 'Acesso negado: Este caçador/usuário pertence a outra instituição.' });
+        if (targetUser) {
+          const hasRelMatch = !!(targetUser.institutionId && userInstitutionId && targetUser.institutionId === userInstitutionId);
+          const hasStrMatch = !!(targetUser.instituicao && request.user.instituicao && targetUser.instituicao === request.user.instituicao);
+          if (!hasRelMatch && !hasStrMatch) {
+            return reply.status(403).send({ error: 'Acesso negado: Este caçador/usuário pertence a outra instituição.' });
+          }
         }
       }
     } catch (err) {

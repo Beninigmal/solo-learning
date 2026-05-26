@@ -77,6 +77,7 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
             password: hashedPassword,
             role: 'ARQUITETO',
             instituicao,
+            institutionId: inst.id,
             isFirstAccess: false
           }
         });
@@ -201,6 +202,7 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
             return reply.status(404).send({ error: 'Instituição não encontrada.' });
           }
           updateData.instituicao = instituicao;
+          updateData.institutionId = inst.id;
         }
 
         if (password && password.trim()) {

@@ -39,7 +39,11 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         });
         if (!existingDisc) {
           await prisma.disciplina.create({
-            data: { nome: novaMateria.trim(), instituicao }
+            data: {
+              nome: novaMateria.trim(),
+              instituicao,
+              institutionId: request.user.institutionId || null
+            }
           });
         }
       }
@@ -52,10 +56,10 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           role: 'PROFESSOR',
           password: defaultPassword,
           isFirstAccess: true,
-          instituicao
+          instituicao,
+          institutionId: request.user.institutionId || null
         }
       });
-
       return reply.status(201).send({ message: 'Mestre cadastrado com sucesso!', user });
     } catch (error: any) {
       if (error.code === 'P2002') {
@@ -171,7 +175,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           nome: formattedNome,
           ano: ano.trim(),
           codigoInvocacao: codigoInvocacao ? codigoInvocacao.trim() : "1234",
-          instituicao
+          instituicao,
+          institutionId: request.user.institutionId || null
         }
       });
 

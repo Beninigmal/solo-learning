@@ -1611,6 +1611,7 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
   });
 
   // ==========================================
+  // ==========================================
   // 6. MANEJO DE DISCIPLINAS (Matérias)
   // ==========================================
   fastify.post<{ Body: { nome: string } }>('/disciplinas', { preValidation: [fastify.authenticate] }, async (request, reply) => {
@@ -1623,12 +1624,25 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
       if (!nome || nome.trim() === '') {
         return reply.status(400).send({ error: 'Nome da matéria é obrigatório.' });
       }
-      const exists = await prisma.disciplina.findFirst({ where: { nome: { equals: nome.trim(), mode: 'insensitive' } } });
+
+      const instituicao = user.instituicao;
+      const institutionId = user.institutionId;
+
+      const exists = await prisma.disciplina.findFirst({
+        where: {
+          nome: { equals: nome.trim(), mode: 'insensitive' },
+          instituicao: instituicao || null
+        }
+      });
       if (exists) {
-        return reply.status(400).send({ error: 'Uma matéria com este nome já existe.' });
+        return reply.status(400).send({ error: 'Uma matéria com este nome já existe nesta instituição.' });
       }
       const created = await prisma.disciplina.create({
-        data: { nome: nome.trim() }
+        data: {
+          nome: nome.trim(),
+          instituicao: instituicao || null,
+          institutionId: institutionId || null
+        }
       });
       return reply.status(201).send(created);
     } catch (error: any) {
@@ -1649,14 +1663,23 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
         return reply.status(400).send({ error: 'Nome da matéria é obrigatório.' });
       }
       
+      const targetDisciplina = await prisma.disciplina.findUnique({ where: { id } });
+      if (!targetDisciplina) {
+        return reply.status(404).send({ error: 'Matéria não encontrada.' });
+      }
+      if (user.role === 'ARQUITETO' && targetDisciplina.instituicao !== user.instituicao) {
+        return reply.status(403).send({ error: 'Acesso negado. Esta matéria pertence a outra instituição.' });
+      }
+
       const exists = await prisma.disciplina.findFirst({
         where: {
           nome: { equals: nome.trim(), mode: 'insensitive' },
+          instituicao: user.instituicao || null,
           id: { not: id }
         }
       });
       if (exists) {
-        return reply.status(400).send({ error: 'Uma matéria com este nome já existe.' });
+        return reply.status(400).send({ error: 'Uma matéria com este nome já existe nesta instituição.' });
       }
 
       const updated = await prisma.disciplina.update({
@@ -1677,6 +1700,14 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
         return reply.status(403).send({ error: 'Apenas coordenadores e diretores podem excluir matérias.' });
       }
       const { id } = request.params;
+
+      const targetDisciplina = await prisma.disciplina.findUnique({ where: { id } });
+      if (!targetDisciplina) {
+        return reply.status(404).send({ error: 'Matéria não encontrada.' });
+      }
+      if (user.role === 'ARQUITETO' && targetDisciplina.instituicao !== user.instituicao) {
+        return reply.status(403).send({ error: 'Acesso negado. Esta matéria pertence a outra instituição.' });
+      }
 
       // 1. Deletar DisciplinaProfessor
       await prisma.disciplinaProfessor.deleteMany({ where: { disciplinaId: id } });
@@ -1704,9 +1735,25 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
 
   fastify.get('/disciplinas', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user) {
+        return reply.status(404).send({ error: 'Usuário não encontrado.' });
+      }
+
+      const filter: any = {};
+      if (user.role !== 'ADMIN') {
+        filter.instituicao = user.instituicao || '';
+      }
+
       const disciplines = await prisma.disciplina.findMany({
+        where: filter,
         include: {
           professores: {
+            where: {
+              professor: {
+                instituicao: user.role !== 'ADMIN' ? (user.instituicao || '') : undefined
+              }
+            },
             include: {
               professor: true
             }
@@ -1735,10 +1782,23 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
   fastify.post<{ Body: { professorId: string; disciplinaId: string; temp?: any } }>('/disciplinas/professor', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     try {
       const user = await prisma.user.findUnique({ where: { id: request.user.id } });
-      if (!user || user.role !== 'ADMIN') {
-        return reply.status(403).send({ error: 'Apenas o Diretor/ADMIN pode vincular professores.' });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+        return reply.status(403).send({ error: 'Apenas o Diretor/ADMIN ou Arquiteto pode vincular professores.' });
       }
       const { professorId, disciplinaId, temp } = request.body;
+
+      if (user.role === 'ARQUITETO') {
+        const targetProf = await prisma.user.findFirst({
+          where: { id: professorId, role: 'PROFESSOR', instituicao: user.instituicao }
+        });
+        const targetDisc = await prisma.disciplina.findFirst({
+          where: { id: disciplinaId, instituicao: user.instituicao }
+        });
+        if (!targetProf || !targetDisc) {
+          return reply.status(403).send({ error: 'Acesso negado. O professor e a disciplina devem pertencer à sua instituição.' });
+        }
+      }
+
       const parsedTemp = temp === true || temp === 'true';
       const relation = await prisma.disciplinaProfessor.upsert({
         where: {
@@ -1763,10 +1823,23 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
   fastify.delete<{ Body: { professorId: string; disciplinaId: string } }>('/disciplinas/professor', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     try {
       const user = await prisma.user.findUnique({ where: { id: request.user.id } });
-      if (!user || user.role !== 'ADMIN') {
-        return reply.status(403).send({ error: 'Apenas o Diretor/ADMIN pode desvincular professores.' });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+        return reply.status(403).send({ error: 'Apenas o Diretor/ADMIN ou Arquiteto pode desvincular professores.' });
       }
       const { professorId, disciplinaId } = request.body;
+
+      if (user.role === 'ARQUITETO') {
+        const targetProf = await prisma.user.findFirst({
+          where: { id: professorId, role: 'PROFESSOR', instituicao: user.instituicao }
+        });
+        const targetDisc = await prisma.disciplina.findFirst({
+          where: { id: disciplinaId, instituicao: user.instituicao }
+        });
+        if (!targetProf || !targetDisc) {
+          return reply.status(403).send({ error: 'Acesso negado. O professor e a disciplina devem pertencer à sua instituição.' });
+        }
+      }
+
       await prisma.disciplinaProfessor.delete({
         where: {
           professorId_disciplinaId: { professorId, disciplinaId }
