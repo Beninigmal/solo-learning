@@ -27,8 +27,13 @@ server.register(questsRoutes, { prefix: '/quests' });
 server.register(professorRoutes, { prefix: '/professor' });
 server.register(superadminRoutes, { prefix: '/superadmin' });
 
+import { autoMigrateInstitutions } from './utils/autoMigrate';
+
 const start = async () => {
   try {
+    // Executa a migração automática relacional de instituições no startup (auto-healing)
+    await autoMigrateInstitutions();
+
     const port = Number(process.env.PORT) || 3333;
     await server.listen({ port, host: '0.0.0.0' });
     console.log(`Servidor rodando na porta ${port}`);
