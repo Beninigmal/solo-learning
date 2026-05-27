@@ -68,9 +68,10 @@ Os artefatos são obtidos ao derrotar **Mini Bosses** em grupo (Party/Raid) ou e
 - **Descrição:** Uma esfera de cristal que reflete o conhecimento oculto.
 - **Efeito:** Permite ver o **próximo tópico** que será abordado no caminho de missões da Party ou da Guilda, dando vantagem estratégica para estudar antes do desafio. Não revela respostas, apenas a área de conhecimento.
 
-### 8. Chave Mestra
-- **Descrição:** Uma chave antiga que abre qualquer fechadura.
-- **Efeito:** Permite abrir **qualquer party ativa** e entrar na turma, mesmo a contra gosto do líder, e mesmo que o limite de membros já tenha sido atingido. ex: se já tiver 3 membror que é o limite, ele entrará na party como o quarto.
+### 8. 🔑 Chave Mestra
+- **Descrição:** Uma chave antiga que abre fechaduras dimensionais restritas.
+- **Efeito:** Permite abrir **qualquer party ativa da sua própria Turma** e entrar nela como invasor, mesmo a contragosto do líder e mesmo que o limite de membros já tenha sido atingido (ex: entrará como quarto membro).
+- **Restrição:** Bloqueado o uso para invadir parties de outras turmas.
 
 ## 🔵 Artefatos Mágicos (Azuis)
 
@@ -94,8 +95,8 @@ Os artefatos são obtidos ao derrotar **Mini Bosses** em grupo (Party/Raid) ou e
 - **Efeito:** Projetado para as novas **Quests de Múltipla Escolha** (com radio buttons). Ao ser espalhado sobre a questão, **elimina uma das alternativas incorretas**, facilitando a escolha.
 
 ### 4. 📜 Pergaminho do Oráculo
-- **Descrição:** Um pergaminho antigo que reage a rascunhos em tempo real.
-- **Efeito:** O aluno pode enviar um rascunho de texto ou cálculo (foto) e o Oráculo faz uma avaliação parcial do tipo "Quente ou Frio", indicando se o raciocínio está indo pelo caminho correto antes de consumir uma tentativa oficial.
+- **Descrição:** Um pergaminho antigo que contém a sabedoria direta de grandes tutores.
+- **Efeito:** Concede uma **dica prática, clara e educativa** focada no conceito da matéria (sem metáforas confusas) para guiar o aluno em direção à resposta correta, sem dar a resposta direta. Exibido em um card roxo fixo na tela da missão.
 
 ### 5. 🛡️ Bracelete de Cristal
 - **Descrição:** Um adorno de quartzo que absorve impactos mágicos.
@@ -111,12 +112,12 @@ Os artefatos são obtidos ao derrotar **Mini Bosses** em grupo (Party/Raid) ou e
 
 ### 8. 🪶 Pena do Escriba
 - **Descrição:** Uma pena que flutua suavemente sobre o papel de resposta.
-- **Efeito:** Em perguntas teóricas dissertativas, revela as 3 principais palavras-chave conceituais que o validador espera encontrar para aprovar a resposta.
+- **Efeito:** Em perguntas teóricas dissertativas, revela as **3 principais palavras-chave conceituais** que o validador da IA espera encontrar para aprovar a resposta. Exibido na tela da missão através de tags azuis dinâmicas.
 
 ---
 
 ## 🚀 Próximas Tasks na Fila de Desenvolvimento (V3)
 Com base nas discussões de refinamento dos artefatos:
 1.  **[ ] Módulo de Múltipla Escolha (UI/UX):** Implementar suporte nativo a questões do tipo múltipla escolha com interface em *Radio Buttons* (alternativa ao botão padrão de envio de texto/imagem).
-2.  **[ ] Integração de Efeitos no Backend:** Desenvolver as rotas de consumo de itens associando seus buffs dinâmicos no cálculo final de XP e dificuldade de quests no `/daily/submit`.
-3.  **[ ] Painel do Mestre - Aba de Ajuda:** Criar a interface para recebimento das "Perguntas Douradas" geradas pela carta *Sussurros Sábios*, com opção de aprovação de rascunhos pedagógicos da IA.
+2.  **[x] Integração de Efeitos no Backend:** Desenvolver as rotas de consumo de itens associando seus buffs dinâmicos no cálculo final de XP e dificuldade de quests no `/daily/submit`.
+3.  **[x] Painel do Mestre - Aba de Ajuda:** Criar a interface para recebimento das "Perguntas Douradas" geradas pela carta *Sussurros Sábios*, com opção de aprovação de rascunhos pedagógicos da IA.

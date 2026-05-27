@@ -36,6 +36,7 @@ O sistema distingue quatro níveis de acesso com autenticação robusta (JWT) e 
     - O Mestre aprova e ativa o lote de 3 missões de uma só vez, liberando-as para os alunos simultaneamente.
     - Um indicador dinâmico (badge) com a contagem de rascunhos pendentes é renderizado na aba **FORJA**.
   - **Monitoramento de XP:** Visualização do progresso dos caçadores por Turma através de um filtro interativo. Alunos com XP menor que 600 em um ciclo de 1000 são destacados com alertas de "Risco de Prova Física".
+  - **Auditoria de Respostas (Painel):** O Mestre pode revisar as respostas históricas no painel de atividades. O sistema diferencia a exibição de respostas dissertativas curtas, textos descritivos e envios focados exclusivamente em cálculos matemáticos (visualizados via scan de imagem), garantindo persistência total mesmo quando o aluno responde via "Baú de Missões Perdidas".
 
 ### D. ALUNO (O Player / Caçador)
 - **Login:** Autenticação padrão por Matrícula/Nickname + Senha ou Biometria ("Despertar com Biometria").
@@ -48,8 +49,10 @@ O sistema distingue quatro níveis de acesso com autenticação robusta (JWT) e 
 As missões não são estáticas; elas seguem uma fila de prioridade.
 - **Regra de Acúmulo:** Nunca exibir duas missões da mesma matéria simultaneamente na tela ativa.
 - **Estados da Missão:** [Aguardar] ou [Responder].
-- **Duração Dinâmica:** O tempo para expiração (Penalty Quest) é calculado pela IA com base na complexidade da questão e perfil socioeconômico (Escola Pública).
-- **Aguardar:** A notificação fica minimizada no "Quest Log" da tela principal.
+- **Duração Dinâmica e Relógios:** O tempo para expiração (Penalty Quest) é calculado pela IA. Um contador regressivo visual é exibido ativamente nas missões principais, nas missões de Baú e nas batalhas com Chefes.
+- **Aguardar:** A notificação fica minimizada na fila de espera e o aluno tem um limite de tolerância para clicar em "Reativar" antes que ela expire e caia no Baú.
+- **Baú de Missões Perdidas (Retry):** Missões expiradas ou respondidas incorretamente sofrem uma "maldição" (-25% de XP a cada erro) e ficam no Baú. O aluno pode tentar responder novamente, e suas novas respostas são devidamente salvas no backend para auditoria posterior.
+- **Progressão Contínua (Invocação Lógica):** A lógica de solicitar a próxima quest varre as missões daquele lote e matéria. Caso a quest atual já tenha sido resolvida ou esteja no baú, o sistema avança automaticamente de forma robusta e libera a invocação da próxima missão para o aluno.
 
 ---
 

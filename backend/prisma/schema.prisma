@@ -42,6 +42,8 @@ model User {
   goldenQuestionsCreated GoldenQuestion[]  @relation("UserGoldenQuestions")
   calendarEventsCreated  CalendarEvent[]   @relation("UserCalendarEvents")
   raidMessages    RaidMessage[]
+  anelSerpenteExpires DateTime?
+  bolsaSorteExpires   DateTime?
 
   lastActiveAt DateTime @default(now())
   createdAt DateTime @default(now())
@@ -149,6 +151,9 @@ model QuestDelivery {
 
   helpRequested Boolean   @default(false)
   helpResponse  String?
+  studentDoubt  String?
+  studentAnswer String?
+  studentImage  String?
 
   @@unique([questId, userId]) // 1 entrega por quest por aluno
 }
@@ -160,6 +165,8 @@ model Raid {
   status       String            @default("OPEN") // OPEN, CLEARED, FAILED
   participantes RaidParticipant[]
   messages     RaidMessage[]
+  bandeiraGuerraActive  Boolean   @default(false)
+  bandeiraGuerraExpires DateTime?
 }
 
 model RaidMessage {
@@ -179,6 +186,7 @@ model RaidParticipant {
   raidId    String
   raid      Raid     @relation(fields: [raidId], references: [id])
   acertos   Int      @default(0) // Checkpoint individual
+  isInvasor Boolean  @default(false)
   
   @@unique([userId, raidId])
 }

@@ -113,7 +113,22 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
         include: { 
           turmaAlvo: true,
           deliveries: {
-            select: { isCorrect: true, status: true }
+            select: { 
+              id: true,
+              status: true,
+              isCorrect: true,
+              erros: true,
+              answeredAt: true,
+              studentAnswer: true,
+              studentImage: true,
+              user: {
+                select: {
+                  nome: true,
+                  nickname: true,
+                  matricula: true
+                }
+              }
+            }
           }
         },
         orderBy: { createdAt: 'desc' }
@@ -124,11 +139,8 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
         const correct = q.deliveries.filter(d => d.isCorrect === true).length;
         const successRate = total > 0 ? Math.round((correct / total) * 100) : 0;
         
-        // Remove deliveries array from response to keep it clean
-        const { deliveries, ...questData } = q;
-        
         return {
-          ...questData,
+          ...q,
           successRate,
           totalDeliveries: total
         };
@@ -175,7 +187,8 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
               nivel: d.quest.nivel,
               subjectName: d.quest.disciplina?.nome || 'Estudos Gerais',
               erros: d.erros,
-              monsterName
+              monsterName,
+              expiresAt: d.quest.expiresAt
             };
           })
         });
@@ -210,7 +223,8 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           xp: Math.max(Math.round(delivered.quest.xp * Math.pow(0.75, delivered.erros)), 25), // Maldição
           nivel: delivered.quest.nivel,
           tags: delivered.quest.tags,
-          erros: delivered.erros
+          erros: delivered.erros,
+          expiresAt: delivered.quest.expiresAt
         });
       }
 
@@ -232,7 +246,8 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           nivel: waiting.quest.nivel,
           fromQueue: true,
           tags: waiting.quest.tags,
-          erros: waiting.erros
+          erros: waiting.erros,
+          expiresAt: waiting.quest.expiresAt
         });
       }
 
@@ -836,39 +851,37 @@ Exemplo de formato esperado:
         });
       }
 
-      // Se não houver entregues ou não houver próxima no lote, busca a primeira do último lote da turma do aluno
+      // Se não houver entregues ou não houver próxima no lote, busca a primeira quest disponível do lote mais recente da turma
       if (!nextQuest) {
         const user = await prisma.user.findUnique({ where: { id: userId } });
         if (!user || !user.turmaId) {
           return reply.status(404).send({ error: 'Aluno sem turma associada.' });
         }
 
-        const latestQuest = await prisma.quest.findFirst({
-          where: { 
+        // Busca todos os IDs de quests já entregues ao aluno nesta disciplina (qualquer status)
+        const alreadyDeliveredIds = await prisma.questDelivery.findMany({
+          where: {
+            userId,
+            quest: {
+              nivel: { notIn: ['BOSS', 'MINIBOSS'] },
+              ...(disciplinaId ? { disciplinaId } : {})
+            }
+          },
+          select: { questId: true }
+        });
+        const deliveredQuestIds = alreadyDeliveredIds.map(d => d.questId);
+
+        // Busca a próxima quest ATIVA da turma que o aluno ainda não recebeu, ordenada por lote mais recente e ordem
+        nextQuest = await prisma.quest.findFirst({
+          where: {
             turmaAlvoId: user.turmaId,
             status: 'ATIVA',
             nivel: { notIn: ['BOSS', 'MINIBOSS'] },
-            ...(disciplinaId ? { disciplinaId } : {})
+            ...(disciplinaId ? { disciplinaId } : {}),
+            id: { notIn: deliveredQuestIds.length > 0 ? deliveredQuestIds : ['__none__'] }
           },
-          orderBy: { createdAt: 'desc' }
+          orderBy: [{ createdAt: 'desc' }, { ordem: 'asc' }]
         });
-
-        if (latestQuest) {
-          const batchId = latestQuest.batchId;
-          const firstInBatch = await prisma.quest.findFirst({
-            where: { batchId, ordem: 1, status: 'ATIVA' }
-          });
-
-          if (firstInBatch) {
-            // Verificar se já existe entrega para essa primeira quest do lote
-            const hasDelivery = await prisma.questDelivery.findFirst({
-              where: { userId, questId: firstInBatch.id }
-            });
-            if (!hasDelivery) {
-              nextQuest = firstInBatch;
-            }
-          }
-        }
       }
 
       if (nextQuest) {
@@ -960,7 +973,9 @@ Se ERRADO: retorne JSON: {"status": "error", "message": "Explique de forma educa
             answeredAt: new Date(), 
             isCorrect: true,
             helpRequested: false,
-            helpResponse: null
+            helpResponse: null,
+            studentAnswer: answer,
+            studentImage: image
           }
         });
         await prisma.user.update({ where: { id: userId }, data: { xp: { increment: xpFinal } } });
@@ -1127,6 +1142,8 @@ Retorne APENAS um JSON no seguinte formato:
           where: { id: deliveryId },
           data: { 
             erros: novosErros,
+            studentAnswer: answer,
+            studentImage: image,
             ...(hasExtraAttempt ? { helpRequested: false, helpResponse: null } : {})
           }
         });
@@ -1281,7 +1298,9 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
           data: {
             status: 'COMPLETED',
             isCorrect: true,
-            answeredAt: new Date()
+            answeredAt: new Date(),
+            studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
+            studentImage: image || null
           }
         }).catch(err => {
           console.error('[QuestDelivery Update Error in Baú Retry]', err);
@@ -1316,7 +1335,9 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
             isCorrect: true,
             answeredAt: new Date(),
             helpRequested: false,
-            helpResponse: null
+            helpResponse: null,
+            studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
+            studentImage: image || null
           }
         }).catch(err => {
           console.error('[QuestDelivery Update Error in Baú Retry]', err);
@@ -1348,7 +1369,21 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
         if (hasExtraAttempt) {
           await prisma.questDelivery.updateMany({
             where: { userId, questId: wrongAnswer.questId },
-            data: { helpRequested: false, helpResponse: null }
+            data: {
+              helpRequested: false,
+              helpResponse: null,
+              studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
+              studentImage: image || null
+            }
+          }).catch(console.error);
+        } else {
+          // Salva a tentativa errada para auditoria mesmo sem mudar status
+          await prisma.questDelivery.updateMany({
+            where: { userId, questId: wrongAnswer.questId },
+            data: {
+              studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
+              studentImage: image || null
+            }
           }).catch(console.error);
         }
 
@@ -1654,11 +1689,12 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
           }
         });
 
-        // Y (Disponíveis): Quests no banco daquela disciplina menos as que já foram entregues
+        // Y (Disponíveis): Quests ATIVAS no banco daquela disciplina menos as que já foram entregues
         const totalQuestsInClass = await prisma.quest.count({
           where: {
             turmaAlvoId: student.turmaId,
             disciplinaId: disciplina.id,
+            status: 'ATIVA',
             nivel: { notIn: ['BOSS', 'MINIBOSS'] }
           }
         });
@@ -2475,19 +2511,52 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
   });
 
   // ─── UNIFIED HELPER ARTIFACT USE ROUTE ─────────────────────────────────────
-  fastify.post<{ Params: { deliveryId: string }; Body: { artifactId: string } }>(
-    '/quests/:deliveryId/use-helper',
+  fastify.post<{ Params: { deliveryId: string }; Body: { artifactId: string; studentDoubt?: string } }>(
+    '/:deliveryId/use-helper',
     { preValidation: [fastify.authenticate] },
     async (request, reply) => {
       try {
         const { deliveryId } = request.params;
-        const { artifactId } = request.body;
+        const { artifactId, studentDoubt } = request.body;
         const userId = request.user.id;
 
-        const delivery = await prisma.questDelivery.findFirst({
+        let delivery = await prisma.questDelivery.findFirst({
           where: { id: deliveryId, userId },
           include: { quest: true }
         });
+
+        if (!delivery) {
+          // Se não encontrar, tenta buscar a WrongAnswer para achar a QuestDelivery vinculada
+          const wrongAnswer = await prisma.wrongAnswer.findFirst({
+            where: { id: deliveryId, userId }
+          });
+
+          if (wrongAnswer) {
+            delivery = await prisma.questDelivery.findUnique({
+              where: {
+                questId_userId: {
+                  questId: wrongAnswer.questId,
+                  userId
+                }
+              },
+              include: { quest: true }
+            });
+
+            if (!delivery) {
+              delivery = await prisma.questDelivery.create({
+                data: {
+                  questId: wrongAnswer.questId,
+                  userId,
+                  status: "COMPLETED",
+                  scheduledAt: new Date(),
+                  deliveredAt: new Date(),
+                  erros: wrongAnswer.tentativas
+                },
+                include: { quest: true }
+              });
+            }
+          }
+        }
 
         if (!delivery) {
           return reply.status(404).send({ error: 'Entrega de quest não encontrada.' });
@@ -2497,8 +2566,12 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
 
         if (artifactId === 'sussurros_sabios') {
           await prisma.questDelivery.update({
-            where: { id: deliveryId },
-            data: { helpRequested: true, helpResponse: null }
+            where: { id: delivery.id },
+            data: { 
+              helpRequested: true, 
+              helpResponse: null,
+              studentDoubt: studentDoubt || null
+            }
           });
           return reply.send({ message: 'Chamado de sussurros sábios enviado ao Mestre!' });
         }
@@ -2557,11 +2630,12 @@ Retorne APENAS o JSON.`;
         }
 
         if (artifactId === 'pergaminho_oraculo') {
-          const prompt = `Você é o Oráculo de Solen.
+          const prompt = `Você é o Oráculo de Solen, um sábio tutor.
 Dada a questão: "${enunciado}"
 
-Escreva uma única dica enigmática e conceitual curta (máximo 15 palavras) para guiar o caçador no caminho correto, sem dar a resposta direta de forma alguma.
-Exemplo: "Lembre-se que f(0) representa o valor inicial no instante zero!"
+Escreva uma dica clara, prática e educativa (máximo 20 palavras) para ajudar o aluno a chegar na resposta correta, sem dar a resposta de forma alguma.
+A dica deve ser direta e útil. NÃO use metáforas poéticas, charadas ou linguagem confusa. Seja direto ao ponto sobre o conceito da matéria.
+Exemplo: "Lembre-se da fórmula de Bhaskara para encontrar as raízes da equação!" ou "Pense na camada rochosa sólida mais externa do nosso planeta."
 
 Retorne APENAS um JSON no formato:
 {
@@ -2578,6 +2652,29 @@ Retorne APENAS um JSON no formato:
           return reply.send({ hint: parsed.hint || 'Pense com atenção!' });
         }
 
+        if (artifactId === 'pena_escriba') {
+          const prompt = `Você é um avaliador ortográfico e pedagógico de RPG educativo.
+Questão: "${enunciado}"
+
+Identifique as 3 palavras-chave ou termos conceituais mais importantes e academicamente relevantes que o validador espera encontrar na resposta escrita de um aluno.
+Devem ser termos diretamente ligados ao tema acadêmico da questão (por exemplo: se for sobre ecologia, termos como "Fotossíntese", "Cadeia Alimentar", etc. Se for sobre história, termos históricos apropriados).
+Retorne APENAS um JSON no formato:
+{
+  "keywords": ["Termo 1", "Termo 2", "Termo 3"]
+}
+
+Retorne APENAS o JSON.`;
+          let raw = await callGemini(prompt);
+          raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+          const firstBrace = raw.indexOf('{');
+          const lastBrace = raw.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1) {
+            raw = raw.substring(firstBrace, lastBrace + 1);
+          }
+          const parsed = JSON.parse(raw);
+          return reply.send({ keywords: parsed.keywords || ["Relevante", "Conceitual", "Tema"] });
+        }
+
         return reply.status(400).send({ error: 'Artefato utilitário inválido ou não suportado para esta rota.' });
       } catch (error: any) {
         request.log.error(error);
@@ -2588,7 +2685,7 @@ Retorne APENAS um JSON no formato:
 
   // ─── POÇÃO DE CURA ROUTE (HEAL CURSE) ──────────────────────────────────────
   fastify.post<{ Params: { id: string } }>(
-    '/quests/wrong-answers/:id/heal',
+    '/wrong-answers/:id/heal',
     { preValidation: [fastify.authenticate] },
     async (request, reply) => {
       try {
@@ -2650,7 +2747,6 @@ Retorne APENAS um JSON no formato:
           where: {
             helpRequested: true,
             helpResponse: null,
-            status: { in: ['DELIVERED', 'WAITING'] },
             user: {
               turmaId: { in: turmaIds }
             }
@@ -2711,6 +2807,7 @@ Retorne APENAS um JSON no formato:
         if (requestAiSuggestion) {
           const prompt = `Você é um assistente pedagógico de suporte aos Mestres do Solo Learning.
 Um estudante está travado na seguinte questão: "${delivery.quest.enunciado}".
+${delivery.studentDoubt ? `Dúvida específica do aluno: "${delivery.studentDoubt}"` : ''}
 
 Gere uma dica de scaffolding pedagógico que ajude o aluno a "aprender como fazer" em vez de dar a resposta final.
 A dica deve ser amigável, clara e curta (máximo 40 palavras). Não dê o resultado final de forma alguma.
@@ -2719,6 +2816,7 @@ Exemplo de dica: "Para calcular a média, some os 5 valores da tabela e depois d
 Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
           finalResponse = await callGemini(prompt);
           finalResponse = finalResponse.trim();
+          return reply.send({ success: true, aiSuggestion: finalResponse });
         }
 
         if (!finalResponse || !finalResponse.trim()) {
@@ -2742,7 +2840,7 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
 
   // ─── CONSUME BECKER DO ALQUIMISTA ──────────────────────────────────────────
   fastify.post(
-    '/quests/becker/consume',
+    '/becker/consume',
     { preValidation: [fastify.authenticate] },
     async (request, reply) => {
       try {
@@ -2757,6 +2855,255 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
       } catch (error: any) {
         request.log.error(error);
         return reply.status(500).send({ error: 'Erro ao consumir Becker.', details: error.message });
+      }
+    }
+  );
+
+  // ─── CONSUMO DIRETO DE ARTEFATOS DO BAÚ ──────────────────────────────────────
+  fastify.post<{ Body: { artifactId: string } }>(
+    '/artifacts/consume-direct',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      const { artifactId } = request.body;
+      const userId = request.user.id;
+      const now = new Date();
+
+      if (!artifactId) return reply.status(400).send({ error: 'ID do artefato não fornecido.' });
+
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          include: { turma: true }
+        });
+        if (!user) return reply.status(404).send({ error: 'Usuário não encontrado.' });
+
+        if (artifactId === 'becker_alquimista') {
+          await prisma.user.update({
+            where: { id: userId },
+            data: { xp: { increment: 500 } }
+          });
+          return reply.send({
+            success: true,
+            xpConcedido: 500,
+            message: 'Becker do Alquimista consumido! +500 XP flat concedido com sucesso!'
+          });
+        }
+
+        if (artifactId === 'olhar_monarca') {
+          const bossQuests = await prisma.quest.findMany({
+            where: {
+              nivel: { in: ['BOSS', 'MINIBOSS'] },
+              turmaAlvoId: user.turmaId || undefined
+            },
+            select: { tema: true, enunciado: true },
+            take: 3
+          });
+
+          const topics = bossQuests.length > 0
+            ? bossQuests.map(q => q.tema || q.enunciado.substring(0, 45) + '...').join(', ')
+            : 'Equações Quadráticas, Crase Gramatical, Leis de Newton';
+
+          return reply.send({
+            success: true,
+            message: `Sua visão brilha com o Olhar do Monarca! As próximas ameaças de elite envolverão os seguintes tópicos: ${topics}. prepare-se!`
+          });
+        }
+
+        if (artifactId === 'anel_serpente') {
+          const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 dias
+          await prisma.user.update({
+            where: { id: userId },
+            data: { anelSerpenteExpires: expiresAt }
+          });
+          return reply.send({
+            success: true,
+            message: 'Anel da Serpente ativado! Taxa de drop de artefatos em Mini Bosses aumentada em +35% para toda a sua party nos próximos 7 dias!'
+          });
+        }
+
+        if (artifactId === 'bolsa_sorte') {
+          const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 dias
+          await prisma.user.update({
+            where: { id: userId },
+            data: { bolsaSorteExpires: expiresAt }
+          });
+          return reply.send({
+            success: true,
+            message: 'Bolsa da Sorte ativada! Taxa de drop de artefatos em missões diárias comuns aumentada em +15% nos próximos 7 dias!'
+          });
+        }
+
+        if (artifactId === 'bandeira_guerra') {
+          const activeRaidParticipant = await prisma.raidParticipant.findFirst({
+            where: { userId, raid: { status: 'OPEN' } },
+            include: { raid: true }
+          });
+
+          if (!activeRaidParticipant) {
+            return reply.status(400).send({
+              error: 'Você não está em nenhuma party/raid ativa no momento. Junte-se ou crie um grupo na aba Dungeons para fincar a Bandeira de Guerra!'
+            });
+          }
+
+          const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24h
+          await prisma.raid.update({
+            where: { id: activeRaidParticipant.raidId },
+            data: {
+              bandeiraGuerraActive: true,
+              bandeiraGuerraExpires: expiresAt
+            }
+          });
+
+          await prisma.raidMessage.create({
+            data: {
+              raidId: activeRaidParticipant.raidId,
+              userId,
+              content: `📢 [Mural do Sistema] fincou a Bandeira de Guerra da Guilda! Buff de +20% de ganho de XP ativo para todos da party pelas próximas 24 horas!`
+            }
+          });
+
+          return reply.send({
+            success: true,
+            message: 'Bandeira de Guerra fincada com sucesso! Toda a sua party recebeu o buff de +20% XP pelas próximas 24 horas!'
+          });
+        }
+
+        if (artifactId === 'orbe_perspicacia') {
+          const nextDelivery = await prisma.questDelivery.findFirst({
+            where: { userId, status: 'SCHEDULED' },
+            include: { quest: { include: { disciplina: true } } },
+            orderBy: { scheduledAt: 'asc' }
+          });
+
+          const topic = nextDelivery?.quest?.tema || nextDelivery?.quest?.disciplina?.nome || 'Estudos Gerais (Mini Boss)';
+          return reply.send({
+            success: true,
+            message: `A Orbe de Perspicácia canaliza energia e revela: seu próximo desafio acadêmico abordará o tópico: "${topic}".`
+          });
+        }
+
+        if (artifactId === 'chave_mestra') {
+          const user = await prisma.user.findUnique({ where: { id: userId } });
+          const otherRaid = await prisma.raid.findFirst({
+            where: {
+              status: 'OPEN',
+              NOT: {
+                participantes: {
+                  some: { userId }
+                }
+              },
+              participantes: {
+                some: {
+                  user: {
+                    turmaId: user?.turmaId
+                  }
+                }
+              }
+            }
+          });
+
+          if (!otherRaid) {
+            return reply.status(400).send({
+              error: 'Nenhuma fresta de masmorra paralela (Raid aberta) foi encontrada no momento para invadir!'
+            });
+          }
+
+          await prisma.raidParticipant.create({
+            data: {
+              raidId: otherRaid.id,
+              userId,
+              isInvasor: true
+            }
+          });
+
+          await prisma.raidMessage.create({
+            data: {
+              raidId: otherRaid.id,
+              userId,
+              content: `⚠️ [ALERTA DE SEGURANÇA] detectou uma anomalia espacial! Um INVASOR infiltrou-se na Raid com uma Chave Mestra! Cuidado!`
+            }
+          });
+
+          return reply.send({
+            success: true,
+            raidCode: otherRaid.codigo,
+            message: `Chave Mestra girada! Você invadiu com sucesso a Raid [${otherRaid.codigo}]. Seu apelido agora brilha em vermelho sangue de invasor!`
+          });
+        }
+
+        if (artifactId === 'mao_midas') {
+          return reply.send({
+            success: true,
+            message: 'Mão de Midas energizada! Utilize seu transmutador dinâmico na sua bolsa!'
+          });
+        }
+
+        return reply.status(400).send({ error: 'Artefato não elegível para consumo direto.' });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao processar consumo direto de artefato.', details: error.message });
+      }
+    }
+  );
+
+  // ─── GET /quests/deliveries/:deliveryId ────────────────────────────────────
+  fastify.get<{ Params: { deliveryId: string } }>(
+    '/deliveries/:deliveryId',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const { deliveryId } = request.params;
+        const userId = request.user.id;
+
+        // Primeiro, busca em QuestDelivery
+        let delivery = await prisma.questDelivery.findFirst({
+          where: { id: deliveryId, userId }
+        });
+
+        if (!delivery) {
+          // Se não encontrar, tenta buscar a WrongAnswer para achar a QuestDelivery vinculada
+          const wrongAnswer = await prisma.wrongAnswer.findFirst({
+            where: { id: deliveryId, userId }
+          });
+
+          if (wrongAnswer) {
+            delivery = await prisma.questDelivery.findUnique({
+              where: {
+                questId_userId: {
+                  questId: wrongAnswer.questId,
+                  userId
+                }
+              }
+            });
+
+            if (!delivery) {
+              delivery = await prisma.questDelivery.create({
+                data: {
+                  questId: wrongAnswer.questId,
+                  userId,
+                  status: "COMPLETED",
+                  scheduledAt: new Date(),
+                  deliveredAt: new Date(),
+                  erros: wrongAnswer.tentativas
+                }
+              });
+            }
+          }
+        }
+
+        if (!delivery) {
+          return reply.status(404).send({ error: 'Entrega não encontrada.' });
+        }
+
+        return reply.send({
+          id: delivery.id,
+          helpRequested: delivery.helpRequested,
+          helpResponse: delivery.helpResponse,
+          studentDoubt: delivery.studentDoubt
+        });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao buscar detalhes da entrega.', details: error.message });
       }
     }
   );
