@@ -147,6 +147,9 @@ model QuestDelivery {
 
   createdAt   DateTime @default(now())
 
+  helpRequested Boolean   @default(false)
+  helpResponse  String?
+
   @@unique([questId, userId]) // 1 entrega por quest por aluno
 }
 

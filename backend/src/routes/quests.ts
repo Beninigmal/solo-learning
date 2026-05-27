@@ -13,6 +13,7 @@ interface GenerateQuestBody {
   complexidade: string;
   exigeCalculo: boolean;
   disciplinaId: string;
+  tipoQuest?: string;
 }
 
 class GeminiRotator {
@@ -269,11 +270,13 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
       return reply.status(403).send({ error: 'Acesso negado.' });
     }
 
-    const { semana, turmaId, tema, complexidade, exigeCalculo, disciplinaId } = request.body;
+    const { semana, turmaId, tema, complexidade, exigeCalculo, disciplinaId, tipoQuest } = request.body;
     console.log('GENERATE QUEST BODY:', request.body);
     if (!turmaId || !tema || !complexidade || !disciplinaId) {
       return reply.status(400).send({ error: 'Campos obrigatórios: turmaId, tema, complexidade, disciplinaId.' });
     }
+
+    const finalTipo = tipoQuest || (exigeCalculo ? 'CALCULO' : 'TEORICA');
 
     try {
       const turma = await prisma.turma.findUnique({ where: { id: turmaId } });
@@ -297,6 +300,22 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
         }
       }
 
+      let tipoRule = '';
+      if (finalTipo === 'CALCULO') {
+        tipoRule = '- TODAS as 3 perguntas geradas DEVEM obrigatoriamente exigir que o aluno desenvolva cálculos matemáticos ou físicos no papel para chegar à resposta. EVITE perguntas puramente teóricas ou de identificação de conceitos. Foque em problemas numéricos ou de equações que exijam contas para todas as 3.';
+      } else if (finalTipo === 'MULTIPLA') {
+        tipoRule = `- TODAS as 3 perguntas geradas DEVEM obrigatoriamente ser de Múltipla Escolha com 5 alternativas (A, B, C, D, E).
+- Formate cada pergunta contendo o enunciado da questão e, em seguida, as opções identificadas por letras maiúsculas em novas linhas imediatamente após o enunciado. Exemplo:
+  Qual a capital do Brasil?
+  A) Rio de Janeiro
+  B) Brasília
+  C) São Paulo
+  D) Belo Horizonte
+  E) Salvador`;
+      } else {
+        tipoRule = '- As perguntas devem ser teóricas ou de resposta direta, sem necessidade de desenvolvimento de cálculos complexos.';
+      }
+
       const prompt = `Você é um assistente educacional para alunos de escola pública brasileira.
 Crie EXATAMENTE 3 perguntas sobre o tema "${tema}" para a Semana "${semana}".
 Nível de ensino/Complexidade alvo: ${complexidade} (FUNDAMENTAL, MEDIO ou LIVRE).
@@ -307,10 +326,7 @@ REGRAS IMPORTANTES:
 - Não dê a resposta.
 - Progressão de dificuldade de 1 a 3.
 - Adeque a complexidade das perguntas ao nível "${complexidade}".
-${exigeCalculo 
-  ? '- TODAS as 3 perguntas geradas DEVEM obrigatoriamente exigir que o aluno desenvolva cálculos matemáticos ou físicos no papel para chegar à resposta. EVITE perguntas puramente teóricas ou de identificação de conceitos. Foque em problemas numéricos ou de equações que exijam contas para todas as 3.'
-  : '- As perguntas devem ser teóricas ou de resposta direta, sem necessidade de desenvolvimento de cálculos complexos.'
-}
+${tipoRule}
 - Retorne APENAS um JSON no formato especificado abaixo. Não inclua texto explicativo adicional.
 Exemplo de formato esperado:
 {
@@ -933,9 +949,19 @@ Se ERRADO: retorne JSON: {"status": "error", "message": "Explique de forma educa
           xpFinal *= 2;
         }
 
+        if (delivery.helpRequested) {
+          xpFinal = Math.round(xpFinal * 1.5);
+        }
+
         await prisma.questDelivery.update({
           where: { id: deliveryId },
-          data: { status: 'COMPLETED', answeredAt: new Date(), isCorrect: true }
+          data: { 
+            status: 'COMPLETED', 
+            answeredAt: new Date(), 
+            isCorrect: true,
+            helpRequested: false,
+            helpResponse: null
+          }
         });
         await prisma.user.update({ where: { id: userId }, data: { xp: { increment: xpFinal } } });
         
@@ -1094,15 +1120,18 @@ Retorne APENAS um JSON no seguinte formato:
 
         return reply.send({ ...validation, xpGanho: xpFinal, miniBossSpawned });
       } else {
-        // Incrementar erro e manter DELIVERED para nova tentativa (escudo arcano cancela aumento de erro e remove maldição anterior)
-        const novosErros = artifactId === 'escudo_arcano' ? 0 : delivery.erros + 1;
+        const hasExtraAttempt = delivery.helpRequested && delivery.helpResponse !== null;
+        const novosErros = (artifactId === 'escudo_arcano' || hasExtraAttempt) ? delivery.erros : delivery.erros + 1;
+        
         await prisma.questDelivery.update({
           where: { id: deliveryId },
-          data: { erros: novosErros }
+          data: { 
+            erros: novosErros,
+            ...(hasExtraAttempt ? { helpRequested: false, helpResponse: null } : {})
+          }
         });
 
-        // Criar WrongAnswer no Baú apenas se não usou escudo arcano
-        if (artifactId !== 'escudo_arcano') {
+        if (artifactId !== 'escudo_arcano' && !hasExtraAttempt) {
           await prisma.wrongAnswer.upsert({
             where: { userId_questId: { userId, questId: delivery.questId } },
             update: { tentativas: { increment: 1 } },
@@ -1158,7 +1187,24 @@ Retorne APENAS um JSON no seguinte formato:
         where: { userId, resolvido: false },
         include: { quest: true }
       });
-      return reply.send(wrongAnswers);
+
+      const wrongAnswersWithDelivery = await Promise.all(
+        wrongAnswers.map(async (wa) => {
+          const delivery = await prisma.questDelivery.findUnique({
+            where: {
+              questId_userId: {
+                questId: wa.questId,
+                userId: wa.userId
+              }
+            }
+          });
+          return {
+            ...wa,
+            delivery
+          };
+        })
+      );
+      return reply.send(wrongAnswersWithDelivery);
     } catch (error: any) {
       return reply.status(500).send({ error: 'Erro ao buscar baú de perguntas.', details: error.message });
     }
@@ -1179,6 +1225,10 @@ Retorne APENAS um JSON no seguinte formato:
       if (!wrongAnswer || wrongAnswer.userId !== userId) {
         return reply.status(404).send({ error: 'Registro não encontrado.' });
       }
+
+      const delivery = await prisma.questDelivery.findFirst({
+        where: { userId, questId: wrongAnswer.questId }
+      });
 
       let prompt = answer === 'Cálculo na imagem'
         ? `Você é um tutor educacional rigoroso.
@@ -1249,6 +1299,29 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
           xpGanho *= 2; // Duplica o XP
         }
 
+        if (delivery?.helpRequested) {
+          xpGanho = Math.round(xpGanho * 1.5); // Bônus de 50% de XP
+        }
+
+        // Atualizar a entrega original para COMPLETED e isCorrect: true
+        await prisma.questDelivery.update({
+          where: {
+            questId_userId: {
+              questId: wrongAnswer.questId,
+              userId
+            }
+          },
+          data: {
+            status: 'COMPLETED',
+            isCorrect: true,
+            answeredAt: new Date(),
+            helpRequested: false,
+            helpResponse: null
+          }
+        }).catch(err => {
+          console.error('[QuestDelivery Update Error in Baú Retry]', err);
+        });
+
         await prisma.user.update({
           where: { id: userId },
           data: { xp: { increment: xpGanho } }
@@ -1264,11 +1337,21 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
 
         return reply.send({ ...validation, xpGanho });
       } else {
-        const novasTentativas = artifactId === 'escudo_arcano' ? 0 : wrongAnswer.tentativas + 1;
+        const hasExtraAttempt = delivery?.helpRequested && delivery?.helpResponse !== null;
+        const novasTentativas = (artifactId === 'escudo_arcano' || hasExtraAttempt) ? wrongAnswer.tentativas : wrongAnswer.tentativas + 1;
+        
         await prisma.wrongAnswer.update({
           where: { id },
           data: { tentativas: novasTentativas }
         });
+
+        if (hasExtraAttempt) {
+          await prisma.questDelivery.updateMany({
+            where: { userId, questId: wrongAnswer.questId },
+            data: { helpRequested: false, helpResponse: null }
+          }).catch(console.error);
+        }
+
         if (artifactId === 'escudo_arcano') {
           await prisma.questDelivery.updateMany({
             where: { userId, questId: wrongAnswer.questId },
@@ -2390,4 +2473,292 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
       return reply.status(500).send({ error: 'Erro ao enviar mensagem.' });
     }
   });
+
+  // ─── UNIFIED HELPER ARTIFACT USE ROUTE ─────────────────────────────────────
+  fastify.post<{ Params: { deliveryId: string }; Body: { artifactId: string } }>(
+    '/quests/:deliveryId/use-helper',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const { deliveryId } = request.params;
+        const { artifactId } = request.body;
+        const userId = request.user.id;
+
+        const delivery = await prisma.questDelivery.findFirst({
+          where: { id: deliveryId, userId },
+          include: { quest: true }
+        });
+
+        if (!delivery) {
+          return reply.status(404).send({ error: 'Entrega de quest não encontrada.' });
+        }
+
+        const enunciado = delivery.quest.enunciado;
+
+        if (artifactId === 'sussurros_sabios') {
+          await prisma.questDelivery.update({
+            where: { id: deliveryId },
+            data: { helpRequested: true, helpResponse: null }
+          });
+          return reply.send({ message: 'Chamado de sussurros sábios enviado ao Mestre!' });
+        }
+
+        if (artifactId === 'martelo_magico') {
+          const prompt = `Você é um professor mentor de RPG educativo.
+Questão: "${enunciado}"
+
+Decompõe este problema exclusivamente em 3 ou 4 passos de raciocínio lógico/pedagógico (scaffolding) passo a passo em formato de lista simples que o estudante deve seguir para pensar na solução.
+NÃO DÊ A RESPOSTA FINAL. Indique apenas "o que pensar" ou "como fazer" sequencialmente de forma extremamente curta e concisa, ideal para visualização em cards mobile de RPG (máximo de 15 palavras por passo).
+
+Exemplo de retorno esperado:
+{
+  "steps": [
+    "1. Identifique a incógnita e monte a função.",
+    "2. Agrupe todos os termos semelhantes de um lado.",
+    "3. Divida o termo constante pelo coeficiente."
+  ]
+}
+
+Retorne APENAS o JSON.`;
+          let raw = await callGemini(prompt);
+          raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+          const firstBrace = raw.indexOf('{');
+          const lastBrace = raw.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1) {
+            raw = raw.substring(firstBrace, lastBrace + 1);
+          }
+          const parsed = JSON.parse(raw);
+          return reply.send({ steps: parsed.steps || [] });
+        }
+
+        if (artifactId === 'poeira_estelar') {
+          const prompt = `Você é um assistente de RPG educativo para alunos de escola pública brasileira.
+Dada a questão de múltipla escolha: "${enunciado}"
+
+Identifique as alternativas (geralmente A, B, C, D ou E) contidas nela.
+Ache uma única alternativa INCORRETA (que não é o gabarito) que possamos eliminar com segurança para ajudar o aluno.
+Retorne APENAS a letra maiúscula correspondente a essa opção incorreta (ex: "B" ou "C") dentro do campo "eliminate" do JSON.
+
+Exemplo de retorno:
+{
+  "eliminate": "C"
+}
+
+Retorne APENAS o JSON.`;
+          let raw = await callGemini(prompt);
+          raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+          const firstBrace = raw.indexOf('{');
+          const lastBrace = raw.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1) {
+            raw = raw.substring(firstBrace, lastBrace + 1);
+          }
+          const parsed = JSON.parse(raw);
+          return reply.send({ eliminate: parsed.eliminate || 'C' });
+        }
+
+        if (artifactId === 'pergaminho_oraculo') {
+          const prompt = `Você é o Oráculo de Solen.
+Dada a questão: "${enunciado}"
+
+Escreva uma única dica enigmática e conceitual curta (máximo 15 palavras) para guiar o caçador no caminho correto, sem dar a resposta direta de forma alguma.
+Exemplo: "Lembre-se que f(0) representa o valor inicial no instante zero!"
+
+Retorne APENAS um JSON no formato:
+{
+  "hint": "sua dica aqui"
+}`;
+          let raw = await callGemini(prompt);
+          raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+          const firstBrace = raw.indexOf('{');
+          const lastBrace = raw.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1) {
+            raw = raw.substring(firstBrace, lastBrace + 1);
+          }
+          const parsed = JSON.parse(raw);
+          return reply.send({ hint: parsed.hint || 'Pense com atenção!' });
+        }
+
+        return reply.status(400).send({ error: 'Artefato utilitário inválido ou não suportado para esta rota.' });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao processar efeito do artefato.', details: error.message });
+      }
+    }
+  );
+
+  // ─── POÇÃO DE CURA ROUTE (HEAL CURSE) ──────────────────────────────────────
+  fastify.post<{ Params: { id: string } }>(
+    '/quests/wrong-answers/:id/heal',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const { id } = request.params;
+        const userId = request.user.id;
+
+        const wrongAnswer = await prisma.wrongAnswer.findUnique({
+          where: { id },
+          include: { quest: true }
+        });
+
+        if (!wrongAnswer || wrongAnswer.userId !== userId) {
+          return reply.status(404).send({ error: 'Registro do Baú não encontrado.' });
+        }
+
+        // Restaura tentativas para 0
+        await prisma.wrongAnswer.update({
+          where: { id },
+          data: { tentativas: 0 }
+        });
+
+        // Restaura erros no QuestDelivery correspondente para 0
+        await prisma.questDelivery.updateMany({
+          where: { userId, questId: wrongAnswer.questId },
+          data: { erros: 0 }
+        });
+
+        return reply.send({ success: true, message: 'Maldição expurgada! XP da quest restaurado para 100%.' });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao curar maldição da quest.', details: error.message });
+      }
+    }
+  );
+
+  // ─── PROFESSOR GOLDEN HELP REQUESTS LIST ──────────────────────────────────
+  fastify.get(
+    '/professor/help-requests',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+        if (!user || (user.role !== 'PROFESSOR' && user.role !== 'ADMIN')) {
+          return reply.status(403).send({ error: 'Acesso negado.' });
+        }
+
+        let turmaIds: string[] = [];
+        if (user.role === 'PROFESSOR') {
+          const vinculos = await prisma.turmaDisciplina.findMany({
+            where: { professorId: user.id }
+          });
+          turmaIds = vinculos.map(v => v.turmaId);
+        } else {
+          const turmas = await prisma.turma.findMany();
+          turmaIds = turmas.map(t => t.id);
+        }
+
+        const helpRequests = await prisma.questDelivery.findMany({
+          where: {
+            helpRequested: true,
+            helpResponse: null,
+            status: { in: ['DELIVERED', 'WAITING'] },
+            user: {
+              turmaId: { in: turmaIds }
+            }
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                nome: true,
+                nickname: true,
+                turma: { select: { nome: true } }
+              }
+            },
+            quest: {
+              include: {
+                disciplina: { select: { nome: true } }
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        });
+
+        return helpRequests;
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao buscar pedidos de ajuda.', details: error.message });
+      }
+    }
+  );
+
+  // ─── PROFESSOR HELP REQUEST REPLY ──────────────────────────────────────────
+  fastify.post<{ Params: { deliveryId: string }; Body: { response?: string; requestAiSuggestion?: boolean } }>(
+    '/professor/help-requests/:deliveryId/reply',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const { deliveryId } = request.params;
+        const { response, requestAiSuggestion } = request.body;
+        const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+
+        if (!user || (user.role !== 'PROFESSOR' && user.role !== 'ADMIN')) {
+          return reply.status(403).send({ error: 'Acesso negado.' });
+        }
+
+        const delivery = await prisma.questDelivery.findUnique({
+          where: { id: deliveryId },
+          include: { quest: true }
+        });
+
+        if (!delivery) {
+          return reply.status(404).send({ error: 'Pedido de ajuda não encontrado.' });
+        }
+
+        let finalResponse = response;
+
+        if (requestAiSuggestion) {
+          const prompt = `Você é um assistente pedagógico de suporte aos Mestres do Solo Learning.
+Um estudante está travado na seguinte questão: "${delivery.quest.enunciado}".
+
+Gere uma dica de scaffolding pedagógico que ajude o aluno a "aprender como fazer" em vez de dar a resposta final.
+A dica deve ser amigável, clara e curta (máximo 40 palavras). Não dê o resultado final de forma alguma.
+
+Exemplo de dica: "Para calcular a média, some os 5 valores da tabela e depois divida o resultado total por 5. Dica: observe bem o primeiro número!"
+Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
+          finalResponse = await callGemini(prompt);
+          finalResponse = finalResponse.trim();
+        }
+
+        if (!finalResponse || !finalResponse.trim()) {
+          return reply.status(400).send({ error: 'A resposta não pode ser vazia.' });
+        }
+
+        await prisma.questDelivery.update({
+          where: { id: deliveryId },
+          data: {
+            helpResponse: finalResponse
+          }
+        });
+
+        return reply.send({ success: true, helpResponse: finalResponse });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao registrar resposta do professor.', details: error.message });
+      }
+    }
+  );
+
+  // ─── CONSUME BECKER DO ALQUIMISTA ──────────────────────────────────────────
+  fastify.post(
+    '/quests/becker/consume',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        
+        await prisma.user.update({
+          where: { id: userId },
+          data: { xp: { increment: 500 } }
+        });
+        
+        return reply.send({ xpConcedido: 500, message: 'Becker do Alquimista consumido! +500 XP flat concedido com sucesso!' });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao consumir Becker.', details: error.message });
+      }
+    }
+  );
 };
+
