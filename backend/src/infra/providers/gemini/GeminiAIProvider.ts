@@ -10,7 +10,7 @@ class GeminiRotator {
 
   public reloadKeys(): void {
     const rawKeys = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || "";
-    this.keys = rawKeys.split(",").map(k => k.trim()).filter(k => k.length > 0);
+    this.keys = rawKeys.split(",").map(k => k.replace(/['"]/g, "").trim()).filter(k => k.length > 0);
   }
 
   public getActiveKey(): string {
