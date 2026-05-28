@@ -155,6 +155,9 @@ model QuestDelivery {
   studentAnswer String?
   studentImage  String?
 
+  xpParcial     Int       @default(0)
+  xpGanho       Int       @default(0)
+
   @@unique([questId, userId]) // 1 entrega por quest por aluno
 }
 

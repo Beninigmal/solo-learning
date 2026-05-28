@@ -914,6 +914,161 @@ Exemplo de formato esperado:
     }
   });
 
+  // Helper to handle Party XP distribution, dynamic XP adjustment, War Banner buff, and Chat messages
+  const processPartyXpAndChat = async (
+    userId: string,
+    questId: string,
+    questXp: number,
+    xpFinalBeforeBuffs: number,
+    deliveryId: string,
+    artifactId?: string
+  ): Promise<{ xpFinal: number; xpToAward: number; xpGanho: number }> => {
+    const now = new Date();
+
+    // 1. Fetch user information
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { nome: true, nickname: true }
+    });
+    const userName = user?.nickname || user?.nome || 'Caçador';
+
+    // 2. Fetch active open party and its participants
+    const activeRaidParticipant = await prisma.raidParticipant.findFirst({
+      where: { userId, raid: { status: 'OPEN' } },
+      include: {
+        raid: {
+          include: {
+            participantes: {
+              include: {
+                user: {
+                  select: { id: true, nome: true, nickname: true }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    let xpFinal = xpFinalBeforeBuffs;
+
+    // 3. Apply War Banner buff (+20% XP) if active
+    const isWarBannerActive = activeRaidParticipant?.raid?.bandeiraGuerraActive &&
+      activeRaidParticipant?.raid?.bandeiraGuerraExpires &&
+      new Date(activeRaidParticipant.raid.bandeiraGuerraExpires) > now;
+
+    if (isWarBannerActive) {
+      xpFinal = Math.round(xpFinal * 1.2);
+    }
+
+    // 4. Retrieve the current delivery's xpParcial
+    const currentDelivery = await prisma.questDelivery.findUnique({
+      where: { id: deliveryId },
+      select: { xpParcial: true }
+    });
+    const xpParcial = currentDelivery?.xpParcial || 0;
+
+    let xpToAward = xpFinal;
+    let xpGanho = xpFinal;
+
+    if (xpParcial > 0) {
+      if (artifactId) {
+        // If using an artifact: win total amount calculated by artifact (xpFinal) without subtracting partial
+        xpToAward = xpFinal;
+        xpGanho = xpParcial + xpFinal;
+      } else {
+        // If NOT using an artifact: win the remaining amount to reach 100% of calculated XP
+        xpToAward = Math.max(xpFinal - xpParcial, 0);
+        xpGanho = xpFinal;
+      }
+    }
+
+    // 5. If in an active party, distribute 25% passive XP to other party members
+    if (activeRaidParticipant?.raid) {
+      const partyId = activeRaidParticipant.raid.id;
+      const otherMembers = activeRaidParticipant.raid.participantes.filter(p => p.userId !== userId);
+      const memberXp = Math.round(questXp * 0.25);
+
+      for (const member of otherMembers) {
+        const targetUserId = member.userId;
+        const targetUser = member.user;
+        const targetUserName = targetUser?.nickname || targetUser?.nome || 'Membro';
+
+        // Check if they already have a delivery for this quest
+        const existingDelivery = await prisma.questDelivery.findUnique({
+          where: { questId_userId: { questId, userId: targetUserId } }
+        });
+
+        if (existingDelivery) {
+          if (existingDelivery.status !== 'COMPLETED') {
+            if (existingDelivery.xpParcial === 0) {
+              // Update delivery and user XP
+              await prisma.questDelivery.update({
+                where: { id: existingDelivery.id },
+                data: {
+                  xpParcial: memberXp,
+                  xpGanho: memberXp
+                }
+              });
+
+              await prisma.user.update({
+                where: { id: targetUserId },
+                data: { xp: { increment: memberXp } }
+              });
+
+              // Send system message in the chat for the passive member
+              await prisma.raidMessage.create({
+                data: {
+                  raidId: partyId,
+                  userId: targetUserId,
+                  content: `📢 [Mural do Sistema] ${targetUserName} recebeu +${memberXp} XP (25% compartilhado da Party)!`
+                }
+              });
+            }
+          }
+        } else {
+          // Create delivery in DELIVERED status and update user XP
+          await prisma.questDelivery.create({
+            data: {
+              questId,
+              userId: targetUserId,
+              status: 'DELIVERED',
+              scheduledAt: now,
+              deliveredAt: now,
+              xpParcial: memberXp,
+              xpGanho: memberXp
+            }
+          });
+
+          await prisma.user.update({
+            where: { id: targetUserId },
+            data: { xp: { increment: memberXp } }
+          });
+
+          // Send system message in the chat for the passive member
+          await prisma.raidMessage.create({
+            data: {
+              raidId: partyId,
+              userId: targetUserId,
+              content: `📢 [Mural do Sistema] ${targetUserName} recebeu +${memberXp} XP (25% compartilhado da Party)!`
+            }
+          });
+        }
+      }
+
+      // Send system message in the chat for the active member
+      await prisma.raidMessage.create({
+        data: {
+          raidId: partyId,
+          userId,
+          content: `📢 [Mural do Sistema] ${userName} superou o desafio da masmorra e conquistou +${xpFinal} XP!`
+        }
+      });
+    }
+
+    return { xpFinal, xpToAward, xpGanho };
+  };
+
   fastify.post<{ Body: { deliveryId: string; question: string; answer: string; image?: string; artifactId?: string } }>('/daily/submit', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     const { deliveryId, question, answer, image, artifactId } = request.body;
     const userId = request.user.id;
@@ -963,17 +1118,27 @@ Se ERRADO: retorne JSON: {"status": "error", "message": "Explique de forma educa
         // Calcular XP com maldição de 25% por erro acumulado (Boss e Mini Boss não sofrem maldição)
         const isBoss = delivery.quest.nivel === 'BOSS' || delivery.quest.nivel === 'MINIBOSS';
         const effectiveErros = artifactId === 'escudo_arcano' ? 0 : delivery.erros;
-        let xpFinal = isBoss
+        let xpFinalBeforeBuffs = isBoss
           ? delivery.quest.xp
           : Math.max(Math.round(delivery.quest.xp * Math.pow(0.75, effectiveErros)), 25);
         
         if (artifactId === 'elixir_dourado') {
-          xpFinal *= 2;
+          xpFinalBeforeBuffs *= 2;
         }
 
         if (delivery.helpRequested) {
-          xpFinal = Math.round(xpFinal * 1.5);
+          xpFinalBeforeBuffs = Math.round(xpFinalBeforeBuffs * 1.5);
         }
+
+        // Process XP adjustment and distribution using our helper
+        const result = await processPartyXpAndChat(
+          userId,
+          delivery.questId,
+          delivery.quest.xp,
+          xpFinalBeforeBuffs,
+          deliveryId,
+          artifactId
+        );
 
         await prisma.questDelivery.update({
           where: { id: deliveryId },
@@ -984,10 +1149,11 @@ Se ERRADO: retorne JSON: {"status": "error", "message": "Explique de forma educa
             helpRequested: false,
             helpResponse: null,
             studentAnswer: answer,
-            studentImage: image
+            studentImage: image,
+            xpGanho: result.xpGanho
           }
         });
-        await prisma.user.update({ where: { id: userId }, data: { xp: { increment: xpFinal } } });
+        await prisma.user.update({ where: { id: userId }, data: { xp: { increment: result.xpToAward } } });
         
         // --- LÓGICA DE SPAWN DO MINI BOSS ---
         let miniBossSpawned = false;
@@ -1142,7 +1308,7 @@ Retorne APENAS um JSON no seguinte formato:
           request.log.error({ err: spawnErr }, 'Erro ao tentar spawnar Mini Boss');
         }
 
-        return reply.send({ ...validation, xpGanho: xpFinal, miniBossSpawned });
+        return reply.send({ ...validation, xpGanho: result.xpToAward, miniBossSpawned });
       } else {
         const hasExtraAttempt = delivery.helpRequested && delivery.helpResponse !== null;
         const novosErros = (artifactId === 'escudo_arcano' || hasExtraAttempt) ? delivery.erros : delivery.erros + 1;
@@ -1296,65 +1462,54 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
           data: { resolvido: true }
         });
 
-        // Atualizar a entrega original para COMPLETED e isCorrect: true
-        await prisma.questDelivery.update({
-          where: {
-            questId_userId: {
-              questId: wrongAnswer.questId,
-              userId
-            }
-          },
-          data: {
-            status: 'COMPLETED',
-            isCorrect: true,
-            answeredAt: new Date(),
-            studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
-            studentImage: image || null
-          }
-        }).catch(err => {
-          console.error('[QuestDelivery Update Error in Baú Retry]', err);
-        });
-
         const questXp = wrongAnswer.quest.xp;
         const effectiveErros = artifactId === 'escudo_arcano' ? 0 : wrongAnswer.tentativas;
         const isBoss = wrongAnswer.quest.nivel === 'BOSS' || wrongAnswer.quest.nivel === 'MINIBOSS';
 
-        let xpGanho = isBoss 
+        let xpFinalBeforeBuffs = isBoss 
           ? questXp 
           : Math.max(Math.round(questXp * Math.pow(0.75, effectiveErros)), 25);
 
         if (artifactId === 'elixir_dourado') {
-          xpGanho *= 2; // Duplica o XP
+          xpFinalBeforeBuffs *= 2; // Duplica o XP
         }
 
         if (delivery?.helpRequested) {
-          xpGanho = Math.round(xpGanho * 1.5); // Bônus de 50% de XP
+          xpFinalBeforeBuffs = Math.round(xpFinalBeforeBuffs * 1.5); // Bônus de 50% de XP
         }
 
+        // Process XP adjustment and distribution using our helper
+        const result = await processPartyXpAndChat(
+          userId,
+          wrongAnswer.questId,
+          questXp,
+          xpFinalBeforeBuffs,
+          delivery ? delivery.id : '',
+          artifactId
+        );
+
         // Atualizar a entrega original para COMPLETED e isCorrect: true
-        await prisma.questDelivery.update({
-          where: {
-            questId_userId: {
-              questId: wrongAnswer.questId,
-              userId
+        if (delivery) {
+          await prisma.questDelivery.update({
+            where: { id: delivery.id },
+            data: {
+              status: 'COMPLETED',
+              isCorrect: true,
+              answeredAt: new Date(),
+              helpRequested: false,
+              helpResponse: null,
+              studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
+              studentImage: image || null,
+              xpGanho: result.xpGanho
             }
-          },
-          data: {
-            status: 'COMPLETED',
-            isCorrect: true,
-            answeredAt: new Date(),
-            helpRequested: false,
-            helpResponse: null,
-            studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
-            studentImage: image || null
-          }
-        }).catch(err => {
-          console.error('[QuestDelivery Update Error in Baú Retry]', err);
-        });
+          }).catch(err => {
+            console.error('[QuestDelivery Update Error in Baú Retry]', err);
+          });
+        }
 
         await prisma.user.update({
           where: { id: userId },
-          data: { xp: { increment: xpGanho } }
+          data: { xp: { increment: result.xpToAward } }
         });
 
         // Se acertou usando escudo arcano, remove a maldição do QuestDelivery no BD resetando erros para 0!
@@ -1365,7 +1520,7 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
           }).catch(console.error);
         }
 
-        return reply.send({ ...validation, xpGanho });
+        return reply.send({ ...validation, xpGanho: result.xpToAward });
       } else {
         const hasExtraAttempt = delivery?.helpRequested && delivery?.helpResponse !== null;
         const novasTentativas = (artifactId === 'escudo_arcano' || hasExtraAttempt) ? wrongAnswer.tentativas : wrongAnswer.tentativas + 1;

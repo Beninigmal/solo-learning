@@ -112,8 +112,11 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
       const deliveries = await prisma.questDelivery.findMany({
         where: {
           userId: { in: students.map(s => s.id) },
-          status: 'COMPLETED',
-          quest: { disciplinaId: { in: disciplinaIds } }
+          quest: { disciplinaId: { in: disciplinaIds } },
+          OR: [
+            { status: 'COMPLETED' },
+            { xpGanho: { gt: 0 } }
+          ]
         },
         include: { quest: true }
       });
@@ -124,7 +127,7 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
         
         professorDisciplinas.forEach(d => {
           const ds = studentDeliveries.filter(del => del.quest.disciplinaId === d.id);
-          subjectXp[d.nome] = ds.reduce((acc, curr) => acc + curr.quest.xp, 0);
+          subjectXp[d.nome] = ds.reduce((acc, curr) => acc + curr.xpGanho, 0);
         });
 
         return { ...student, subjectXp };
