@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { prisma } from '../prisma';
 import crypto from 'crypto';
+import { sendPushNotification } from '../utils/push';
 
 const WINDOW_MINUTES = 120;
 const WAIT_TTL_MINUTES = 40;
@@ -532,6 +533,20 @@ Exemplo de formato esperado:
               scheduledAt: now
             }))
           });
+
+          // Fetch the subject/disciplina name for the push notification
+          const disciplina = await prisma.disciplina.findUnique({
+            where: { id: firstQuest.disciplinaId }
+          });
+          const tokens = alunos.map(a => a.expoPushToken).filter((t): t is string => !!t);
+          if (tokens.length > 0) {
+            sendPushNotification(
+              tokens,
+              '⚔️ Nova Missão Disponível!',
+              `Uma nova masmorra de ${disciplina?.nome || 'Masmorra'} foi aberta na sua guilda!`,
+              { type: 'NEW_QUEST' }
+            ).catch(console.error);
+          }
         }
       }
 
@@ -732,6 +747,16 @@ Exemplo de formato esperado:
             scheduledAt: now
           }))
         });
+
+        const tokens = alunos.map(a => a.expoPushToken).filter((t): t is string => !!t);
+        if (tokens.length > 0) {
+          sendPushNotification(
+            tokens,
+            '⚠️ BOSS Invocado!',
+            `Um BOSS terrível invadiu a guilda da turma ${turma.nome}! Preparem-se!`,
+            { type: 'BOSS_SPAWNED' }
+          ).catch(console.error);
+        }
       }
 
       return reply.status(201).send({ message: 'BOSS invocado com sucesso!', batchId });
@@ -2752,6 +2777,44 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
               studentDoubt: studentDoubt || null
             }
           });
+
+          // Fetch student details for the notification
+          const student = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { nome: true, nickname: true, turmaId: true }
+          });
+
+          if (student && student.turmaId) {
+            // Find professors linked to this class and subject
+            const vinculos = await prisma.turmaDisciplina.findMany({
+              where: {
+                turmaId: student.turmaId,
+                disciplinaId: delivery.quest.disciplinaId
+              },
+              include: {
+                professor: {
+                  select: {
+                    expoPushToken: true
+                  }
+                }
+              }
+            });
+            const tokens = vinculos
+              .map(v => v.professor.expoPushToken)
+              .filter((t): t is string => !!t);
+
+            if (tokens.length > 0) {
+              const displayName = student.nickname ? `@${student.nickname}` : student.nome;
+              const snip = delivery.quest.enunciado.length > 35 ? delivery.quest.enunciado.slice(0, 32) + '...' : delivery.quest.enunciado;
+              sendPushNotification(
+                tokens,
+                '🔮 Pedido de Ajuda Recebido!',
+                `O caçador ${displayName} solicitou sussurros sábios em: "${snip}"`,
+                { type: 'HELP_REQUESTED' }
+              ).catch(console.error);
+            }
+          }
+
           return reply.send({ message: 'Chamado de sussurros sábios enviado ao Mestre!' });
         }
 
@@ -3008,6 +3071,21 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
             helpResponse: finalResponse
           }
         });
+
+        // Find the student to notify them
+        const student = await prisma.user.findUnique({
+          where: { id: delivery.userId },
+          select: { expoPushToken: true }
+        });
+
+        if (student && student.expoPushToken) {
+          sendPushNotification(
+            student.expoPushToken,
+            '💬 Sussurro Respondido!',
+            `O Mestre enviou uma dica para desvendar a masmorra!`,
+            { type: 'HELP_RESPONDED' }
+          ).catch(console.error);
+        }
 
         return reply.send({ success: true, helpResponse: finalResponse });
       } catch (error: any) {
