@@ -100,6 +100,38 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
       include: { turma: true },
       orderBy: { nome: 'asc' }
     });
+
+    if (request.user.role === 'PROFESSOR') {
+      const vinculos = await prisma.turmaDisciplina.findMany({
+        where: { professorId: request.user.id },
+        include: { disciplina: true }
+      });
+      const professorDisciplinas = Array.from(new Map(vinculos.map(v => [v.disciplina.id, v.disciplina])).values());
+      const disciplinaIds = professorDisciplinas.map(d => d.id);
+
+      const deliveries = await prisma.questDelivery.findMany({
+        where: {
+          userId: { in: students.map(s => s.id) },
+          status: 'COMPLETED',
+          quest: { disciplinaId: { in: disciplinaIds } }
+        },
+        include: { quest: true }
+      });
+
+      const studentsWithXp = students.map(student => {
+        const studentDeliveries = deliveries.filter(d => d.userId === student.id);
+        const subjectXp: Record<string, number> = {};
+        
+        professorDisciplinas.forEach(d => {
+          const ds = studentDeliveries.filter(del => del.quest.disciplinaId === d.id);
+          subjectXp[d.nome] = ds.reduce((acc, curr) => acc + curr.quest.xp, 0);
+        });
+
+        return { ...student, subjectXp };
+      });
+      return reply.send(studentsWithXp);
+    }
+
     return reply.send(students);
   });
 

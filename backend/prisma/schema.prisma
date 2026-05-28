@@ -187,6 +187,7 @@ model RaidParticipant {
   raid      Raid     @relation(fields: [raidId], references: [id])
   acertos   Int      @default(0) // Checkpoint individual
   isInvasor Boolean  @default(false)
+  joinedAt  DateTime @default(now())
   
   @@unique([userId, raidId])
 }

@@ -100,6 +100,14 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
     }
 
     try {
+      let disciplinaIds: string[] = [];
+      if (request.user.role === 'PROFESSOR') {
+        const vinculos = await prisma.turmaDisciplina.findMany({
+          where: { professorId: request.user.id }
+        });
+        disciplinaIds = vinculos.map(v => v.disciplinaId);
+      }
+
       const history = await prisma.quest.findMany({
         where: {
           turmaAlvo: request.user.role === 'ADMIN' ? {} : {
@@ -108,7 +116,8 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
                 professorId: request.user.id
               }
             }
-          }
+          },
+          ...(request.user.role === 'PROFESSOR' ? { disciplinaId: { in: disciplinaIds } } : {})
         },
         include: { 
           turmaAlvo: true,
@@ -1619,6 +1628,21 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
 
       if (!activeParticipant) {
         return reply.status(400).send({ error: 'Você não está em nenhuma Party ativa.' });
+      }
+
+      if (!activeParticipant.isInvasor) {
+        // Verifica se há um invasor na party que entrou há menos de 48 horas
+        const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+        const hasRecentInvader = activeParticipant.raid.participantes.some(
+          (p) => p.isInvasor && new Date(p.joinedAt) > fortyEightHoursAgo
+        );
+
+        if (hasRecentInvader) {
+          return reply.status(400).send({ 
+            error: 'A party está corrompida! Um invasor manipulou a masmorra com uma Chave Mestra. Você não pode sair nas próximas 48 horas após a invasão.',
+            isCorrupted: true 
+          });
+        }
       }
 
       await prisma.raidParticipant.delete({
