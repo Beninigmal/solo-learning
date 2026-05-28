@@ -1,0 +1,79 @@
+import { IAIProvider } from '../../../core/providers/IAIProvider';
+
+class GeminiRotator {
+  private keys: string[] = [];
+  private currentIndex: number = 0;
+
+  constructor() {
+    this.reloadKeys();
+  }
+
+  public reloadKeys(): void {
+    const rawKeys = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || "";
+    this.keys = rawKeys.split(",").map(k => k.trim()).filter(k => k.length > 0);
+  }
+
+  public getActiveKey(): string {
+    if (this.keys.length === 0) {
+      this.reloadKeys();
+    }
+    if (this.keys.length === 0) {
+      throw new Error("Nenhuma API Key do Gemini configurada.");
+    }
+    return this.keys[this.currentIndex];
+  }
+
+  public rotateKey(): void {
+    if (this.keys.length <= 1) return;
+    const oldIndex = this.currentIndex;
+    this.currentIndex = (this.currentIndex + 1) % this.keys.length;
+    console.warn(`[Gemini Rotator] Chave ${oldIndex} esgotada. Rotacionando para a chave ${this.currentIndex}.`);
+  }
+
+  public get totalKeys(): number {
+    return this.keys.length;
+  }
+}
+
+export class GeminiAIProvider implements IAIProvider {
+  private rotator = new GeminiRotator();
+
+  async generateContent(prompt: string, image?: { data: string; mimeType: string }): Promise<string> {
+    return this.callGemini(prompt, image);
+  }
+
+  private async callGemini(prompt: string, image?: { data: string; mimeType: string }, attempt: number = 0): Promise<string> {
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    
+    try {
+      const activeKey = this.rotator.getActiveKey();
+      const genAI = new GoogleGenerativeAI(activeKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+      const parts: any[] = [prompt];
+      if (image) {
+        parts.push({
+          inlineData: {
+            data: image.data,
+            mimeType: image.mimeType
+          }
+        });
+      }
+      
+      const result = await model.generateContent(parts);
+      let raw = result.response.text().trim();
+      raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+      return raw;
+
+    } catch (error: any) {
+      const status = error.status || error.statusCode || 500;
+      const isRateLimit = status === 429 || error.message?.includes("RESOURCE_EXHAUSTED") || error.message?.includes("quota");
+
+      if (isRateLimit && attempt < this.rotator.totalKeys - 1) {
+        this.rotator.rotateKey();
+        return this.callGemini(prompt, image, attempt + 1);
+      }
+      throw error;
+    }
+  }
+}

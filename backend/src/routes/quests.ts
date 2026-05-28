@@ -2,6 +2,13 @@ import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { prisma } from '../prisma';
 import crypto from 'crypto';
 import { sendPushNotification } from '../utils/push';
+import { PrismaQuestRepository } from '../infra/database/repositories/PrismaQuestRepository';
+import { PrismaUserRepository } from '../infra/database/repositories/PrismaUserRepository';
+import { GeminiAIProvider } from '../infra/providers/gemini/GeminiAIProvider';
+import { ExpoNotificationProvider } from '../infra/providers/expo/ExpoNotificationProvider';
+import { GenerateAIQuestsUseCase } from '../core/use-cases/quests/GenerateAIQuestsUseCase';
+import { ApproveQuestBatchUseCase } from '../core/use-cases/quests/ApproveQuestBatchUseCase';
+import { QuestController } from '../presentation/controllers/QuestController';
 
 const WINDOW_MINUTES = 120;
 const WAIT_TTL_MINUTES = 40;
@@ -55,6 +62,16 @@ class GeminiRotator {
 const rotator = new GeminiRotator();
 
 export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
+  const questRepository = new PrismaQuestRepository();
+  const userRepository = new PrismaUserRepository();
+  const aiProvider = new GeminiAIProvider();
+  const notificationProvider = new ExpoNotificationProvider();
+  
+  const generateAIQuestsUseCase = new GenerateAIQuestsUseCase(questRepository, userRepository, aiProvider);
+  const approveQuestBatchUseCase = new ApproveQuestBatchUseCase(questRepository, userRepository, notificationProvider);
+  
+  const questController = new QuestController(generateAIQuestsUseCase, approveQuestBatchUseCase, questRepository);
+
   fastify.addHook('preValidation', fastify.authenticate);
   fastify.addHook('preHandler', fastify.validateInstitution);
 
@@ -290,272 +307,13 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
   });
 
   // ─── POST /quests/generate ─────────────────────────────────────────────────
-  fastify.post<{ Body: GenerateQuestBody }>('/generate', { preValidation: [fastify.authenticate] }, async (request, reply) => {
-    if (request.user.role !== 'PROFESSOR' && request.user.role !== 'ADMIN') {
-      return reply.status(403).send({ error: 'Acesso negado.' });
-    }
-
-    const { semana, turmaId, tema, complexidade, exigeCalculo, disciplinaId, tipoQuest } = request.body;
-    console.log('GENERATE QUEST BODY:', request.body);
-    if (!turmaId || !tema || !complexidade || !disciplinaId) {
-      return reply.status(400).send({ error: 'Campos obrigatórios: turmaId, tema, complexidade, disciplinaId.' });
-    }
-
-    const finalTipo = tipoQuest || (exigeCalculo ? 'CALCULO' : 'TEORICA');
-
-    try {
-      const turma = await prisma.turma.findUnique({ where: { id: turmaId } });
-      if (!turma) return reply.status(404).send({ error: 'Turma não encontrada.' });
-
-      const disciplina = await prisma.disciplina.findUnique({ where: { id: disciplinaId } });
-      if (!disciplina) return reply.status(404).send({ error: 'Disciplina não encontrada.' });
-
-      // Verificar vínculo se não for Admin
-      if (request.user.role !== 'ADMIN') {
-        const vinculo = await prisma.turmaDisciplina.findFirst({
-          where: {
-            turmaId,
-            disciplinaId,
-            professorId: request.user.id
-          }
-        });
-
-        if (!vinculo) {
-          return reply.status(403).send({ error: 'Você não tem permissão para criar quests desta disciplina para esta turma.' });
-        }
-      }
-
-      let tipoRule = '';
-      if (finalTipo === 'CALCULO') {
-        tipoRule = '- TODAS as 3 perguntas geradas DEVEM obrigatoriamente exigir que o aluno desenvolva cálculos matemáticos ou físicos no papel para chegar à resposta. EVITE perguntas puramente teóricas ou de identificação de conceitos. Foque em problemas numéricos ou de equações que exijam contas para todas as 3.';
-      } else if (finalTipo === 'MULTIPLA') {
-        tipoRule = `- TODAS as 3 perguntas geradas DEVEM obrigatoriamente ser de Múltipla Escolha com 5 alternativas (A, B, C, D, E).
-- Formate cada pergunta contendo o enunciado da questão e, em seguida, as opções identificadas por letras maiúsculas em novas linhas imediatamente após o enunciado. Exemplo:
-  Qual a capital do Brasil?
-  A) Rio de Janeiro
-  B) Brasília
-  C) São Paulo
-  D) Belo Horizonte
-  E) Salvador`;
-      } else {
-        tipoRule = '- As perguntas devem ser teóricas ou de resposta direta, sem necessidade de desenvolvimento de cálculos complexos.';
-      }
-
-      const prompt = `Você é um assistente educacional para alunos de escola pública brasileira.
-Crie EXATAMENTE 3 perguntas sobre o tema "${tema}" para a Semana "${semana}".
-Nível de ensino/Complexidade alvo: ${complexidade} (FUNDAMENTAL, MEDIO ou LIVRE).
-
-REGRAS IMPORTANTES:
-- Linguagem simples e direta.
-- As respostas podem ser numéricas ou em texto (uma palavra ou frase curta), dependendo do que for mais adequado para a pergunta.
-- Não dê a resposta.
-- Progressão de dificuldade de 1 a 3.
-- Adeque a complexidade das perguntas ao nível "${complexidade}".
-${tipoRule}
-- Retorne APENAS um JSON no formato especificado abaixo. Não inclua texto explicativo adicional.
-Exemplo de formato esperado:
-{
-  "q1": "Escreva a lei da função que representa o valor...",
-  "q2": "Dada a função f(x) = 3x - 9, determine...",
-  "q3": "Um reservatório com 500 litros de água apresenta..."
-}
-`;
-
-      let raw = await callGemini(prompt);
-      
-      // Limpa blocos de código markdown se houver
-      raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
-
-      // Extrai apenas o JSON entre as chaves
-      const firstBrace = raw.indexOf('{');
-      const lastBrace = raw.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1) {
-        raw = raw.substring(firstBrace, lastBrace + 1);
-      }
-
-      const questions = JSON.parse(raw);
-      
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + QUEST_EXPIRES_DAYS * 24 * 60 * 60 * 1000); // 7 dias
-      const batchId = crypto.randomUUID();
-
-      // Mapeamento de XP e Nível por ordem (Lote de 3 quests sequenciais)
-      const questConfig = [
-        { level: 'FACIL', xp: 100 },
-        { level: 'MEDIO', xp: 150 },
-        { level: 'DIFICIL', xp: 200 }
-      ];
-
-      let firstQuestId = '';
-
-      for (let i = 1; i <= 3; i++) {
-        const key = `q${i}`;
-        const enunciado = questions[key] || questions[key.toUpperCase()]; // Tenta minúsculo e maiúsculo
-        
-        if (!enunciado) {
-          throw new Error(`Formato de resposta da IA inválido. Esperado chave ${key}.`);
-        }
-
-        const config = questConfig[i - 1];
-
-        const quest = await prisma.quest.create({
-          data: {
-            disciplinaId: disciplina.id,
-            enunciado,
-            tags: exigeCalculo ? ['CALCULO'] : [],
-            xp: config.xp,
-            nivel: config.level,
-            batchId,
-            ordem: i,
-            turmaAlvoId: turma.id,
-            semana,
-            tema,
-            status: 'PENDENTE',
-            expiresAt
-          }
-        });
-
-        if (i === 1) {
-          firstQuestId = quest.id;
-        }
-      }
-
-      return reply.status(201).send({ batch: batchId, count: 3 });
-
-    } catch (error: any) {
-      request.log.error(error);
-      return reply.status(500).send({ error: 'Erro ao gerar quests.', details: error.message });
-    }
-  });
+  fastify.post<{ Body: GenerateQuestBody }>('/generate', { preValidation: [fastify.authenticate] }, (req, rep) => questController.generate(req, rep));
 
   // ─── GET /quests/pending ──────────────────────────────────────────────────
-  fastify.get('/pending', { preValidation: [fastify.authenticate] }, async (request, reply) => {
-    if (request.user.role !== 'PROFESSOR' && request.user.role !== 'ADMIN') {
-      return reply.status(403).send({ error: 'Acesso negado.' });
-    }
-
-    try {
-      const whereClause: any = { status: 'PENDENTE' };
-      if (request.user.role === 'PROFESSOR') {
-        const vinculos = await prisma.turmaDisciplina.findMany({
-          where: { professorId: request.user.id }
-        });
-        const turmaIds = vinculos.map(v => v.turmaId);
-        const disciplinaIds = vinculos.map(v => v.disciplinaId);
-
-        whereClause.turmaAlvoId = { in: turmaIds };
-        whereClause.disciplinaId = { in: disciplinaIds };
-      }
-
-      const pendingQuests = await prisma.quest.findMany({
-        where: whereClause,
-        include: {
-          turmaAlvo: { select: { nome: true } },
-          disciplina: { select: { nome: true } }
-        },
-        orderBy: [
-          { createdAt: 'desc' },
-          { ordem: 'asc' }
-        ]
-      });
-
-      const groups: { [batchId: string]: any } = {};
-      pendingQuests.forEach(q => {
-        const bId = q.batchId || 'no-batch';
-        if (!groups[bId]) {
-          groups[bId] = {
-            batchId: bId,
-            turmaNome: q.turmaAlvo?.nome || 'Sem Turma',
-            turmaId: q.turmaAlvoId,
-            disciplinaNome: q.disciplina?.nome || 'Sem Disciplina',
-            disciplinaId: q.disciplinaId,
-            tema: q.tema || 'Sem Tema',
-            semana: q.semana || 'Sem Semana',
-            createdAt: q.createdAt,
-            quests: []
-          };
-        }
-        groups[bId].quests.push({
-          id: q.id,
-          enunciado: q.enunciado,
-          nivel: q.nivel,
-          xp: q.xp,
-          ordem: q.ordem,
-          tags: q.tags
-        });
-      });
-
-      const result = Object.values(groups).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      return reply.send(result);
-    } catch (error: any) {
-      request.log.error(error);
-      return reply.status(500).send({ error: 'Erro ao buscar rascunhos.', details: error.message });
-    }
-  });
+  fastify.get('/pending', { preValidation: [fastify.authenticate] }, (req, rep) => questController.getPending(req, rep));
 
   // ─── POST /quests/batch/:batchId/approve ──────────────────────────────────
-  fastify.post<{ Params: { batchId: string } }>('/batch/:batchId/approve', { preValidation: [fastify.authenticate] }, async (request, reply) => {
-    if (request.user.role !== 'PROFESSOR' && request.user.role !== 'ADMIN') {
-      return reply.status(403).send({ error: 'Acesso negado.' });
-    }
-
-    const { batchId } = request.params;
-
-    try {
-      const quests = await prisma.quest.findMany({
-        where: { batchId, status: 'PENDENTE' },
-        orderBy: { ordem: 'asc' }
-      });
-
-      if (quests.length === 0) {
-        return reply.status(404).send({ error: 'Lote de rascunhos não encontrado ou já aprovado.' });
-      }
-
-      await prisma.quest.updateMany({
-        where: { batchId },
-        data: { status: 'ATIVA' }
-      });
-
-      const firstQuest = quests.find(q => q.ordem === 1) || quests[0];
-      const now = new Date();
-
-      if (firstQuest.turmaAlvoId) {
-        const alunos = await prisma.user.findMany({
-          where: { turmaId: firstQuest.turmaAlvoId, role: 'ALUNO' }
-        });
-
-        if (alunos.length > 0) {
-          await prisma.questDelivery.createMany({
-            data: alunos.map(aluno => ({
-              questId: firstQuest.id,
-              userId: aluno.id,
-              status: 'SCHEDULED',
-              scheduledAt: now
-            }))
-          });
-
-          // Fetch the subject/disciplina name for the push notification
-          const disciplina = await prisma.disciplina.findUnique({
-            where: { id: firstQuest.disciplinaId }
-          });
-          const tokens = alunos.map(a => a.expoPushToken).filter((t): t is string => !!t);
-          if (tokens.length > 0) {
-            sendPushNotification(
-              tokens,
-              '⚔️ Nova Missão Disponível!',
-              `Uma nova masmorra de ${disciplina?.nome || 'Masmorra'} foi aberta na sua guilda!`,
-              { type: 'NEW_QUEST' }
-            ).catch(console.error);
-          }
-        }
-      }
-
-      return reply.send({ message: 'Lote de missões ativado com sucesso!', count: quests.length });
-    } catch (error: any) {
-      request.log.error(error);
-      return reply.status(500).send({ error: 'Erro ao aprovar lote.', details: error.message });
-    }
-  });
+  fastify.post<{ Params: { batchId: string } }>('/batch/:batchId/approve', { preValidation: [fastify.authenticate] }, (req, rep) => questController.approveBatch(req, rep));
 
   // ─── POST /quests/:id/regenerate ──────────────────────────────────────────
   fastify.post<{ Params: { id: string } }>('/:id/regenerate', { preValidation: [fastify.authenticate] }, async (request, reply) => {
