@@ -20,8 +20,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
   // ─── GESTÃO DE MESTRES ──────────────────────────────────────────────────
 
   // Criar Mestre
-  fastify.post<{ Body: { matricula: string; nome: string; nickname?: string; novaMateria?: string } }>('/masters', async (request, reply) => {
-    const { matricula, nome, nickname, novaMateria } = request.body;
+  fastify.post<{ Body: { matricula: string; nome: string; nickname?: string; novaMateria?: string; maxAulasSemanais?: number } }>('/masters', async (request, reply) => {
+    const { matricula, nome, nickname, novaMateria, maxAulasSemanais } = request.body;
     const instituicao = request.user.instituicao!;
 
     if (!matricula || !nome) {
@@ -72,7 +72,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           password: defaultPassword,
           isFirstAccess: true,
           instituicao,
-          institutionId: request.user.institutionId || null
+          institutionId: request.user.institutionId || null,
+          maxAulasSemanais: maxAulasSemanais !== undefined ? Math.max(0, maxAulasSemanais) : 16
         }
       });
       return reply.status(201).send({ message: 'Mestre cadastrado com sucesso!', user });
@@ -89,15 +90,15 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     const instituicao = request.user.instituicao!;
     const masters = await prisma.user.findMany({
       where: { role: 'PROFESSOR', instituicao },
-      select: { id: true, nome: true, nickname: true, matricula: true, instituicao: true, createdAt: true }
+      select: { id: true, nome: true, nickname: true, matricula: true, instituicao: true, createdAt: true, maxAulasSemanais: true }
     });
     return reply.status(200).send(masters);
   });
 
   // Editar Mestre da Instituição
-  fastify.put<{ Params: { id: string }; Body: { nome?: string; nickname?: string } }>('/masters/:id', async (request, reply) => {
+  fastify.put<{ Params: { id: string }; Body: { nome?: string; nickname?: string; maxAulasSemanais?: number } }>('/masters/:id', async (request, reply) => {
     const { id } = request.params;
-    const { nome, nickname } = request.body;
+    const { nome, nickname, maxAulasSemanais } = request.body;
     const instituicao = request.user.instituicao!;
 
     try {
@@ -105,7 +106,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         where: { id, role: 'PROFESSOR', instituicao },
         data: { 
           nome: nome ? nome.trim() : undefined, 
-          nickname: nickname ? nickname.trim() : undefined 
+          nickname: nickname ? nickname.trim() : undefined,
+          maxAulasSemanais: maxAulasSemanais !== undefined ? Math.max(0, maxAulasSemanais) : undefined
         }
       });
       return reply.send(updated);
