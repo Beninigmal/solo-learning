@@ -2136,16 +2136,32 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
         },
         orderBy: { nome: 'asc' }
       });
+
+      const allTurmaDisciplinas = await prisma.turmaDisciplina.findMany({
+        where: {
+          turma: { instituicao: user.role !== 'ADMIN' ? (user.instituicao || '') : undefined }
+        },
+        include: {
+          turma: true
+        }
+      });
+
       const formatted = disciplines.map(d => ({
         id: d.id,
         nome: d.nome,
-        professores: d.professores.map(p => ({
-          id: p.professor.id,
-          nome: p.professor.nome,
-          nickname: p.professor.nickname,
-          matricula: p.professor.matricula,
-          temp: p.temp
-        }))
+        professores: d.professores.map(p => {
+          const associatedTurmas = allTurmaDisciplinas
+            .filter(td => td.professorId === p.professor.id && td.disciplinaId === d.id)
+            .map(td => ({ id: td.turma.id, nome: td.turma.nome }));
+          return {
+            id: p.professor.id,
+            nome: p.professor.nome,
+            nickname: p.professor.nickname,
+            matricula: p.professor.matricula,
+            temp: p.temp,
+            turmas: associatedTurmas
+          };
+        })
       }));
       return reply.send(formatted);
     } catch (error: any) {
@@ -2154,44 +2170,130 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
     }
   });
 
-  fastify.post<{ Body: { professorId: string; disciplinaId: string; temp?: any } }>('/disciplinas/professor', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+  fastify.post<{ Body: { professorId: string; disciplinaId: string; temp?: any; turmaIds?: string[] } }>('/disciplinas/professor', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     try {
       const user = await prisma.user.findUnique({ where: { id: request.user.id } });
       if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
         return reply.status(403).send({ error: 'Apenas o Diretor/ADMIN ou Arquiteto pode vincular professores.' });
       }
-      const { professorId, disciplinaId, temp } = request.body;
+      const { professorId, disciplinaId, temp, turmaIds } = request.body;
+      const targetTurmaIds = Array.isArray(turmaIds) ? turmaIds : [];
 
-      if (user.role === 'ARQUITETO') {
-        const targetProf = await prisma.user.findFirst({
-          where: { id: professorId, role: 'PROFESSOR', instituicao: user.instituicao }
-        });
-        const targetDisc = await prisma.disciplina.findFirst({
-          where: { id: disciplinaId, instituicao: user.instituicao }
-        });
-        if (!targetProf || !targetDisc) {
-          return reply.status(403).send({ error: 'Acesso negado. O professor e a disciplina devem pertencer à sua instituição.' });
-        }
+      const targetProf = await prisma.user.findFirst({
+        where: { id: professorId, role: 'PROFESSOR', instituicao: user.role === 'ADMIN' ? undefined : (user.instituicao || '') }
+      });
+      const targetDisc = await prisma.disciplina.findFirst({
+        where: { id: disciplinaId, instituicao: user.role === 'ADMIN' ? undefined : (user.instituicao || '') }
+      });
+
+      if (!targetProf || !targetDisc) {
+        return reply.status(403).send({ error: 'Acesso negado. O professor e a disciplina devem pertencer à sua instituição.' });
       }
 
-      const parsedTemp = temp === true || temp === 'true';
-      const relation = await prisma.disciplinaProfessor.upsert({
+      // 1. Calcular a carga atual em OUTRAS matérias lecionadas por este professor
+      const otherVinculos = await prisma.turmaDisciplina.findMany({
         where: {
-          professorId_disciplinaId: { professorId, disciplinaId }
+          professorId,
+          NOT: { disciplinaId }
         },
-        update: {
-          temp: parsedTemp
-        },
-        create: { 
-          professorId, 
-          disciplinaId,
-          temp: parsedTemp
+        include: {
+          disciplina: true
         }
       });
-      return reply.status(201).send({ message: 'Professor vinculado com sucesso!', relation });
+      
+      const cleanNormalize = (name: string): string => {
+        return name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      };
+
+      const getSubjectDefaultHours = (name: string): number => {
+        const clean = cleanNormalize(name);
+        if (clean.includes("portugues") || clean.includes("matematica")) return 5;
+        if (clean.includes("historia") || clean.includes("geografia") || clean.includes("ciencia") || clean.includes("biologia")) return 3;
+        if (clean.includes("ingles") || clean.includes("ed") || clean.includes("fisica") || clean.includes("quimica")) return 2;
+        if (clean.includes("arte") || clean.includes("filosofia") || clean.includes("relig") || clean.includes("sociologia")) return 1;
+        return 2;
+      };
+
+      let otherHours = 0;
+      for (const ov of otherVinculos) {
+        otherHours += ov.aulasSemanais > 0 ? ov.aulasSemanais : getSubjectDefaultHours(ov.disciplina.nome);
+      }
+
+      // 2. Calcular a carga proposta para esta disciplina nas turmas selecionadas
+      const subjectWeight = getSubjectDefaultHours(targetDisc.nome);
+      const existingVinculosForThisDisc = await prisma.turmaDisciplina.findMany({
+        where: {
+          disciplinaId,
+          turmaId: { in: targetTurmaIds }
+        }
+      });
+
+      let newHours = 0;
+      for (const tid of targetTurmaIds) {
+        const match = existingVinculosForThisDisc.find(ev => ev.turmaId === tid);
+        newHours += (match && match.aulasSemanais > 0) ? match.aulasSemanais : subjectWeight;
+      }
+
+      const limit = targetProf.maxAulasSemanais ?? 16;
+      const totalProposed = otherHours + newHours;
+
+      if (totalProposed > limit) {
+        return reply.status(400).send({
+          error: `Carga horária semanal excedida! O professor já possui ${otherHours} aulas/semana alocadas em outras matérias. Adicionar estas ${targetTurmaIds.length} turmas demandaria mais ${newHours} aulas, totalizando ${totalProposed} aulas/semana, o que supera o limite dele de ${limit} aulas/semana.`
+        });
+      }
+
+      // 3. Executar as atualizações no banco de dados
+      const parsedTemp = temp === true || temp === 'true';
+      await prisma.$transaction(async (tx) => {
+        // A. Upsert da relação global DisciplinaProfessor
+        await tx.disciplinaProfessor.upsert({
+          where: {
+            professorId_disciplinaId: { professorId, disciplinaId }
+          },
+          update: { temp: parsedTemp },
+          create: { professorId, disciplinaId, temp: parsedTemp }
+        });
+
+        // B. Buscar vínculos de TurmaDisciplina existentes deste professor para esta disciplina
+        const existingRelations = await tx.turmaDisciplina.findMany({
+          where: { professorId, disciplinaId }
+        });
+
+        // C. Deletar vínculos de turmas que foram desmarcadas
+        const toDelete = existingRelations.filter(r => !targetTurmaIds.includes(r.turmaId));
+        if (toDelete.length > 0) {
+          await tx.turmaDisciplina.deleteMany({
+            where: {
+              id: { in: toDelete.map(td => td.id) }
+            }
+          });
+        }
+
+        // D. Criar ou reatribuir vínculos para as turmas selecionadas
+        for (const tid of targetTurmaIds) {
+          await tx.turmaDisciplina.upsert({
+            where: {
+              turmaId_disciplinaId: { turmaId: tid, disciplinaId }
+            },
+            update: {
+              professorId // Reatribui para este professor se pertencia a outro!
+            },
+            create: {
+              turmaId: tid,
+              disciplinaId,
+              professorId,
+              aulasSemanais: 0,
+              geminada: false
+            }
+          });
+        }
+      });
+
+      return reply.status(201).send({ message: 'Professor e turmas vinculados com sucesso!' });
     } catch (error: any) {
       request.log.error(error);
-      return reply.status(500).send({ error: 'Erro ao vincular professor.', details: error.message });
+      return reply.status(500).send({ error: 'Erro ao vincular professor e turmas.', details: error.message });
     }
   });
 
@@ -2215,12 +2317,19 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
         }
       }
 
-      await prisma.disciplinaProfessor.delete({
-        where: {
-          professorId_disciplinaId: { professorId, disciplinaId }
-        }
-      });
-      return reply.send({ message: 'Vínculo do professor removido com sucesso!' });
+      // Transação para remover a relação global E os vínculos de turmas específicos desse professor nesta disciplina
+      await prisma.$transaction([
+        prisma.disciplinaProfessor.delete({
+          where: {
+            professorId_disciplinaId: { professorId, disciplinaId }
+          }
+        }),
+        prisma.turmaDisciplina.deleteMany({
+          where: { professorId, disciplinaId }
+        })
+      ]);
+
+      return reply.send({ message: 'Vínculo do professor e turmas removido com sucesso!' });
     } catch (error: any) {
       request.log.error(error);
       return reply.status(500).send({ error: 'Erro ao remover vínculo.', details: error.message });
