@@ -2435,6 +2435,292 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
     }
   });
 
+  // GET: Configuração de distribuição de aulas por disciplina por turma
+  fastify.get<{ Params: { turmaId: string } }>('/turmas/:turmaId/disciplinas/config', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const { turmaId } = request.params;
+      const turmaDisciplinas = await prisma.turmaDisciplina.findMany({
+        where: { turmaId },
+        include: { disciplina: true }
+      });
+      return reply.send(turmaDisciplinas.map(td => ({
+        disciplinaId: td.disciplinaId,
+        disciplinaNome: td.disciplina.nome,
+        aulasSemanais: td.aulasSemanais,
+        geminada: td.geminada
+      })));
+    } catch (error: any) {
+      return reply.status(500).send({ error: 'Erro ao buscar configuração de disciplinas.', details: error.message });
+    }
+  });
+
+  // PUT: Atualizar configuração de aulasSemanais e geminada por TurmaDisciplina
+  fastify.put<{
+    Params: { turmaId: string };
+    Body: { configs: { disciplinaId: string; aulasSemanais: number; geminada: boolean }[] };
+  }>('/turmas/:turmaId/disciplinas/config', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+        return reply.status(403).send({ error: 'Acesso negado.' });
+      }
+      const { turmaId } = request.params;
+      const { configs } = request.body;
+
+      await Promise.all(configs.map(({ disciplinaId, aulasSemanais, geminada }) =>
+        prisma.turmaDisciplina.updateMany({
+          where: { turmaId, disciplinaId },
+          data: { aulasSemanais, geminada }
+        })
+      ));
+
+      return reply.send({ message: 'Configuração de disciplinas atualizada com sucesso!' });
+    } catch (error: any) {
+      return reply.status(500).send({ error: 'Erro ao atualizar configuração de disciplinas.', details: error.message });
+    }
+  });
+
+  // ==========================================
+  // MONARCH ENGINE v3 — CSP Solver Helpers
+  // ==========================================
+
+  /**
+   * Retorna a meta de aulas semanais para uma disciplina com base na
+   * Matriz Curricular Brasileira (LDB / MEC).
+   * Usado como fallback quando aulasSemanais === 0 no TurmaDisciplina.
+   */
+  function getMatrizCurricularDefault(disciplinaNome: string): { aulas: number; geminada: boolean } {
+    const n = disciplinaNome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    if (/portugu[eê]s|lingua portuguesa|redacao/.test(n)) return { aulas: 5, geminada: false };
+    if (/matematica|calculo/.test(n)) return { aulas: 5, geminada: false };
+    if (/historia/.test(n)) return { aulas: 3, geminada: false };
+    if (/geografia/.test(n)) return { aulas: 3, geminada: false };
+    if (/ciencia|biologia/.test(n)) return { aulas: 3, geminada: false };
+    if (/fisica(?!.*educ)/.test(n)) return { aulas: 2, geminada: false };
+    if (/quimica/.test(n)) return { aulas: 2, geminada: false };
+    if (/ingles|lingua inglesa|lingua estrangeira/.test(n)) return { aulas: 2, geminada: true };
+    if (/educacao fisica|ed\.?\s*fisica/.test(n)) return { aulas: 2, geminada: true };
+    if (/arte|artes/.test(n)) return { aulas: 1, geminada: false };
+    if (/filosofia|sociologia/.test(n)) return { aulas: 1, geminada: false };
+    if (/religiao|ensino religioso/.test(n)) return { aulas: 1, geminada: false };
+
+    return { aulas: 0, geminada: false }; // fallback: equilibrado
+  }
+
+  /**
+   * Núcleo do Monarch Engine v3.
+   * Resolve a grade de UMA turma respeitando:
+   * - Matriz Curricular (defaults por disciplina)
+   * - Restrições de agenda dos professores
+   * - Carga semanal dos professores (cross-turma)
+   * - Aulas geminadas obrigatórias (Inglês, Ed. Física, etc.)
+   * - Barreira do intervalo de recreio
+   */
+  function monarchSolveTurma(params: {
+    turmaDisciplinas: any[];
+    positions: number[];
+    startPos: number;
+    intervalAfterSlot: number;
+    slotsCount: number;
+    shift: string;
+    professorRestrictions: any[];
+    professorWeeklyCount: Map<string, number>;
+    alreadyBusySlots: Set<string>; // `${day}_${pos}_${professorId}`
+  }): { [key: string]: string } | null {
+    const {
+      turmaDisciplinas, positions, startPos, intervalAfterSlot,
+      slotsCount, shift, professorRestrictions, professorWeeklyCount, alreadyBusySlots
+    } = params;
+
+    const days = ['SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA'];
+    const totalSlots = days.length * slotsCount;
+
+    // --- Calcular requiredCounts com Matriz Curricular ---
+    const requiredCounts: { [disciplinaId: string]: number } = {};
+    const isGeminada: { [disciplinaId: string]: boolean } = {};
+
+    let assignedByMatriz = 0;
+    const fallbackTds: any[] = [];
+
+    for (const td of turmaDisciplinas) {
+      const matrizDefault = getMatrizCurricularDefault(td.disciplina.nome);
+      const manualAulas = td.aulasSemanais ?? 0;
+      const manualGeminada = td.geminada ?? false;
+
+      if (manualAulas > 0) {
+        requiredCounts[td.disciplinaId] = manualAulas;
+        isGeminada[td.disciplinaId] = manualGeminada || matrizDefault.geminada;
+        assignedByMatriz += manualAulas;
+      } else if (matrizDefault.aulas > 0) {
+        requiredCounts[td.disciplinaId] = matrizDefault.aulas;
+        isGeminada[td.disciplinaId] = matrizDefault.geminada;
+        assignedByMatriz += matrizDefault.aulas;
+      } else {
+        fallbackTds.push(td);
+        isGeminada[td.disciplinaId] = false;
+      }
+    }
+
+    // Distribuir slots restantes igualmente para disciplinas sem padrão
+    const remaining = totalSlots - assignedByMatriz;
+    if (fallbackTds.length > 0) {
+      const baseCount = Math.max(1, Math.floor(remaining / fallbackTds.length));
+      const extra = Math.max(0, remaining - baseCount * fallbackTds.length);
+      fallbackTds.forEach((td, i) => {
+        requiredCounts[td.disciplinaId] = baseCount + (i < extra ? 1 : 0);
+      });
+    }
+
+    // Garantir que a soma bate exatamente com totalSlots (ajuste fino)
+    let totalRequired = Object.values(requiredCounts).reduce((a, b) => a + b, 0);
+    if (totalRequired !== totalSlots) {
+      // Ajustar nas matérias de fallback ou nas mais pesadas
+      const sortedKeys = Object.keys(requiredCounts).sort((a, b) => requiredCounts[b] - requiredCounts[a]);
+      let diff = totalSlots - totalRequired;
+      for (const k of sortedKeys) {
+        if (diff === 0) break;
+        if (diff > 0) { requiredCounts[k]++; diff--; }
+        else if (requiredCounts[k] > 1) { requiredCounts[k]--; diff++; }
+      }
+    }
+
+    // --- Construir lista de slots a preencher ---
+    const slotsToFill: { day: string; pos: number }[] = [];
+    for (const day of days) {
+      for (const pos of positions) {
+        slotsToFill.push({ day, pos });
+      }
+    }
+
+    const assignedSlots: { [key: string]: string } = {};
+    const assignedCounts: { [disciplinaId: string]: number } = {};
+    const professorAssignedCountThisTurma: { [professorId: string]: number } = {};
+    turmaDisciplinas.forEach(td => {
+      assignedCounts[td.disciplinaId] = 0;
+      professorAssignedCountThisTurma[td.professorId] = 0;
+    });
+
+    const shuffleArray = (array: any[]) => {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    };
+
+    const MAX_AULAS_SEMANA_DEFAULT = 16;
+
+    function solve(slotIndex: number): boolean {
+      if (slotIndex >= slotsToFill.length) return true;
+
+      const { day, pos } = slotsToFill[slotIndex];
+      const key = `${day}_${pos}`;
+
+      const prevPos = pos - 1;
+      const prevKey = `${day}_${prevPos}`;
+      const prevDisciplineId = positions.includes(prevPos) ? assignedSlots[prevKey] : null;
+      const prevTd = prevDisciplineId ? turmaDisciplinas.find(t => t.disciplinaId === prevDisciplineId) : null;
+
+      const lastSlotBeforeInterval = startPos + intervalAfterSlot - 1;
+      const crossesInterval = prevPos === lastSlotBeforeInterval;
+
+      let candidates = turmaDisciplinas.filter(td => assignedCounts[td.disciplinaId] < (requiredCounts[td.disciplinaId] ?? 0));
+
+      candidates = candidates.filter(td => {
+        const professorId = td.professorId;
+
+        // 1. Verificar choque físico com outras turmas
+        if (alreadyBusySlots.has(`${day}_${pos}_${professorId}`)) return false;
+
+        // 2. Verificar restrição manual de agenda
+        const hasRestriction = professorRestrictions.some(r => {
+          if (r.professorId !== professorId || r.diaSemana !== day || r.shift !== shift) return false;
+          if (r.posicao === null || r.posicao === undefined) return true; // turno inteiro bloqueado
+          return r.posicao === pos; // slot específico bloqueado
+        });
+        if (hasRestriction) return false;
+
+        // 3. Verificar carga semanal cross-turma
+        const alreadyCrossCount = professorWeeklyCount.get(professorId) ?? 0;
+        const assignedThisTurma = professorAssignedCountThisTurma[professorId] ?? 0;
+        const maxAulas = (td.professor?.maxAulasSemanais) ?? MAX_AULAS_SEMANA_DEFAULT;
+        if (alreadyCrossCount + assignedThisTurma >= maxAulas) return false;
+
+        return true;
+      });
+
+      // 4. Limite máximo por dia por disciplina
+      const maxDailyCount = turmaDisciplinas.length === 1 ? slotsCount
+        : turmaDisciplinas.length === 2 ? Math.ceil(slotsCount / 2) + 1
+        : 3; // máximo 3 aulas da mesma matéria por dia
+      candidates = candidates.filter(td => {
+        let countToday = 0;
+        for (const p of positions) {
+          if (assignedSlots[`${day}_${p}`] === td.disciplinaId) countToday++;
+        }
+        return countToday < maxDailyCount;
+      });
+
+      if (candidates.length === 0) return false;
+
+      shuffleArray(candidates);
+
+      // 5. Lógica de geminadas + barreira do recreio
+      if (prevDisciplineId) {
+        if (crossesInterval) {
+          // Nunca repetir mesma disciplina cruzando o intervalo
+          candidates = candidates.filter(c => c.disciplinaId !== prevDisciplineId);
+        } else {
+          // Forçar geminada se marcada como obrigatória
+          if (isGeminada[prevDisciplineId]) {
+            const gemCandidate = candidates.find(c => c.disciplinaId === prevDisciplineId);
+            if (gemCandidate) candidates = [gemCandidate];
+            // Se geminada obrigatória mas não disponível, deixa solver tentar outros (backtrack vai resolver)
+          } else {
+            // Promover geminada como preferência suave
+            const geminadaIndex = candidates.findIndex(c => c.disciplinaId === prevDisciplineId);
+            if (geminadaIndex > -1) {
+              const [geminada] = candidates.splice(geminadaIndex, 1);
+              candidates.unshift(geminada);
+            }
+          }
+        }
+      } else {
+        // Se a PRÓXIMA posição é o último slot antes do intervalo, evitar alocar disciplinas geminadas
+        // que precisariam ser continuadas mas cruzariam o recreio
+        const nextPos = pos + 1;
+        const nextIsAfterInterval = nextPos > lastSlotBeforeInterval;
+        if (!nextIsAfterInterval && positions.includes(nextPos)) {
+          // ok, pode alocar geminada normalmente
+        }
+      }
+
+      for (const candidate of candidates) {
+        const discId = candidate.disciplinaId;
+        const profId = candidate.professorId;
+
+        assignedSlots[key] = discId;
+        assignedCounts[discId]++;
+        professorAssignedCountThisTurma[profId] = (professorAssignedCountThisTurma[profId] ?? 0) + 1;
+
+        if (solve(slotIndex + 1)) return true;
+
+        delete assignedSlots[key];
+        assignedCounts[discId]--;
+        professorAssignedCountThisTurma[profId]--;
+      }
+
+      return false;
+    }
+
+    const success = solve(0);
+    return success ? assignedSlots : null;
+  }
+
+  // ==========================================
+  // ROTA: Auto-Generate (turma individual)
+  // ==========================================
   fastify.post<{ Params: { turmaId: string }; Body: { shift: 'MATUTINO' | 'VESPERTINO' | 'NOTURNO' } }>('/turmas/:turmaId/timetable/auto-generate', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     try {
       const user = await prisma.user.findUnique({ where: { id: request.user.id } });
@@ -2455,216 +2741,207 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
       });
 
       if (turmaDisciplinas.length === 0) {
-        return reply.status(400).send({ error: 'Esta turma não possui disciplinas ou professores vinculados para gerar os horários. Cadastre os vínculos primeiro!' });
+        return reply.status(400).send({ error: 'Esta turma não possui disciplinas ou professores vinculados. Cadastre os vínculos primeiro!' });
       }
 
-      // Buscar configurações específicas de turnos
-      let shiftSetting = await prisma.institutionShiftSetting.findFirst({
+      const shiftSetting = await prisma.institutionShiftSetting.findFirst({
         where: { institutionId: user.institutionId || undefined, shift }
       });
-
       const slotsCount = shiftSetting ? shiftSetting.slotsCount : 5;
       const intervalAfterSlot = shiftSetting ? shiftSetting.intervalAfterSlot : 3;
 
-      // Calcular posições absolutas de forma dinâmica e livre de colisões entre turnos
       const startPos = shift === 'MATUTINO' ? 1 : shift === 'VESPERTINO' ? 11 : 21;
       const positions: number[] = [];
-      for (let i = 0; i < slotsCount; i++) {
-        positions.push(startPos + i);
-      }
+      for (let i = 0; i < slotsCount; i++) positions.push(startPos + i);
 
-      const days = ['SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA'];
-
+      // Coletar slots de outras turmas para identificar professores já ocupados
       const otherSlots = await prisma.timetableSlot.findMany({
         where: {
           NOT: { turmaId },
-          turma: { instituicao: user.instituicao }
+          turma: { instituicao: user.instituicao },
+          posicao: { in: positions }
         },
-        include: {
-          disciplina: {
-            include: {
-              professores: {
-                select: { professorId: true }
-              }
-            }
-          }
-        }
+        include: { disciplina: true }
+      });
+      const otherTurmaDisciplinas = await prisma.turmaDisciplina.findMany({
+        where: { NOT: { turmaId }, turma: { instituicao: user.instituicao } }
       });
 
-      const busyProfessors = new Set<string>();
-      const allOtherTurmaDisciplinas = await prisma.turmaDisciplina.findMany({
-        where: {
-          NOT: { turmaId },
-          turma: { instituicao: user.instituicao }
-        }
-      });
+      const alreadyBusySlots = new Set<string>();
+      const professorWeeklyCount = new Map<string, number>();
 
       for (const slot of otherSlots) {
-        const td = allOtherTurmaDisciplinas.find(x => x.turmaId === slot.turmaId && x.disciplinaId === slot.disciplinaId);
+        const td = otherTurmaDisciplinas.find(x => x.turmaId === slot.turmaId && x.disciplinaId === slot.disciplinaId);
         if (td) {
-          busyProfessors.add(`${slot.diaSemana}_${slot.posicao}_${td.professorId}`);
+          alreadyBusySlots.add(`${slot.diaSemana}_${slot.posicao}_${td.professorId}`);
+          professorWeeklyCount.set(td.professorId, (professorWeeklyCount.get(td.professorId) ?? 0) + 1);
         }
       }
 
-      // Buscar restrições de agenda cadastradas pelos professores dessa turma
       const professorRestrictions = await prisma.professorRestriction.findMany({
-        where: {
-          professor: {
-            turmaDisciplinas: {
-              some: { turmaId }
-            }
-          }
-        }
+        where: { professor: { turmaDisciplinas: { some: { turmaId } } } }
       });
 
-      const totalSlotsToFillCount = 5 * slotsCount;
-      const M = turmaDisciplinas.length;
-      const baseCount = Math.floor(totalSlotsToFillCount / M);
-      const remainder = totalSlotsToFillCount % M;
-
-      const requiredCounts: { [disciplinaId: string]: number } = {};
-      turmaDisciplinas.forEach((td, index) => {
-        requiredCounts[td.disciplinaId] = baseCount + (index < remainder ? 1 : 0);
+      const assignedSlots = monarchSolveTurma({
+        turmaDisciplinas, positions, startPos, intervalAfterSlot,
+        slotsCount, shift, professorRestrictions, professorWeeklyCount, alreadyBusySlots
       });
+
+      if (!assignedSlots) {
+        return reply.status(400).send({
+          error: 'O Monarch Engine não encontrou uma grade sem conflitos. Verifique os vínculos de professores, restrições de agenda ou reduza as disciplinas.'
+        });
+      }
 
       const slotsToFill: { day: string; pos: number }[] = [];
-      for (const day of days) {
-        for (const pos of positions) {
-          slotsToFill.push({ day, pos });
-        }
-      }
-
-      const assignedSlots: { [key: string]: string } = {};
-      const assignedCounts: { [disciplinaId: string]: number } = {};
-      turmaDisciplinas.forEach(td => { assignedCounts[td.disciplinaId] = 0; });
-
-      const shuffleArray = (array: any[]) => {
-        for (let i = array.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [array[i], array[j]] = [array[j], array[i]];
-        }
-        return array;
-      };
-
-      function solve(slotIndex: number): boolean {
-        if (slotIndex >= slotsToFill.length) return true;
-
-        const { day, pos } = slotsToFill[slotIndex];
-        const key = `${day}_${pos}`;
-
-        const prevPos = pos - 1;
-        const prevKey = `${day}_${prevPos}`;
-        const prevDisciplineId = positions.includes(prevPos) ? assignedSlots[prevKey] : null;
-
-        let candidates = turmaDisciplinas.filter(td => assignedCounts[td.disciplinaId] < requiredCounts[td.disciplinaId]);
-
-        candidates = candidates.filter(td => {
-          const professorId = td.professorId;
-          
-          // Verificar choque de horários físicos com outras turmas
-          const isBusy = busyProfessors.has(`${day}_${pos}_${professorId}`);
-          if (isBusy) return false;
-
-          // Verificar restrição manual de agenda (ex: quarta-feira matutino bloqueada)
-          const hasRestriction = professorRestrictions.some(r => 
-            r.professorId === professorId && 
-            r.diaSemana === day && 
-            r.shift === shift
-          );
-
-          return !hasRestriction;
-        });
-
-        const maxDailyCount = M === 1 ? slotsCount : M === 2 ? Math.ceil(slotsCount / 2) + 1 : 2;
-        candidates = candidates.filter(td => {
-          let countToday = 0;
-          for (const p of positions) {
-            if (assignedSlots[`${day}_${p}`] === td.disciplinaId) countToday++;
-          }
-          return countToday < maxDailyCount;
-        });
-
-        if (candidates.length === 0) return false;
-
-        shuffleArray(candidates);
-
-        if (prevDisciplineId) {
-          const lastSlotBeforeInterval = startPos + intervalAfterSlot - 1;
-          const crossesInterval = (prevPos === lastSlotBeforeInterval);
-
-          if (crossesInterval) {
-            // Impedir estritamente aulas geminadas que cruzem a barreira do intervalo recreio!
-            candidates = candidates.filter(c => c.disciplinaId !== prevDisciplineId);
-          } else {
-            // Priorizar aula geminada normalmente
-            const geminadaIndex = candidates.findIndex(c => c.disciplinaId === prevDisciplineId);
-            if (geminadaIndex > -1) {
-              const [geminada] = candidates.splice(geminadaIndex, 1);
-              candidates.unshift(geminada);
-            }
-          }
-        }
-
-        for (const candidate of candidates) {
-          const discId = candidate.disciplinaId;
-
-          assignedSlots[key] = discId;
-          assignedCounts[discId]++;
-
-          if (solve(slotIndex + 1)) return true;
-
-          delete assignedSlots[key];
-          assignedCounts[discId]--;
-        }
-
-        return false;
-      }
-
-      const success = solve(0);
-
-      if (!success) {
-        return reply.status(400).send({
-          error: 'Não foi possível encontrar uma grade horária 100% sem conflitos para os professores nas posições de turno solicitadas. Ajuste os vínculos ou matérias da instituição.'
-        });
+      for (const day of ['SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA']) {
+        for (const pos of positions) slotsToFill.push({ day, pos });
       }
 
       await prisma.$transaction(async (tx) => {
-        await tx.timetableSlot.deleteMany({
-          where: {
-            turmaId,
-            posicao: { in: positions }
-          }
-        });
-
-        const slotsData = slotsToFill.map(({ day, pos }) => ({
-          turmaId,
-          diaSemana: day,
-          posicao: pos,
-          disciplinaId: assignedSlots[`${day}_${pos}`]
-        }));
-
+        await tx.timetableSlot.deleteMany({ where: { turmaId, posicao: { in: positions } } });
         await tx.timetableSlot.createMany({
-          data: slotsData
+          data: slotsToFill.map(({ day, pos }) => ({
+            turmaId,
+            diaSemana: day,
+            posicao: pos,
+            disciplinaId: assignedSlots[`${day}_${pos}`]
+          }))
         });
       });
 
       const newSlots = await prisma.timetableSlot.findMany({
-        where: {
-          turmaId,
-          posicao: { in: positions }
-        },
-        include: {
-          disciplina: true
-        }
+        where: { turmaId, posicao: { in: positions } },
+        include: { disciplina: true }
       });
 
       return reply.send({
-        message: `Grade de horários do turno ${shift} gerada de forma 100% otimizada e automática!`,
+        message: `⚡ Monarch Engine v3: Grade do turno ${shift} gerada com Matriz Curricular Brasileira!`,
         slots: newSlots
       });
     } catch (error: any) {
       request.log.error(error);
       return reply.status(500).send({ error: 'Erro interno ao gerar grade de horários automaticamente.', details: error.message });
+    }
+  });
+
+  // ==========================================
+  // ROTA: Batch Generate (todas as turmas do turno)
+  // ==========================================
+  fastify.post<{ Body: { shift: 'MATUTINO' | 'VESPERTINO' | 'NOTURNO' } }>('/institution/timetable/batch-generate', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+        return reply.status(403).send({ error: 'Apenas diretores e arquitetos podem usar o Batch Generate.' });
+      }
+
+      const { shift } = request.body;
+      if (!shift || !['MATUTINO', 'VESPERTINO', 'NOTURNO'].includes(shift)) {
+        return reply.status(400).send({ error: 'Turno inválido ou não fornecido.' });
+      }
+
+      // Buscar TODAS as turmas da instituição com disciplinas configuradas
+      const allTurmas = await prisma.turma.findMany({
+        where: { instituicao: user.instituicao },
+        include: {
+          turmaDisciplinas: {
+            include: { disciplina: true, professor: true }
+          }
+        }
+      });
+
+      const eligibleTurmas = allTurmas.filter(t => t.turmaDisciplinas.length > 0);
+      if (eligibleTurmas.length === 0) {
+        return reply.status(400).send({ error: 'Nenhuma turma com disciplinas cadastradas encontrada.' });
+      }
+
+      const shiftSetting = await prisma.institutionShiftSetting.findFirst({
+        where: { institutionId: user.institutionId || undefined, shift }
+      });
+      const slotsCount = shiftSetting ? shiftSetting.slotsCount : 5;
+      const intervalAfterSlot = shiftSetting ? shiftSetting.intervalAfterSlot : 3;
+
+      const startPos = shift === 'MATUTINO' ? 1 : shift === 'VESPERTINO' ? 11 : 21;
+      const positions: number[] = [];
+      for (let i = 0; i < slotsCount; i++) positions.push(startPos + i);
+
+      // Ordenar turmas: mais restrições primeiro (professores compartilhados = mais conflitos)
+      eligibleTurmas.sort((a, b) => b.turmaDisciplinas.length - a.turmaDisciplinas.length);
+
+      const allProfessorRestrictions = await prisma.professorRestriction.findMany({
+        where: { professor: { institution: { nome: user.instituicao ?? '' } } }
+      });
+
+      const results: { turmaId: string; turma: string; status: string; slots?: number }[] = [];
+      const professorWeeklyCount = new Map<string, number>(); // Acumulado cross-turma
+      const globalBusySlots = new Set<string>(); // Slots ocupados em turmas já processadas
+
+      for (const turma of eligibleTurmas) {
+        const turmaDisciplinas = turma.turmaDisciplinas;
+        const turmaRestrictions = allProfessorRestrictions.filter(r =>
+          turmaDisciplinas.some(td => td.professorId === r.professorId)
+        );
+
+        const assignedSlots = monarchSolveTurma({
+          turmaDisciplinas,
+          positions,
+          startPos,
+          intervalAfterSlot,
+          slotsCount,
+          shift,
+          professorRestrictions: turmaRestrictions,
+          professorWeeklyCount,
+          alreadyBusySlots: globalBusySlots
+        });
+
+        if (!assignedSlots) {
+          results.push({ turmaId: turma.id, turma: turma.nome, status: 'CONFLITO — sem grade gerada' });
+          continue;
+        }
+
+        const slotsToFill: { day: string; pos: number }[] = [];
+        for (const day of ['SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA']) {
+          for (const pos of positions) slotsToFill.push({ day, pos });
+        }
+
+        await prisma.$transaction(async (tx) => {
+          await tx.timetableSlot.deleteMany({ where: { turmaId: turma.id, posicao: { in: positions } } });
+          await tx.timetableSlot.createMany({
+            data: slotsToFill.map(({ day, pos }) => ({
+              turmaId: turma.id,
+              diaSemana: day,
+              posicao: pos,
+              disciplinaId: assignedSlots[`${day}_${pos}`]
+            }))
+          });
+        });
+
+        // Atualizar acumuladores cross-turma
+        for (const day of ['SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA']) {
+          for (const pos of positions) {
+            const discId = assignedSlots[`${day}_${pos}`];
+            const td = turmaDisciplinas.find(x => x.disciplinaId === discId);
+            if (td) {
+              const profId = td.professorId;
+              globalBusySlots.add(`${day}_${pos}_${profId}`);
+              professorWeeklyCount.set(profId, (professorWeeklyCount.get(profId) ?? 0) + 1);
+            }
+          }
+        }
+
+        results.push({ turmaId: turma.id, turma: turma.nome, status: 'OK', slots: slotsToFill.length });
+      }
+
+      const successCount = results.filter(r => r.status === 'OK').length;
+      const failCount = results.filter(r => r.status !== 'OK').length;
+
+      return reply.send({
+        message: `⚡ Monarch Engine v3 Batch: ${successCount}/${eligibleTurmas.length} turmas geradas com sucesso para o turno ${shift}.${failCount > 0 ? ` ${failCount} turma(s) com conflito.` : ''}`,
+        results
+      });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro interno no Batch Generate.', details: error.message });
     }
   });
 

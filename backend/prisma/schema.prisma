@@ -47,6 +47,9 @@ model User {
 
   lastActiveAt DateTime @default(now())
   restrictions ProfessorRestriction[]
+  /// Limite semanal de aulas em regência (2/3 da carga). Default: 16 (contrato 20h).
+  /// Para contrato 40h configure como 32. Usado pelo Monarch Engine para controle cross-turma.
+  maxAulasSemanais Int? // null = usar default 16
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -210,16 +213,24 @@ model WrongAnswer {
 }
 
 model TurmaDisciplina {
-  id           String     @id @default(uuid())
-  turmaId      String
-  professorId  String
-  disciplinaId String
+  id            String     @id @default(uuid())
+  turmaId       String
+  professorId   String
+  disciplinaId  String
 
-  turma        Turma      @relation(fields: [turmaId], references: [id])
-  professor    User       @relation(fields: [professorId], references: [id])
-  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id])
+  /// Quantidade de aulas semanais alvo para esta disciplina nesta turma.
+  /// 0 = usar distribuição automática da Matriz Curricular
+  aulasSemanais Int        @default(0)
 
-  createdAt    DateTime   @default(now())
+  /// Quando true, o Monarch Engine tenta sempre alocar as aulas desta
+  /// disciplina em pares consecutivos (geminadas) no mesmo dia.
+  geminada      Boolean    @default(false)
+
+  turma         Turma      @relation(fields: [turmaId], references: [id])
+  professor     User       @relation(fields: [professorId], references: [id])
+  disciplina    Disciplina @relation(fields: [disciplinaId], references: [id])
+
+  createdAt     DateTime   @default(now())
 
   @@unique([turmaId, disciplinaId])
 }
