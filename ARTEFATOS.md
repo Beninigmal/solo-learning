@@ -73,6 +73,10 @@ Os artefatos são obtidos ao derrotar **Mini Bosses** em grupo (Party/Raid) ou e
 - **Efeito:** Permite abrir **qualquer party ativa da sua própria Turma** e entrar nela como invasor, mesmo a contragosto do líder e mesmo que o limite de membros já tenha sido atingido (ex: entrará como quarto membro).
 - **Restrição:** Bloqueado o uso para invadir parties de outras turmas.
 
+### 9. 🔱 Cetro do Exílio
+- **Descrição:** Um cetro rúnico entalhado com fórmulas de repulsão de mana. É a única arma capaz de expurgar um Caçador Invasor de sua party.
+- **Efeito:** Expulsa instantaneamente o invasor da party. Ao ser conjurado por qualquer integrante oficial, rouba **50 XP** do invasor para cada integrante oficial presente na party (ex: com 3 integrantes, o invasor perde 150 XP total) e concede **+100 XP** de bônus imediato para o Caçador que o conjurou.
+
 ## 🔵 Artefatos Mágicos (Azuis)
 
 ### 1. 👟 Sapatilhas do Mundo Lento

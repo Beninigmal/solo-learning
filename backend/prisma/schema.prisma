@@ -46,6 +46,7 @@ model User {
   bolsaSorteExpires   DateTime?
 
   lastActiveAt DateTime @default(now())
+  restrictions ProfessorRestriction[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -274,10 +275,35 @@ model GoldenAnswer {
 }
 
 model Institution {
-  id          String       @id @default(uuid())
-  nome        String       @unique
-  createdAt   DateTime     @default(now())
-  users       User[]
-  turmas      Turma[]
-  disciplinas Disciplina[]
+  id            String       @id @default(uuid())
+  nome          String       @unique
+  createdAt     DateTime     @default(now())
+  users         User[]
+  turmas        Turma[]
+  disciplinas   Disciplina[]
+  shiftSettings InstitutionShiftSetting[]
+}
+
+model InstitutionShiftSetting {
+  id                 String      @id @default(uuid())
+  institutionId      String
+  institution        Institution @relation(fields: [institutionId], references: [id])
+  shift              String      // MATUTINO, VESPERTINO, NOTURNO
+  slotsCount         Int         @default(5)
+  intervalAfterSlot  Int         @default(3) // Intervalo após este slot
+  createdAt          DateTime    @default(now())
+
+  @@unique([institutionId, shift])
+}
+
+model ProfessorRestriction {
+  id          String   @id @default(uuid())
+  professorId String
+  professor   User     @relation(fields: [professorId], references: [id])
+  diaSemana   String   // SEGUNDA, TERCA, QUARTA, QUINTA, SEXTA
+  shift       String   // MATUTINO, VESPERTINO, NOTURNO
+  posicao     Int?     // Opcional - Slot de horário específico se aplicável
+  createdAt   DateTime @default(now())
+
+  @@unique([professorId, diaSemana, shift, posicao])
 }

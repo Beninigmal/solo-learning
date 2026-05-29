@@ -112,7 +112,12 @@ export class PrismaQuestRepository implements IQuestRepository {
     return prisma.quest.findMany({
       where,
       include: {
-        turmaAlvo: { select: { nome: true } },
+        turmaAlvo: {
+          select: {
+            nome: true,
+            turmaDisciplinas: true
+          }
+        },
         disciplina: { select: { nome: true } }
       },
       orderBy: [

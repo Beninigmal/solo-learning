@@ -1477,9 +1477,9 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
   });
 
   // ─── POST /quests/party/join ───────────────────────────────────────────────
-  fastify.post<{ Body: { codigo: string } }>('/party/join', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+  fastify.post<{ Body: { codigo: string; useChaveMestra?: boolean } }>('/party/join', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     const userId = request.user.id;
-    const { codigo } = request.body;
+    const { codigo, useChaveMestra } = request.body;
     if (!codigo) return reply.status(400).send({ error: 'Código é obrigatório.' });
 
     try {
@@ -1505,7 +1505,7 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
          return reply.status(404).send({ error: 'Party ou Raid não encontrada ou já encerrada.' });
       }
 
-      if (raid.participantes.length >= 3) {
+      if (raid.participantes.length >= 3 && !useChaveMestra) {
          return reply.status(400).send({ error: 'Esta Party já atingiu o limite máximo de 3 aventureiros.' });
       }
 
@@ -1524,7 +1524,7 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
 
       if (currentParticipants.length > 0) {
         const creatorUser = currentParticipants[0].user;
-        if (!creatorUser.turmaId || !joiningUser.turmaId || creatorUser.turmaId !== joiningUser.turmaId) {
+        if (!useChaveMestra && (!creatorUser.turmaId || !joiningUser.turmaId || creatorUser.turmaId !== joiningUser.turmaId)) {
           return reply.status(400).send({ error: 'Você só pode entrar em uma Party com alunos da mesma turma!' });
         }
       } else {
@@ -1535,7 +1535,7 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
         where: { id: raid.id },
         data: {
           participantes: {
-            create: { userId }
+            create: { userId, isInvasor: useChaveMestra ? true : false }
           }
         },
         include: {
@@ -2314,6 +2314,360 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
     }
   });
 
+  // Obter configurações de turnos da escola
+  fastify.get('/institution/shifts', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || !user.institutionId) {
+        return reply.status(400).send({ error: 'Usuário sem vínculo com instituição.' });
+      }
+
+      const settings = await prisma.institutionShiftSetting.findMany({
+        where: { institutionId: user.institutionId }
+      });
+
+      return reply.send(settings);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao buscar configurações de turnos.', details: error.message });
+    }
+  });
+
+  // Atualizar configurações de turnos da escola
+  fastify.post<{ Body: { shift: string; slotsCount: number; intervalAfterSlot: number } }>('/institution/shifts', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+        return reply.status(403).send({ error: 'Apenas administradores podem configurar turnos.' });
+      }
+      if (!user.institutionId) {
+        return reply.status(400).send({ error: 'Usuário sem vínculo com instituição.' });
+      }
+
+      const { shift, slotsCount, intervalAfterSlot } = request.body;
+
+      const setting = await prisma.institutionShiftSetting.upsert({
+        where: {
+          institutionId_shift: {
+            institutionId: user.institutionId,
+            shift
+          }
+        },
+        update: {
+          slotsCount,
+          intervalAfterSlot
+        },
+        create: {
+          institutionId: user.institutionId,
+          shift,
+          slotsCount,
+          intervalAfterSlot
+        }
+      });
+
+      return reply.send(setting);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao salvar configuração de turno.', details: error.message });
+    }
+  });
+
+  // Obter restrições de disponibilidade dos professores da escola
+  fastify.get('/professores/restrictions', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || !user.institutionId) {
+        return reply.status(400).send({ error: 'Usuário sem vínculo com instituição.' });
+      }
+
+      const restrictions = await prisma.professorRestriction.findMany({
+        where: {
+          professor: {
+            institutionId: user.institutionId
+          }
+        },
+        include: {
+          professor: {
+            select: { id: true, nome: true, matricula: true }
+          }
+        }
+      });
+
+      return reply.send(restrictions);
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao buscar restrições de professores.', details: error.message });
+    }
+  });
+
+  // Atualizar restrições de disponibilidade de um professor
+  fastify.post<{ Body: { professorId: string; restrictions: { diaSemana: string; shift: string }[] } }>('/professores/restrictions', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+        return reply.status(403).send({ error: 'Apenas administradores podem configurar restrições.' });
+      }
+
+      const { professorId, restrictions } = request.body;
+
+      // Deletar restrições antigas deste professor
+      await prisma.professorRestriction.deleteMany({
+        where: { professorId }
+      });
+
+      // Se tiver restrições enviadas, insere em lote
+      if (restrictions && restrictions.length > 0) {
+        const data = restrictions.map(r => ({
+          professorId,
+          diaSemana: r.diaSemana,
+          shift: r.shift
+        }));
+
+        await prisma.professorRestriction.createMany({
+          data
+        });
+      }
+
+      return reply.send({ message: 'Restrições atualizadas com sucesso!' });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao salvar restrições do professor.', details: error.message });
+    }
+  });
+
+  fastify.post<{ Params: { turmaId: string }; Body: { shift: 'MATUTINO' | 'VESPERTINO' | 'NOTURNO' } }>('/turmas/:turmaId/timetable/auto-generate', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+        return reply.status(403).send({ error: 'Apenas diretores e arquitetos podem acessar esta ferramenta.' });
+      }
+
+      const { turmaId } = request.params;
+      const { shift } = request.body;
+
+      if (!shift || !['MATUTINO', 'VESPERTINO', 'NOTURNO'].includes(shift)) {
+        return reply.status(400).send({ error: 'Turno inválido ou não fornecido.' });
+      }
+
+      const turmaDisciplinas = await prisma.turmaDisciplina.findMany({
+        where: { turmaId },
+        include: { disciplina: true, professor: true }
+      });
+
+      if (turmaDisciplinas.length === 0) {
+        return reply.status(400).send({ error: 'Esta turma não possui disciplinas ou professores vinculados para gerar os horários. Cadastre os vínculos primeiro!' });
+      }
+
+      // Buscar configurações específicas de turnos
+      let shiftSetting = await prisma.institutionShiftSetting.findFirst({
+        where: { institutionId: user.institutionId || undefined, shift }
+      });
+
+      const slotsCount = shiftSetting ? shiftSetting.slotsCount : 5;
+      const intervalAfterSlot = shiftSetting ? shiftSetting.intervalAfterSlot : 3;
+
+      // Calcular posições absolutas de forma dinâmica e livre de colisões entre turnos
+      const startPos = shift === 'MATUTINO' ? 1 : shift === 'VESPERTINO' ? 11 : 21;
+      const positions: number[] = [];
+      for (let i = 0; i < slotsCount; i++) {
+        positions.push(startPos + i);
+      }
+
+      const days = ['SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA'];
+
+      const otherSlots = await prisma.timetableSlot.findMany({
+        where: {
+          NOT: { turmaId },
+          turma: { instituicao: user.instituicao }
+        },
+        include: {
+          disciplina: {
+            include: {
+              professores: {
+                select: { professorId: true }
+              }
+            }
+          }
+        }
+      });
+
+      const busyProfessors = new Set<string>();
+      const allOtherTurmaDisciplinas = await prisma.turmaDisciplina.findMany({
+        where: {
+          NOT: { turmaId },
+          turma: { instituicao: user.instituicao }
+        }
+      });
+
+      for (const slot of otherSlots) {
+        const td = allOtherTurmaDisciplinas.find(x => x.turmaId === slot.turmaId && x.disciplinaId === slot.disciplinaId);
+        if (td) {
+          busyProfessors.add(`${slot.diaSemana}_${slot.posicao}_${td.professorId}`);
+        }
+      }
+
+      // Buscar restrições de agenda cadastradas pelos professores dessa turma
+      const professorRestrictions = await prisma.professorRestriction.findMany({
+        where: {
+          professor: {
+            turmaDisciplinas: {
+              some: { turmaId }
+            }
+          }
+        }
+      });
+
+      const totalSlotsToFillCount = 5 * slotsCount;
+      const M = turmaDisciplinas.length;
+      const baseCount = Math.floor(totalSlotsToFillCount / M);
+      const remainder = totalSlotsToFillCount % M;
+
+      const requiredCounts: { [disciplinaId: string]: number } = {};
+      turmaDisciplinas.forEach((td, index) => {
+        requiredCounts[td.disciplinaId] = baseCount + (index < remainder ? 1 : 0);
+      });
+
+      const slotsToFill: { day: string; pos: number }[] = [];
+      for (const day of days) {
+        for (const pos of positions) {
+          slotsToFill.push({ day, pos });
+        }
+      }
+
+      const assignedSlots: { [key: string]: string } = {};
+      const assignedCounts: { [disciplinaId: string]: number } = {};
+      turmaDisciplinas.forEach(td => { assignedCounts[td.disciplinaId] = 0; });
+
+      const shuffleArray = (array: any[]) => {
+        for (let i = array.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+      };
+
+      function solve(slotIndex: number): boolean {
+        if (slotIndex >= slotsToFill.length) return true;
+
+        const { day, pos } = slotsToFill[slotIndex];
+        const key = `${day}_${pos}`;
+
+        const prevPos = pos - 1;
+        const prevKey = `${day}_${prevPos}`;
+        const prevDisciplineId = positions.includes(prevPos) ? assignedSlots[prevKey] : null;
+
+        let candidates = turmaDisciplinas.filter(td => assignedCounts[td.disciplinaId] < requiredCounts[td.disciplinaId]);
+
+        candidates = candidates.filter(td => {
+          const professorId = td.professorId;
+          
+          // Verificar choque de horários físicos com outras turmas
+          const isBusy = busyProfessors.has(`${day}_${pos}_${professorId}`);
+          if (isBusy) return false;
+
+          // Verificar restrição manual de agenda (ex: quarta-feira matutino bloqueada)
+          const hasRestriction = professorRestrictions.some(r => 
+            r.professorId === professorId && 
+            r.diaSemana === day && 
+            r.shift === shift
+          );
+
+          return !hasRestriction;
+        });
+
+        const maxDailyCount = M === 1 ? slotsCount : M === 2 ? Math.ceil(slotsCount / 2) + 1 : 2;
+        candidates = candidates.filter(td => {
+          let countToday = 0;
+          for (const p of positions) {
+            if (assignedSlots[`${day}_${p}`] === td.disciplinaId) countToday++;
+          }
+          return countToday < maxDailyCount;
+        });
+
+        if (candidates.length === 0) return false;
+
+        shuffleArray(candidates);
+
+        if (prevDisciplineId) {
+          const lastSlotBeforeInterval = startPos + intervalAfterSlot - 1;
+          const crossesInterval = (prevPos === lastSlotBeforeInterval);
+
+          if (crossesInterval) {
+            // Impedir estritamente aulas geminadas que cruzem a barreira do intervalo recreio!
+            candidates = candidates.filter(c => c.disciplinaId !== prevDisciplineId);
+          } else {
+            // Priorizar aula geminada normalmente
+            const geminadaIndex = candidates.findIndex(c => c.disciplinaId === prevDisciplineId);
+            if (geminadaIndex > -1) {
+              const [geminada] = candidates.splice(geminadaIndex, 1);
+              candidates.unshift(geminada);
+            }
+          }
+        }
+
+        for (const candidate of candidates) {
+          const discId = candidate.disciplinaId;
+
+          assignedSlots[key] = discId;
+          assignedCounts[discId]++;
+
+          if (solve(slotIndex + 1)) return true;
+
+          delete assignedSlots[key];
+          assignedCounts[discId]--;
+        }
+
+        return false;
+      }
+
+      const success = solve(0);
+
+      if (!success) {
+        return reply.status(400).send({
+          error: 'Não foi possível encontrar uma grade horária 100% sem conflitos para os professores nas posições de turno solicitadas. Ajuste os vínculos ou matérias da instituição.'
+        });
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.timetableSlot.deleteMany({
+          where: {
+            turmaId,
+            posicao: { in: positions }
+          }
+        });
+
+        const slotsData = slotsToFill.map(({ day, pos }) => ({
+          turmaId,
+          diaSemana: day,
+          posicao: pos,
+          disciplinaId: assignedSlots[`${day}_${pos}`]
+        }));
+
+        await tx.timetableSlot.createMany({
+          data: slotsData
+        });
+      });
+
+      const newSlots = await prisma.timetableSlot.findMany({
+        where: {
+          turmaId,
+          posicao: { in: positions }
+        },
+        include: {
+          disciplina: true
+        }
+      });
+
+      return reply.send({
+        message: `Grade de horários do turno ${shift} gerada de forma 100% otimizada e automática!`,
+        slots: newSlots
+      });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro interno ao gerar grade de horários automaticamente.', details: error.message });
+    }
+  });
+
   // ==========================================
   // 8. AGENDA E CALENDÁRIO
   // ==========================================
@@ -3043,6 +3397,69 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
             success: true,
             raidCode: otherRaid.codigo,
             message: `Chave Mestra girada! Você invadiu com sucesso a Raid [${otherRaid.codigo}]. Seu apelido agora brilha em vermelho sangue de invasor!`
+          });
+        }
+
+        if (artifactId === 'cetro_exilio') {
+          const activeRaidParticipant = await prisma.raidParticipant.findFirst({
+            where: { userId, raid: { status: 'OPEN' } },
+            include: { raid: { include: { participantes: { include: { user: true } } } } }
+          });
+
+          if (!activeRaidParticipant || !activeRaidParticipant.raid) {
+            return reply.status(400).send({
+              error: 'Você não está em nenhuma party/raid ativa no momento.'
+            });
+          }
+
+          if (activeRaidParticipant.isInvasor) {
+            return reply.status(400).send({
+              error: 'Um invasor não pode conjurar o Cetro do Exílio contra si mesmo!'
+            });
+          }
+
+          const invaderParticipant = activeRaidParticipant.raid.participantes.find(p => p.isInvasor);
+
+          if (!invaderParticipant || !invaderParticipant.user) {
+            return reply.status(400).send({
+              error: 'Nenhum Caçador Invasor foi detectado nesta masmorra paralela.'
+            });
+          }
+
+          const officialMembers = activeRaidParticipant.raid.participantes.filter(p => !p.isInvasor);
+          const numOfficialMembers = Math.min(3, officialMembers.length);
+          const xpToSteal = numOfficialMembers * 50;
+
+          const invaderUser = invaderParticipant.user;
+          const oldInvaderXp = invaderUser.xp;
+          const newInvaderXp = Math.max(0, oldInvaderXp - xpToSteal);
+
+          await prisma.user.update({
+            where: { id: invaderUser.id },
+            data: { xp: newInvaderXp }
+          });
+
+          await prisma.user.update({
+            where: { id: userId },
+            data: { xp: { increment: 100 } }
+          });
+
+          await prisma.raidParticipant.delete({
+            where: { id: invaderParticipant.id }
+          });
+
+          await prisma.raidMessage.create({
+            data: {
+              raidId: activeRaidParticipant.raidId,
+              userId,
+              content: `🔱 [EXPULSO!] ${user?.nome || 'Um Caçador'} conjurou o Cetro do Exílio! O Invasor @${invaderUser.nickname || invaderUser.nome} foi banido dimensionalmente da Fenda, perdendo ${xpToSteal} XP. O conjurador recebeu +100 XP!`
+            }
+          });
+
+          return reply.send({
+            success: true,
+            xpGanho: 100,
+            message: `Banimento bem-sucedido! O Invasor @${invaderUser.nickname || invaderUser.nome} foi exilado da fenda. Você recebeu +100 XP e ele perdeu ${xpToSteal} XP!`
           });
         }
 
