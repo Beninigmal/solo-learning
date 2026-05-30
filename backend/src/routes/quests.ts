@@ -3890,7 +3890,6 @@ Retorne APENAS o JSON.`;
         if (artifactId === 'sapatilhas_veloz') {
           if (delivery.quest.nivel === 'DIFICIL' || delivery.quest.nivel === 'MEDIO') {
             const novoNivel = delivery.quest.nivel === 'DIFICIL' ? 'MEDIO' : 'FACIL';
-            const novoXp = delivery.quest.nivel === 'DIFICIL' ? 350 : 200;
 
             const prompt = `Você é um refinador de RPG educativo.
 A questão original do tipo ${delivery.quest.nivel} é: "${enunciado}"
@@ -3922,7 +3921,7 @@ Retorne APENAS um JSON no formato:
                 enunciado: parsed.enunciado || delivery.quest.enunciado,
                 gabarito: parsed.gabarito || delivery.quest.gabarito,
                 nivel: novoNivel,
-                xp: novoXp
+                xp: delivery.quest.xp // Mantém o XP da difícil/original!
               }
             });
 
@@ -3934,6 +3933,69 @@ Retorne APENAS um JSON no formato:
             });
           } else {
             return reply.status(400).send({ error: 'Esta missão já está no nível FÁCIL e não pode ser mais simplificada.' });
+          }
+        }
+
+        if (artifactId === 'relogio_tempo') {
+          const currentExpiration = delivery.expiresAt || new Date();
+          const novaExpiracao = new Date(currentExpiration.getTime() + 24 * 60 * 60 * 1000);
+
+          await prisma.questDelivery.update({
+            where: { id: delivery.id },
+            data: { expiresAt: novaExpiracao }
+          });
+
+          return reply.send({
+            success: true,
+            expiresAt: novaExpiracao,
+            message: 'O tempo foi distorcido! Você ganhou mais 24 horas de prazo para concluir esta missão!'
+          });
+        }
+
+        if (artifactId === 'varinha_pinheiro') {
+          const isCalculo = delivery.quest.tags.includes('CALCULO') || delivery.quest.tags.includes('calculo');
+          if (isCalculo) {
+            const prompt = `Você é um transformador mágico de RPG educativo.
+A questão de cálculo atual é: "${enunciado}"
+O gabarito atual é: "${delivery.quest.gabarito || ''}"
+
+O estudante usou o artefato 'Varinha de Pinheiro' que transforma uma missão de cálculo discursiva em múltipla escolha.
+Por favor, resolva a questão e crie 5 alternativas claras de múltipla escolha (A, B, C, D, E), onde exatamente uma delas seja a resposta correta baseada no gabarito original.
+Escreva a questão em formato de múltipla escolha tradicional, listando as opções logo após o enunciado da questão.
+
+Retorne APENAS um JSON no formato:
+{
+  "enunciado": "Novo enunciado contendo a pergunta original de cálculo seguida pelas opções A, B, C, D, E formatadas no padrão:\\nA) Opção A\\nB) Opção B\\nC) Opção C\\nD) Opção D\\nE) Opção E",
+  "gabarito": "A letra correspondente à alternativa correta (ex: A, B, C, D ou E)"
+}`;
+
+            let raw = await callGemini(prompt);
+            raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+            const firstBrace = raw.indexOf('{');
+            const lastBrace = raw.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1) {
+              raw = raw.substring(firstBrace, lastBrace + 1);
+            }
+            const parsed = JSON.parse(raw);
+
+            const novasTags = delivery.quest.tags.filter(t => t !== 'CALCULO' && t !== 'calculo');
+            const updatedQuest = await prisma.quest.update({
+              where: { id: delivery.questId },
+              data: {
+                enunciado: parsed.enunciado || delivery.quest.enunciado,
+                gabarito: parsed.gabarito || delivery.quest.gabarito,
+                tags: novasTags
+              }
+            });
+
+            return reply.send({
+              success: true,
+              enunciado: updatedQuest.enunciado,
+              gabarito: updatedQuest.gabarito,
+              message: 'Transmutação Arcana! A missão de cálculo foi transmutada em múltipla escolha!'
+            });
+          } else {
+            return reply.status(400).send({ error: 'Esta missão não exige cálculo discursivo e já é de múltipla escolha ou discursiva comum.' });
           }
         }
 
@@ -4167,22 +4229,25 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
         }
 
         if (artifactId === 'olhar_monarca') {
-          const bossQuests = await prisma.quest.findMany({
+          const bossDeliveries = await prisma.questDelivery.findMany({
             where: {
-              nivel: { in: ['BOSS', 'MINIBOSS'] },
-              turmaAlvoId: user.turmaId || undefined
+              userId,
+              quest: {
+                nivel: { in: ['BOSS', 'MINIBOSS', 'DIFICIL'] }
+              }
             },
-            select: { tema: true, enunciado: true },
+            include: { quest: true },
+            orderBy: { scheduledAt: 'asc' },
             take: 3
           });
 
-          const topics = bossQuests.length > 0
-            ? bossQuests.map(q => q.tema || q.enunciado.substring(0, 45) + '...').join(', ')
+          const topics = bossDeliveries.length > 0
+            ? bossDeliveries.map(d => d.quest.tema || d.quest.enunciado.substring(0, 45) + '...').join(', ')
             : 'Equações Quadráticas, Crase Gramatical, Leis de Newton';
 
           return reply.send({
             success: true,
-            message: `Sua visão brilha com o Olhar do Monarca! As próximas ameaças de elite envolverão os seguintes tópicos: ${topics}. prepare-se!`
+            message: `Sua visão brilha com o Olhar do Monarca! As próximas ameaças de elite envolverão os seguintes tópicos: ${topics}. Prepare-se!`
           });
         }
 
