@@ -66,10 +66,14 @@ export default fp(async (fastify: FastifyInstance) => {
           select: { institutionId: true, instituicao: true }
         });
         if (disciplina) {
-          const hasRelMatch = !!(disciplina.institutionId && userInstitutionId && disciplina.institutionId === userInstitutionId);
-          const hasStrMatch = !!(disciplina.instituicao && request.user.instituicao && disciplina.instituicao === request.user.instituicao);
-          if (!hasRelMatch && !hasStrMatch) {
-            return reply.status(403).send({ error: 'Acesso negado: Esta matéria pertence a outra instituição.' });
+          const isGlobal = !disciplina.institutionId && !disciplina.instituicao;
+          if (!isGlobal) {
+            const hasRelMatch = !!(disciplina.institutionId && userInstitutionId && disciplina.institutionId === userInstitutionId);
+            const hasStrMatch = !!(disciplina.instituicao && request.user.instituicao && 
+              disciplina.instituicao.toLowerCase().trim() === request.user.instituicao.toLowerCase().trim());
+            if (!hasRelMatch && !hasStrMatch) {
+              return reply.status(403).send({ error: 'Acesso negado: Esta matéria pertence a outra instituição.' });
+            }
           }
         }
       }

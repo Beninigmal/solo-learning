@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { prisma } from '../prisma';
 import bcrypt from 'bcryptjs';
+import * as XLSX from 'xlsx';
 
 export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   
@@ -168,8 +169,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
   // ─── GESTÃO DE VÍNCULOS ──────────────────────────────────────────────────
 
   // Criar Turma na Instituição
-  fastify.post<{ Body: { nome: string; ano: string; codigoInvocacao?: string } }>('/turmas', async (request, reply) => {
-    const { nome, ano, codigoInvocacao } = request.body;
+  fastify.post<{ Body: { nome: string; ano: string; codigoInvocacao?: string; nivel?: string } }>('/turmas', async (request, reply) => {
+    const { nome, ano, codigoInvocacao, nivel } = request.body;
     const instituicao = request.user.instituicao!;
 
     if (!nome || !ano) {
@@ -192,6 +193,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           nome: formattedNome,
           ano: ano.trim(),
           codigoInvocacao: codigoInvocacao ? codigoInvocacao.trim() : "1234",
+          nivel: nivel || "FUNDAMENTAL",
           instituicao,
           institutionId: request.user.institutionId || null
         }
@@ -438,6 +440,147 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       return reply.send({ message: 'Acesso do aluno resetado com sucesso! Ele deve usar o Código de Invocação da Turma.' });
     } catch (error) {
       return reply.status(404).send({ error: 'Aluno não encontrado ou sem permissão.' });
+    }
+  });
+
+  // ==========================================
+  // EXCEL BULK PARSING AND TEMPLATES
+  // ==========================================
+
+  // Parser Genérico de Excel em Base64
+  fastify.post<{ Body: { base64: string } }>('/upload/excel', async (request, reply) => {
+    const { base64 } = request.body;
+    if (!base64) {
+      return reply.status(400).send({ error: 'O payload base64 é obrigatório.' });
+    }
+
+    try {
+      const buffer = Buffer.from(base64, 'base64');
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(sheet);
+
+      // Normalizar cabeçalhos para evitar erros com acentos/espaços
+      const cleanNormalize = (name: string): string => {
+        return name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "");
+      };
+
+      const parsedRows = jsonData.map((row: any) => {
+        const normalizedRow: any = {};
+        for (const key of Object.keys(row)) {
+          const normKey = cleanNormalize(key);
+          normalizedRow[normKey] = row[key];
+        }
+        return normalizedRow;
+      });
+
+      return reply.send(parsedRows);
+    } catch (err: any) {
+      return reply.status(400).send({ error: 'Falha ao ler ou converter o arquivo Excel.', details: err.message });
+    }
+  });
+
+  // Download do Template Excel
+  fastify.get<{ Params: { type: string } }>('/templates/:type', async (request, reply) => {
+    const { type } = request.params;
+
+    try {
+      const wb = XLSX.utils.book_new();
+      let ws;
+
+      if (type === 'alunos') {
+        const data = [
+          { "Nome": "Arthur Pendragon", "Matricula": "2026101", "Turma": "5A", "Turno": "MATUTINO" },
+          { "Nome": "Sung Jinwoo", "Matricula": "2026102", "Turma": "5B", "Turno": "VESPERTINO" }
+        ];
+        ws = XLSX.utils.json_to_sheet(data);
+      } else if (type === 'professores') {
+        const data = [
+          { "Nome": "Thomas Andre", "Matricula": "M001", "Carga Horaria Contratual (horas)": 40 },
+          { "Nome": "Lennart Niermann", "Matricula": "M002", "Carga Horaria Contratual (horas)": 20 }
+        ];
+        ws = XLSX.utils.json_to_sheet(data);
+      } else {
+        return reply.status(400).send({ error: 'Tipo de template desconhecido.' });
+      }
+
+      XLSX.utils.book_append_sheet(wb, ws, "Template");
+      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+      reply.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      reply.header('Content-Disposition', `attachment; filename=template_${type}.xlsx`);
+      return reply.send(buffer);
+    } catch (err: any) {
+      return reply.status(500).send({ error: 'Erro ao gerar template.', details: err.message });
+    }
+  });
+
+  // Cadastro de Professores/Mestres em Lote
+  fastify.post<{ Body: { teachers: { nome: string; matricula: string; maxAulasSemanais?: number; cargahoraria?: number; cargahorariacontratual?: number }[] } }>('/masters/batch', async (request, reply) => {
+    const { teachers } = request.body;
+    const instituicao = request.user.instituicao!;
+    const institutionId = request.user.institutionId || null;
+
+    if (!teachers || !Array.isArray(teachers)) {
+      return reply.status(400).send({ error: 'Lista de professores é obrigatória.' });
+    }
+
+    try {
+      const defaultPassword = await bcrypt.hash('Solen2026', 10);
+      let createdCount = 0;
+      let errors: string[] = [];
+
+      for (const t of teachers) {
+        if (!t.nome || !t.matricula) {
+          errors.push(`Professor sem nome ou matrícula ignorado.`);
+          continue;
+        }
+
+        // Mapear carga contratual ou limite de aulas com base no MEC 1/3
+        let maxAulas = 16;
+        const rawCarga = t.cargahoraria || t.cargahorariacontratual;
+        if (rawCarga) {
+          const hours = Number(rawCarga);
+          if (hours === 20) maxAulas = 13;
+          else if (hours === 24) maxAulas = 16;
+          else if (hours === 26) maxAulas = 17;
+          else if (hours === 30) maxAulas = 20;
+          else if (hours === 40) maxAulas = 26;
+          else maxAulas = Math.floor(hours * (2 / 3));
+        } else if (t.maxAulasSemanais) {
+          maxAulas = t.maxAulasSemanais;
+        }
+
+        try {
+          await prisma.user.create({
+            data: {
+              nome: t.nome.trim(),
+              matricula: t.matricula.toLowerCase().trim(),
+              role: 'PROFESSOR',
+              password: defaultPassword,
+              isFirstAccess: true,
+              instituicao,
+              institutionId,
+              maxAulasSemanais: maxAulas
+            }
+          });
+          createdCount++;
+        } catch (e: any) {
+          if (e.code === 'P2002') {
+            errors.push(`Mestre com matrícula ${t.matricula} já existe.`);
+          } else {
+            errors.push(`Erro ao criar ${t.nome}: ${e.message}`);
+          }
+        }
+      }
+
+      return reply.status(201).send({
+        message: `${createdCount} professores cadastrados com sucesso.`,
+        errors: errors.length > 0 ? errors : undefined
+      });
+    } catch (err: any) {
+      return reply.status(500).send({ error: 'Erro interno ao processar lote.', details: err.message });
     }
   });
 };

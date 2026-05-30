@@ -62,6 +62,7 @@ model Turma {
   institutionId   String?
   institution     Institution? @relation(fields: [institutionId], references: [id])
   codigoInvocacao String?  @default("1234")
+  nivel           String   @default("FUNDAMENTAL") // FUNDAMENTAL, MEDIO, MEDIO_TECNICO, OUTROS
   
   turmaDisciplinas TurmaDisciplina[]
   unidade         Int              @default(1) // Valores: 1, 2, 3
@@ -293,6 +294,7 @@ model Institution {
   turmas        Turma[]
   disciplinas   Disciplina[]
   shiftSettings InstitutionShiftSetting[]
+  ensinoBase    Boolean      @default(true)
 }
 
 model InstitutionShiftSetting {

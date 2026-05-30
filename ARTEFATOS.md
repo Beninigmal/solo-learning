@@ -70,12 +70,8 @@ Os artefatos são obtidos ao derrotar **Mini Bosses** em grupo (Party/Raid) ou e
 
 ### 8. 🔑 Chave Mestra
 - **Descrição:** Uma chave antiga que abre fechaduras dimensionais restritas.
-- **Efeito:** Permite abrir **qualquer party ativa da sua própria Turma** e entrar nela como invasor, mesmo a contragosto do líder e mesmo que o limite de membros já tenha sido atingido (ex: entrará como quarto membro).
+- **Efeito:** Permite abrir **qualquer party ativa da sua própria Turma** e entrar nela como invasor, mesmo a contragosto do líder e mesmo que o limite de membros já tenha sido atingido (ex: entrará como quarto membro), além de que integrantes da party não possa sair dela, a não ser com um outro artefato específico para isso. Uma animação na borda e um timer de 48 será adicionado a party indicando o tempo de corrupção que o invasor trouxe.
 - **Restrição:** Bloqueado o uso para invadir parties de outras turmas.
-
-### 9. 🔱 Cetro do Exílio
-- **Descrição:** Um cetro rúnico entalhado com fórmulas de repulsão de mana. É a única arma capaz de expurgar um Caçador Invasor de sua party.
-- **Efeito:** Expulsa instantaneamente o invasor da party. Ao ser conjurado por qualquer integrante oficial, rouba **50 XP** do invasor para cada integrante oficial presente na party (ex: com 3 integrantes, o invasor perde 150 XP total) e concede **+100 XP** de bônus imediato para o Caçador que o conjurou.
 
 ## 🔵 Artefatos Mágicos (Azuis)
 
@@ -122,6 +118,6 @@ Os artefatos são obtidos ao derrotar **Mini Bosses** em grupo (Party/Raid) ou e
 
 ## 🚀 Próximas Tasks na Fila de Desenvolvimento (V3)
 Com base nas discussões de refinamento dos artefatos:
-1.  **[ ] Módulo de Múltipla Escolha (UI/UX):** Implementar suporte nativo a questões do tipo múltipla escolha com interface em *Radio Buttons* (alternativa ao botão padrão de envio de texto/imagem).
+1.  **[x] Módulo de Múltipla Escolha (UI/UX):** Implementar suporte nativo a questões do tipo múltipla escolha com interface em *Radio Buttons* (alternativa ao botão padrão de envio de texto/imagem).
 2.  **[x] Integração de Efeitos no Backend:** Desenvolver as rotas de consumo de itens associando seus buffs dinâmicos no cálculo final de XP e dificuldade de quests no `/daily/submit`.
 3.  **[x] Painel do Mestre - Aba de Ajuda:** Criar a interface para recebimento das "Perguntas Douradas" geradas pela carta *Sussurros Sábios*, com opção de aprovação de rascunhos pedagógicos da IA.

@@ -34,9 +34,9 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
   });
 
   // Editar Turma
-  fastify.put<{ Params: { id: string }; Body: { nome?: string; ano?: string; codigoInvocacao?: string } }>('/turmas/:id', async (request, reply) => {
+  fastify.put<{ Params: { id: string }; Body: { nome?: string; ano?: string; codigoInvocacao?: string; nivel?: string } }>('/turmas/:id', async (request, reply) => {
     const { id } = request.params;
-    const { nome, ano, codigoInvocacao } = request.body;
+    const { nome, ano, codigoInvocacao, nivel } = request.body;
 
     try {
       const updated = await prisma.turma.update({
@@ -53,7 +53,8 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
         data: { 
           ...(nome ? { nome: nome.toUpperCase() } : {}),
           ano,
-          codigoInvocacao
+          codigoInvocacao,
+          nivel
         }
       });
       return reply.send(updated);

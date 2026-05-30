@@ -2042,8 +2042,14 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
       if (!targetDisciplina) {
         return reply.status(404).send({ error: 'Matéria não encontrada.' });
       }
-      if (user.role === 'ARQUITETO' && targetDisciplina.instituicao !== user.instituicao) {
-        return reply.status(403).send({ error: 'Acesso negado. Esta matéria pertence a outra instituição.' });
+      const targetIsGlobal = !targetDisciplina.institutionId && !targetDisciplina.instituicao;
+      if (user.role === 'ARQUITETO' && !targetIsGlobal) {
+        const matchById = !!(targetDisciplina.institutionId && user.institutionId && targetDisciplina.institutionId === user.institutionId);
+        const matchByName = !!(targetDisciplina.instituicao && user.instituicao && 
+          targetDisciplina.instituicao.toLowerCase().trim() === user.instituicao.toLowerCase().trim());
+        if (!matchById && !matchByName) {
+          return reply.status(403).send({ error: 'Acesso negado. Esta matéria pertence a outra instituição.' });
+        }
       }
 
       const exists = await prisma.disciplina.findFirst({
@@ -2080,8 +2086,14 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
       if (!targetDisciplina) {
         return reply.status(404).send({ error: 'Matéria não encontrada.' });
       }
-      if (user.role === 'ARQUITETO' && targetDisciplina.instituicao !== user.instituicao) {
-        return reply.status(403).send({ error: 'Acesso negado. Esta matéria pertence a outra instituição.' });
+      const targetIsGlobal = !targetDisciplina.institutionId && !targetDisciplina.instituicao;
+      if (user.role === 'ARQUITETO' && !targetIsGlobal) {
+        const matchById = !!(targetDisciplina.institutionId && user.institutionId && targetDisciplina.institutionId === user.institutionId);
+        const matchByName = !!(targetDisciplina.instituicao && user.instituicao && 
+          targetDisciplina.instituicao.toLowerCase().trim() === user.instituicao.toLowerCase().trim());
+        if (!matchById && !matchByName) {
+          return reply.status(403).send({ error: 'Acesso negado. Esta matéria pertence a outra instituição.' });
+        }
       }
 
       // 1. Deletar DisciplinaProfessor
@@ -2117,7 +2129,10 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
 
       const filter: any = {};
       if (user.role !== 'ADMIN') {
-        filter.instituicao = user.instituicao || '';
+        filter.OR = [
+          { instituicao: user.instituicao || '' },
+          { instituicao: null }
+        ];
       }
 
       const disciplines = await prisma.disciplina.findMany({
@@ -2180,10 +2195,24 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
       const targetTurmaIds = Array.isArray(turmaIds) ? turmaIds : [];
 
       const targetProf = await prisma.user.findFirst({
-        where: { id: professorId, role: 'PROFESSOR', instituicao: user.role === 'ADMIN' ? undefined : (user.instituicao || '') }
+        where: {
+          id: professorId,
+          role: 'PROFESSOR',
+          OR: user.role === 'ADMIN' ? undefined : [
+            { institutionId: user.institutionId || undefined },
+            { instituicao: { equals: user.instituicao || '', mode: 'insensitive' } }
+          ]
+        }
       });
       const targetDisc = await prisma.disciplina.findFirst({
-        where: { id: disciplinaId, instituicao: user.role === 'ADMIN' ? undefined : (user.instituicao || '') }
+        where: {
+          id: disciplinaId,
+          OR: user.role === 'ADMIN' ? undefined : [
+            { institutionId: user.institutionId || undefined },
+            { instituicao: { equals: user.instituicao || '', mode: 'insensitive' } },
+            { instituicao: null }
+          ]
+        }
       });
 
       if (!targetProf || !targetDisc) {
@@ -2191,13 +2220,11 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
       }
 
       // 1. Calcular a carga atual em OUTRAS matérias lecionadas por este professor
-      const otherVinculos = await prisma.turmaDisciplina.findMany({
-        where: {
-          professorId,
-          NOT: { disciplinaId }
-        },
+      const existingVinculos = await prisma.turmaDisciplina.findMany({
+        where: { professorId },
         include: {
-          disciplina: true
+          disciplina: true,
+          turma: true
         }
       });
       
@@ -2205,22 +2232,66 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
         return name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       };
 
-      const getSubjectDefaultHours = (name: string): number => {
-        const clean = cleanNormalize(name);
-        if (clean.includes("portugues") || clean.includes("matematica")) return 5;
-        if (clean.includes("historia") || clean.includes("geografia") || clean.includes("ciencia") || clean.includes("biologia")) return 3;
-        if (clean.includes("ingles") || clean.includes("ed") || clean.includes("fisica") || clean.includes("quimica")) return 2;
-        if (clean.includes("arte") || clean.includes("filosofia") || clean.includes("relig") || clean.includes("sociologia")) return 1;
+      const getSubjectDefaultHours = (subjectName: string, turmaNome?: string, turmaNivel?: string): number => {
+        const cleanSub = cleanNormalize(subjectName);
+        
+        let level: "FUNDAMENTAL" | "MEDIO_REGULAR" | "MEDIO_TECNICO" = "FUNDAMENTAL";
+        if (turmaNivel) {
+          if (turmaNivel === 'MEDIO') level = 'MEDIO_REGULAR';
+          else if (turmaNivel === 'MEDIO_TECNICO') level = 'MEDIO_TECNICO';
+          else if (turmaNivel === 'FUNDAMENTAL') level = 'FUNDAMENTAL';
+        } else if (turmaNome) {
+          const cleanTurma = cleanNormalize(turmaNome);
+          if (/tec|tecnico|profes/.test(cleanTurma)) {
+            level = "MEDIO_TECNICO";
+          } else if (/[56789]/.test(cleanTurma)) {
+            level = "FUNDAMENTAL";
+          } else if (/[123]/.test(cleanTurma)) {
+            level = "MEDIO_REGULAR";
+          }
+        }
+
+        if (cleanSub.includes("portugues") || cleanSub.includes("lingua portuguesa") || cleanSub.includes("redacao")) {
+          return (level === "FUNDAMENTAL") ? 5 : 4;
+        }
+        if (cleanSub.includes("matematica") || cleanSub.includes("calculo")) {
+          if (level === "FUNDAMENTAL") return 5;
+          if (level === "MEDIO_REGULAR") return 2;
+          return 3; // MEDIO_TECNICO
+        }
+        if (cleanSub.includes("historia") || cleanSub.includes("geografia") || cleanSub.includes("ciencia") || cleanSub.includes("biologia")) {
+          return (level === "FUNDAMENTAL") ? 3 : 2;
+        }
+        if (cleanSub.includes("fisica") || cleanSub.includes("quimica")) {
+          return 2;
+        }
+        if (cleanSub.includes("ingles") || cleanSub.includes("ed") || cleanSub.includes("esport")) {
+          return 2;
+        }
+        if (cleanSub.includes("arte") || cleanSub.includes("filosofia") || cleanSub.includes("relig") || cleanSub.includes("sociologia")) {
+          return 1;
+        }
         return 2;
       };
 
+      const targetDiscNameClean = cleanNormalize(targetDisc.nome);
+
       let otherHours = 0;
-      for (const ov of otherVinculos) {
-        otherHours += ov.aulasSemanais > 0 ? ov.aulasSemanais : getSubjectDefaultHours(ov.disciplina.nome);
+      for (const ov of existingVinculos) {
+        const isSameSubject = cleanNormalize(ov.disciplina.nome) === targetDiscNameClean;
+        const isTargetTurma = targetTurmaIds.includes(ov.turmaId);
+        
+        // Se for o mesmo assunto e nas turmas que estamos associando agora, ignoramos (será sobrescrito).
+        if (isSameSubject && isTargetTurma) {
+          continue;
+        }
+        otherHours += ov.aulasSemanais > 0 ? ov.aulasSemanais : getSubjectDefaultHours(ov.disciplina.nome, ov.turma?.nome, ov.turma?.nivel);
       }
 
       // 2. Calcular a carga proposta para esta disciplina nas turmas selecionadas
-      const subjectWeight = getSubjectDefaultHours(targetDisc.nome);
+      const targetTurmas = await prisma.turma.findMany({
+        where: { id: { in: targetTurmaIds } }
+      });
       const existingVinculosForThisDisc = await prisma.turmaDisciplina.findMany({
         where: {
           disciplinaId,
@@ -2230,11 +2301,12 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
 
       let newHours = 0;
       for (const tid of targetTurmaIds) {
+        const matchingTurma = targetTurmas.find(t => t.id === tid);
         const match = existingVinculosForThisDisc.find(ev => ev.turmaId === tid);
-        newHours += (match && match.aulasSemanais > 0) ? match.aulasSemanais : subjectWeight;
+        newHours += (match && match.aulasSemanais > 0) ? match.aulasSemanais : getSubjectDefaultHours(targetDisc.nome, matchingTurma?.nome, matchingTurma?.nivel);
       }
 
-      const limit = targetProf.maxAulasSemanais ?? 16;
+      const limit = targetProf.maxAulasSemanais ?? 32;
       const totalProposed = otherHours + newHours;
 
       if (totalProposed > limit) {
@@ -2307,10 +2379,24 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
 
       if (user.role === 'ARQUITETO') {
         const targetProf = await prisma.user.findFirst({
-          where: { id: professorId, role: 'PROFESSOR', instituicao: user.instituicao }
+          where: {
+            id: professorId,
+            role: 'PROFESSOR',
+            OR: [
+              { institutionId: user.institutionId || undefined },
+              { instituicao: { equals: user.instituicao || '', mode: 'insensitive' } }
+            ]
+          }
         });
         const targetDisc = await prisma.disciplina.findFirst({
-          where: { id: disciplinaId, instituicao: user.instituicao }
+          where: {
+            id: disciplinaId,
+            OR: [
+              { institutionId: user.institutionId || undefined },
+              { instituicao: { equals: user.instituicao || '', mode: 'insensitive' } },
+              { instituicao: null }
+            ]
+          }
         });
         if (!targetProf || !targetDisc) {
           return reply.status(403).send({ error: 'Acesso negado. O professor e a disciplina devem pertencer à sua instituição.' });
@@ -2342,17 +2428,54 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
   fastify.get<{ Params: { turmaId: string } }>('/turmas/:turmaId/timetable', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     try {
       const { turmaId } = request.params;
-      const slots = await prisma.timetableSlot.findMany({
-        where: { turmaId },
-        include: {
-          disciplina: true
-        },
-        orderBy: [
-          { diaSemana: 'asc' },
-          { posicao: 'asc' }
-        ]
+      const [slots, turmaDisciplinas] = await Promise.all([
+        prisma.timetableSlot.findMany({
+          where: { turmaId },
+          include: {
+            disciplina: {
+              include: {
+                professores: {
+                  include: {
+                    professor: {
+                      select: {
+                        id: true,
+                        nome: true,
+                        nickname: true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          orderBy: [
+            { diaSemana: 'asc' },
+            { posicao: 'asc' }
+          ]
+        }),
+        prisma.turmaDisciplina.findMany({
+          where: { turmaId },
+          include: {
+            professor: {
+              select: {
+                id: true,
+                nome: true,
+                nickname: true
+              }
+            }
+          }
+        })
+      ]);
+
+      const slotsWithProfessor = slots.map(slot => {
+        const td = turmaDisciplinas.find(x => x.disciplinaId === slot.disciplinaId);
+        return {
+          ...slot,
+          professor: td ? td.professor : null
+        };
       });
-      return reply.send(slots);
+
+      return reply.send(slotsWithProfessor);
     } catch (error: any) {
       request.log.error(error);
       return reply.status(500).send({ error: 'Erro ao buscar grade de horários.', details: error.message });
@@ -2598,14 +2721,42 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
    * Matriz Curricular Brasileira (LDB / MEC).
    * Usado como fallback quando aulasSemanais === 0 no TurmaDisciplina.
    */
-  function getMatrizCurricularDefault(disciplinaNome: string): { aulas: number; geminada: boolean } {
+  function getMatrizCurricularDefault(disciplinaNome: string, turmaNome?: string, turmaNivel?: string): { aulas: number; geminada: boolean } {
     const n = disciplinaNome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-    if (/portugu[eê]s|lingua portuguesa|redacao/.test(n)) return { aulas: 5, geminada: false };
-    if (/matematica|calculo/.test(n)) return { aulas: 5, geminada: false };
-    if (/historia/.test(n)) return { aulas: 3, geminada: false };
-    if (/geografia/.test(n)) return { aulas: 3, geminada: false };
-    if (/ciencia|biologia/.test(n)) return { aulas: 3, geminada: false };
+    let level: "FUNDAMENTAL" | "MEDIO_REGULAR" | "MEDIO_TECNICO" = "FUNDAMENTAL";
+    if (turmaNivel) {
+      if (turmaNivel === 'MEDIO') level = 'MEDIO_REGULAR';
+      else if (turmaNivel === 'MEDIO_TECNICO') level = 'MEDIO_TECNICO';
+      else if (turmaNivel === 'FUNDAMENTAL') level = 'FUNDAMENTAL';
+    } else if (turmaNome) {
+      const cleanTurma = turmaNome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (/tec|tecnico|profes/.test(cleanTurma)) {
+        level = "MEDIO_TECNICO";
+      } else if (/[56789]/.test(cleanTurma)) {
+        level = "FUNDAMENTAL";
+      } else if (/[123]/.test(cleanTurma)) {
+        level = "MEDIO_REGULAR";
+      }
+    }
+
+    if (/portugu[eê]s|lingua portuguesa|redacao/.test(n)) {
+      return { aulas: (level === "FUNDAMENTAL") ? 5 : 4, geminada: false };
+    }
+    if (/matematica|calculo/.test(n)) {
+      if (level === "FUNDAMENTAL") return { aulas: 5, geminada: false };
+      if (level === "MEDIO_REGULAR") return { aulas: 2, geminada: false };
+      return { aulas: 3, geminada: false }; // MEDIO_TECNICO
+    }
+    if (/historia/.test(n)) {
+      return { aulas: (level === "FUNDAMENTAL") ? 3 : 2, geminada: false };
+    }
+    if (/geografia/.test(n)) {
+      return { aulas: (level === "FUNDAMENTAL") ? 3 : 2, geminada: false };
+    }
+    if (/ciencia|biologia/.test(n)) {
+      return { aulas: (level === "FUNDAMENTAL") ? 3 : 2, geminada: false };
+    }
     if (/fisica(?!.*educ)/.test(n)) return { aulas: 2, geminada: false };
     if (/quimica/.test(n)) return { aulas: 2, geminada: false };
     if (/ingles|lingua inglesa|lingua estrangeira/.test(n)) return { aulas: 2, geminada: true };
@@ -2636,10 +2787,14 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
     professorRestrictions: any[];
     professorWeeklyCount: Map<string, number>;
     alreadyBusySlots: Set<string>; // `${day}_${pos}_${professorId}`
+    turmaNome?: string;
+    turmaNivel?: string;
+    relaxStage?: number;
   }): { [key: string]: string } | null {
     const {
       turmaDisciplinas, positions, startPos, intervalAfterSlot,
-      slotsCount, shift, professorRestrictions, professorWeeklyCount, alreadyBusySlots
+      slotsCount, shift, professorRestrictions, professorWeeklyCount, alreadyBusySlots,
+      turmaNome, turmaNivel, relaxStage = 0
     } = params;
 
     const days = ['SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA'];
@@ -2653,7 +2808,7 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
     const fallbackTds: any[] = [];
 
     for (const td of turmaDisciplinas) {
-      const matrizDefault = getMatrizCurricularDefault(td.disciplina.nome);
+      const matrizDefault = getMatrizCurricularDefault(td.disciplina.nome, turmaNome, turmaNivel);
       const manualAulas = td.aulasSemanais ?? 0;
       const manualGeminada = td.geminada ?? false;
 
@@ -2684,13 +2839,49 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
     // Garantir que a soma bate exatamente com totalSlots (ajuste fino)
     let totalRequired = Object.values(requiredCounts).reduce((a, b) => a + b, 0);
     if (totalRequired !== totalSlots) {
-      // Ajustar nas matérias de fallback ou nas mais pesadas
-      const sortedKeys = Object.keys(requiredCounts).sort((a, b) => requiredCounts[b] - requiredCounts[a]);
       let diff = totalSlots - totalRequired;
-      for (const k of sortedKeys) {
-        if (diff === 0) break;
-        if (diff > 0) { requiredCounts[k]++; diff--; }
-        else if (requiredCounts[k] > 1) { requiredCounts[k]--; diff++; }
+      
+      // Ordenar chaves: priorizar disciplinas VIRTUAIS (sem professor) para ajuste!
+      const sortedKeys = Object.keys(requiredCounts).sort((a, b) => {
+        const tdA = turmaDisciplinas.find(x => x.disciplinaId === a);
+        const tdB = turmaDisciplinas.find(x => x.disciplinaId === b);
+        const isVirtualA = tdA?.professorId === 'UNLINKED' ? 1 : 0;
+        const isVirtualB = tdB?.professorId === 'UNLINKED' ? 1 : 0;
+        
+        // Colocar as virtuais primeiro para que sejam ajustadas antes das reais!
+        if (isVirtualA !== isVirtualB) {
+          return isVirtualB - isVirtualA; // virtual vem antes
+        }
+        return requiredCounts[b] - requiredCounts[a];
+      });
+
+      if (sortedKeys.length > 0) {
+        let i = 0;
+        let loopSafety = 0;
+        while (diff !== 0 && loopSafety < 1000) {
+          loopSafety++;
+          const k = sortedKeys[i % sortedKeys.length];
+          const td = turmaDisciplinas.find(x => x.disciplinaId === k);
+          const isVirtual = td?.professorId === 'UNLINKED';
+          
+          if (diff > 0) {
+            // Se precisamos de mais slots, só adicionamos em virtual (se houver virtual)
+            // ou se não houver virtual, adicionamos em qualquer um
+            const hasVirtuals = sortedKeys.some(x => turmaDisciplinas.find(y => y.disciplinaId === x)?.professorId === 'UNLINKED');
+            if (isVirtual || !hasVirtuals) {
+              requiredCounts[k]++;
+              diff--;
+            }
+          } else {
+            // Se precisamos remover slots, só removemos se for > 1 e for virtual (se houver virtual)
+            const hasVirtuals = sortedKeys.some(x => turmaDisciplinas.find(y => y.disciplinaId === x)?.professorId === 'UNLINKED');
+            if ((isVirtual || !hasVirtuals) && requiredCounts[k] > 1) {
+              requiredCounts[k]--;
+              diff++;
+            }
+          }
+          i++;
+        }
       }
     }
 
@@ -2718,9 +2909,16 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
       return array;
     };
 
-    const MAX_AULAS_SEMANA_DEFAULT = 16;
+    const MAX_AULAS_SEMANA_DEFAULT = 32;
+    let backtrackCount = 0;
+    const MAX_BACKTRACK_STEPS = 8000;
 
     function solve(slotIndex: number): boolean {
+      backtrackCount++;
+      if (backtrackCount > MAX_BACKTRACK_STEPS) {
+        return false;
+      }
+
       if (slotIndex >= slotsToFill.length) return true;
 
       const { day, pos } = slotsToFill[slotIndex];
@@ -2739,41 +2937,61 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
       candidates = candidates.filter(td => {
         const professorId = td.professorId;
 
+        // Se for disciplina sem professor, ignorar restrições físicas, de agenda e de carga
+        if (professorId === 'UNLINKED') {
+          return true;
+        }
+
         // 1. Verificar choque físico com outras turmas
-        if (alreadyBusySlots.has(`${day}_${pos}_${professorId}`)) return false;
+        if (relaxStage < 3) {
+          if (alreadyBusySlots.has(`${day}_${pos}_${professorId}`)) return false;
+        }
 
         // 2. Verificar restrição manual de agenda
-        const hasRestriction = professorRestrictions.some(r => {
-          if (r.professorId !== professorId || r.diaSemana !== day || r.shift !== shift) return false;
-          if (r.posicao === null || r.posicao === undefined) return true; // turno inteiro bloqueado
-          return r.posicao === pos; // slot específico bloqueado
-        });
-        if (hasRestriction) return false;
+        if (relaxStage < 1) {
+          const hasRestriction = professorRestrictions.some(r => {
+            if (r.professorId !== professorId || r.diaSemana !== day || r.shift !== shift) return false;
+            if (r.posicao === null || r.posicao === undefined) return true; // turno inteiro bloqueado
+            return r.posicao === pos; // slot específico bloqueado
+          });
+          if (hasRestriction) return false;
+        }
 
         // 3. Verificar carga semanal cross-turma
-        const alreadyCrossCount = professorWeeklyCount.get(professorId) ?? 0;
-        const assignedThisTurma = professorAssignedCountThisTurma[professorId] ?? 0;
-        const maxAulas = (td.professor?.maxAulasSemanais) ?? MAX_AULAS_SEMANA_DEFAULT;
-        if (alreadyCrossCount + assignedThisTurma >= maxAulas) return false;
+        if (relaxStage < 2) {
+          const alreadyCrossCount = professorWeeklyCount.get(professorId) ?? 0;
+          const assignedThisTurma = professorAssignedCountThisTurma[professorId] ?? 0;
+          const maxAulas = (td.professor?.maxAulasSemanais) ?? MAX_AULAS_SEMANA_DEFAULT;
+          if (alreadyCrossCount + assignedThisTurma >= maxAulas) return false;
+        }
 
         return true;
       });
 
-      // 4. Limite máximo por dia por disciplina
+      // 4. Limite máximo por dia por disciplina e garantia de que aulas no mesmo dia sejam consecutivas (geminadas)
       const maxDailyCount = turmaDisciplinas.length === 1 ? slotsCount
         : turmaDisciplinas.length === 2 ? Math.ceil(slotsCount / 2) + 1
-        : 3; // máximo 3 aulas da mesma matéria por dia
+        : 2; // máximo 2 aulas da mesma matéria por dia
+
       candidates = candidates.filter(td => {
         let countToday = 0;
+        let hasNonAdjacent = false;
+        
         for (const p of positions) {
-          if (assignedSlots[`${day}_${p}`] === td.disciplinaId) countToday++;
+          if (assignedSlots[`${day}_${p}`] === td.disciplinaId) {
+            countToday++;
+            // Se já possui aula no mesmo dia, ela DEVE ser consecutiva (adjacente à posição atual)
+            if (Math.abs(p - pos) !== 1) {
+              hasNonAdjacent = true;
+            }
+          }
         }
-        return countToday < maxDailyCount;
+        
+        if (countToday >= maxDailyCount) return false;
+        if (countToday > 0 && hasNonAdjacent) return false;
+        
+        return true;
       });
-
-      if (candidates.length === 0) return false;
-
-      shuffleArray(candidates);
 
       // 5. Lógica de geminadas + barreira do recreio
       if (prevDisciplineId) {
@@ -2795,15 +3013,37 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
             }
           }
         }
-      } else {
-        // Se a PRÓXIMA posição é o último slot antes do intervalo, evitar alocar disciplinas geminadas
-        // que precisariam ser continuadas mas cruzariam o recreio
-        const nextPos = pos + 1;
-        const nextIsAfterInterval = nextPos > lastSlotBeforeInterval;
-        if (!nextIsAfterInterval && positions.includes(nextPos)) {
-          // ok, pode alocar geminada normalmente
-        }
       }
+
+      // 6. Evitar que a mesma matéria seja ensinada em 3 dias consecutivos (Rule 3)
+      if (relaxStage < 2) {
+        const dayIndex = days.indexOf(day);
+        const hasOnDay = (dIndex: number, discId: string): boolean => {
+          if (dIndex < 0 || dIndex >= days.length) return false;
+          const targetDay = days[dIndex];
+          return positions.some(p => assignedSlots[`${targetDay}_${p}`] === discId);
+        };
+
+        candidates = candidates.filter(td => {
+          const discId = td.disciplinaId;
+          const reqCount = requiredCounts[discId] ?? 0;
+          // Se a matéria tem 4 ou mais aulas na semana, ela está isenta desta regra para evitar impossibilidade matemática
+          if (reqCount >= 4) return true;
+
+          if (
+            (hasOnDay(dayIndex - 2, discId) && hasOnDay(dayIndex - 1, discId)) ||
+            (hasOnDay(dayIndex - 1, discId) && hasOnDay(dayIndex + 1, discId)) ||
+            (hasOnDay(dayIndex + 1, discId) && hasOnDay(dayIndex + 2, discId))
+          ) {
+            return false;
+          }
+          return true;
+        });
+      }
+
+      if (candidates.length === 0) return false;
+
+      shuffleArray(candidates);
 
       for (const candidate of candidates) {
         const discId = candidate.disciplinaId;
@@ -2844,13 +3084,62 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
         return reply.status(400).send({ error: 'Turno inválido ou não fornecido.' });
       }
 
-      const turmaDisciplinas = await prisma.turmaDisciplina.findMany({
+      const realTurmaDisciplinas = await prisma.turmaDisciplina.findMany({
         where: { turmaId },
         include: { disciplina: true, professor: true }
       });
 
-      if (turmaDisciplinas.length === 0) {
+      if (realTurmaDisciplinas.length === 0) {
         return reply.status(400).send({ error: 'Esta turma não possui disciplinas ou professores vinculados. Cadastre os vínculos primeiro!' });
+      }
+
+      const turmaObj = await prisma.turma.findUnique({
+        where: { id: turmaId }
+      });
+      const turmaNome = turmaObj ? turmaObj.nome : '';
+      const turmaNivel = turmaObj ? turmaObj.nivel : 'FUNDAMENTAL';
+
+      // 1. Carregar todas as disciplinas da instituição + globais
+      const allDisciplinas = await prisma.disciplina.findMany({
+        where: {
+          OR: [
+            { instituicao: user.instituicao || '' },
+            { instituicao: null }
+          ]
+        }
+      });
+
+      // 2. Filtrar disciplinas baseando-se no nível da turma
+      const cleanNormalize = (name: string): string => {
+        return name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      };
+
+      const filteredDisciplinas = allDisciplinas.filter(d => {
+        const clean = cleanNormalize(d.nome);
+        if (turmaNivel === 'FUNDAMENTAL') {
+          const isHighSchoolOnly = clean.includes('quimica') || clean.includes('biologia') || (clean.includes('fisica') && !clean.includes('educacao fisica'));
+          return !isHighSchoolOnly;
+        } else {
+          return !clean.includes('ciencia');
+        }
+      });
+
+      // 3. Mesclar vínculos reais com vínculos virtuais para disciplinas sem professor
+      const combinedTurmaDisciplinas: any[] = [...realTurmaDisciplinas];
+      for (const d of filteredDisciplinas) {
+        const exists = realTurmaDisciplinas.some(x => x.disciplinaId === d.id);
+        if (!exists) {
+          combinedTurmaDisciplinas.push({
+            id: `virtual_${d.id}`,
+            turmaId,
+            disciplinaId: d.id,
+            professorId: 'UNLINKED',
+            professor: null,
+            aulasSemanais: 0,
+            geminada: false,
+            disciplina: d
+          });
+        }
       }
 
       const shiftSetting = await prisma.institutionShiftSetting.findFirst({
@@ -2891,10 +3180,47 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
         where: { professor: { turmaDisciplinas: { some: { turmaId } } } }
       });
 
-      const assignedSlots = monarchSolveTurma({
-        turmaDisciplinas, positions, startPos, intervalAfterSlot,
-        slotsCount, shift, professorRestrictions, professorWeeklyCount, alreadyBusySlots
+      let assignedSlots = monarchSolveTurma({
+        turmaDisciplinas: combinedTurmaDisciplinas, positions, startPos, intervalAfterSlot,
+        slotsCount, shift, professorRestrictions, professorWeeklyCount, alreadyBusySlots,
+        turmaNome,
+        turmaNivel,
+        relaxStage: 0
       });
+      let stageSucceeded = 0;
+
+      if (!assignedSlots) {
+        stageSucceeded = 1;
+        assignedSlots = monarchSolveTurma({
+          turmaDisciplinas: combinedTurmaDisciplinas, positions, startPos, intervalAfterSlot,
+          slotsCount, shift, professorRestrictions, professorWeeklyCount, alreadyBusySlots,
+          turmaNome,
+          turmaNivel,
+          relaxStage: 1
+        });
+      }
+
+      if (!assignedSlots) {
+        stageSucceeded = 2;
+        assignedSlots = monarchSolveTurma({
+          turmaDisciplinas: combinedTurmaDisciplinas, positions, startPos, intervalAfterSlot,
+          slotsCount, shift, professorRestrictions, professorWeeklyCount, alreadyBusySlots,
+          turmaNome,
+          turmaNivel,
+          relaxStage: 2
+        });
+      }
+
+      if (!assignedSlots) {
+        stageSucceeded = 3;
+        assignedSlots = monarchSolveTurma({
+          turmaDisciplinas: combinedTurmaDisciplinas, positions, startPos, intervalAfterSlot,
+          slotsCount, shift, professorRestrictions, professorWeeklyCount, alreadyBusySlots,
+          turmaNome,
+          turmaNivel,
+          relaxStage: 3
+        });
+      }
 
       if (!assignedSlots) {
         return reply.status(400).send({
@@ -2924,8 +3250,17 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
         include: { disciplina: true }
       });
 
+      let successMsg = `⚡ Monarch Engine v3: Grade do turno ${shift} gerada com Matriz Curricular Brasileira!`;
+      if (stageSucceeded === 1) {
+        successMsg = `⚡ Monarch Engine v3: Grade gerada com sucesso! (Aviso: Restrições de agenda dos professores foram relaxadas para evitar conflitos).`;
+      } else if (stageSucceeded === 2) {
+        successMsg = `⚡ Monarch Engine v3: Grade gerada com sucesso! (Aviso: Limites de carga horária semanal dos professores foram relaxados para evitar conflitos).`;
+      } else if (stageSucceeded === 3) {
+        successMsg = `⚡ Monarch Engine v3: Grade gerada parcialmente! (Aviso: Conflitos físicos de horários permitidos temporariamente por falta de professores compatíveis).`;
+      }
+
       return reply.send({
-        message: `⚡ Monarch Engine v3: Grade do turno ${shift} gerada com Matriz Curricular Brasileira!`,
+        message: successMsg,
         slots: newSlots
       });
     } catch (error: any) {
@@ -2964,6 +3299,16 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
         return reply.status(400).send({ error: 'Nenhuma turma com disciplinas cadastradas encontrada.' });
       }
 
+      // Carregar todas as disciplinas da instituição + globais
+      const allDisciplinas = await prisma.disciplina.findMany({
+        where: {
+          OR: [
+            { instituicao: user.instituicao || '' },
+            { instituicao: null }
+          ]
+        }
+      });
+
       const shiftSetting = await prisma.institutionShiftSetting.findFirst({
         where: { institutionId: user.institutionId || undefined, shift }
       });
@@ -2981,18 +3326,53 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
         where: { professor: { institution: { nome: user.instituicao ?? '' } } }
       });
 
-      const results: { turmaId: string; turma: string; status: string; slots?: number }[] = [];
+      const results: { turmaId: string; turma: string; status: string; slots?: number; diagnosis?: string[]; relaxedStage?: number }[] = [];
       const professorWeeklyCount = new Map<string, number>(); // Acumulado cross-turma
       const globalBusySlots = new Set<string>(); // Slots ocupados em turmas já processadas
 
+      const cleanNormalize = (name: string): string => {
+        return name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      };
+
       for (const turma of eligibleTurmas) {
-        const turmaDisciplinas = turma.turmaDisciplinas;
+        const realTurmaDisciplinas = turma.turmaDisciplinas;
+        const turmaNivel = turma.nivel || 'FUNDAMENTAL';
+
+        // 1. Filtrar disciplinas baseando-se no nível da turma
+        const filteredDisciplinas = allDisciplinas.filter(d => {
+          const clean = cleanNormalize(d.nome);
+          if (turmaNivel === 'FUNDAMENTAL') {
+            const isHighSchoolOnly = clean.includes('quimica') || clean.includes('biologia') || (clean.includes('fisica') && !clean.includes('educacao fisica'));
+            return !isHighSchoolOnly;
+          } else {
+            return !clean.includes('ciencia');
+          }
+        });
+
+        // 2. Mesclar vínculos reais com vínculos virtuais para disciplinas sem professor
+        const combinedTurmaDisciplinas: any[] = [...realTurmaDisciplinas];
+        for (const d of filteredDisciplinas) {
+          const exists = realTurmaDisciplinas.some(x => x.disciplinaId === d.id);
+          if (!exists) {
+            combinedTurmaDisciplinas.push({
+              id: `virtual_${d.id}`,
+              turmaId: turma.id,
+              disciplinaId: d.id,
+              professorId: 'UNLINKED',
+              professor: null,
+              aulasSemanais: 0,
+              geminada: false,
+              disciplina: d
+            });
+          }
+        }
+
         const turmaRestrictions = allProfessorRestrictions.filter(r =>
-          turmaDisciplinas.some(td => td.professorId === r.professorId)
+          realTurmaDisciplinas.some(td => td.professorId === r.professorId)
         );
 
-        const assignedSlots = monarchSolveTurma({
-          turmaDisciplinas,
+        let assignedSlots = monarchSolveTurma({
+          turmaDisciplinas: combinedTurmaDisciplinas,
           positions,
           startPos,
           intervalAfterSlot,
@@ -3000,11 +3380,74 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
           shift,
           professorRestrictions: turmaRestrictions,
           professorWeeklyCount,
-          alreadyBusySlots: globalBusySlots
+          alreadyBusySlots: globalBusySlots,
+          turmaNome: turma.nome,
+          turmaNivel,
+          relaxStage: 0
         });
+        let stageSucceeded = 0;
 
         if (!assignedSlots) {
-          results.push({ turmaId: turma.id, turma: turma.nome, status: 'CONFLITO — sem grade gerada' });
+          stageSucceeded = 1;
+          assignedSlots = monarchSolveTurma({
+            turmaDisciplinas: combinedTurmaDisciplinas,
+            positions,
+            startPos,
+            intervalAfterSlot,
+            slotsCount,
+            shift,
+            professorRestrictions: turmaRestrictions,
+            professorWeeklyCount,
+            alreadyBusySlots: globalBusySlots,
+            turmaNome: turma.nome,
+            turmaNivel,
+            relaxStage: 1
+          });
+        }
+
+        if (!assignedSlots) {
+          stageSucceeded = 2;
+          assignedSlots = monarchSolveTurma({
+            turmaDisciplinas: combinedTurmaDisciplinas,
+            positions,
+            startPos,
+            intervalAfterSlot,
+            slotsCount,
+            shift,
+            professorRestrictions: turmaRestrictions,
+            professorWeeklyCount,
+            alreadyBusySlots: globalBusySlots,
+            turmaNome: turma.nome,
+            turmaNivel,
+            relaxStage: 2
+          });
+        }
+
+        if (!assignedSlots) {
+          stageSucceeded = 3;
+          assignedSlots = monarchSolveTurma({
+            turmaDisciplinas: combinedTurmaDisciplinas,
+            positions,
+            startPos,
+            intervalAfterSlot,
+            slotsCount,
+            shift,
+            professorRestrictions: turmaRestrictions,
+            professorWeeklyCount,
+            alreadyBusySlots: globalBusySlots,
+            turmaNome: turma.nome,
+            turmaNivel,
+            relaxStage: 3
+          });
+        }
+
+        if (!assignedSlots) {
+          results.push({ 
+            turmaId: turma.id, 
+            turma: turma.nome, 
+            status: 'Falha fatal ao alocar matérias.',
+            diagnosis: ['Verifique a configuração de disciplinas.']
+          });
           continue;
         }
 
@@ -3029,23 +3472,52 @@ Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". 
         for (const day of ['SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA']) {
           for (const pos of positions) {
             const discId = assignedSlots[`${day}_${pos}`];
-            const td = turmaDisciplinas.find(x => x.disciplinaId === discId);
+            const td = combinedTurmaDisciplinas.find(x => x.disciplinaId === discId);
             if (td) {
               const profId = td.professorId;
-              globalBusySlots.add(`${day}_${pos}_${profId}`);
-              professorWeeklyCount.set(profId, (professorWeeklyCount.get(profId) ?? 0) + 1);
+              if (profId !== 'UNLINKED') {
+                globalBusySlots.add(`${day}_${pos}_${profId}`);
+                professorWeeklyCount.set(profId, (professorWeeklyCount.get(profId) ?? 0) + 1);
+              }
             }
           }
         }
 
-        results.push({ turmaId: turma.id, turma: turma.nome, status: 'OK', slots: slotsToFill.length });
+        let statusText = 'OK';
+        if (stageSucceeded === 1) statusText = 'OK (Restrições de agenda ignoradas)';
+        else if (stageSucceeded === 2) statusText = 'OK (Carga horária semanal ignorada)';
+        else if (stageSucceeded === 3) statusText = 'OK (Gerada com conflitos físicos)';
+
+        results.push({ 
+          turmaId: turma.id, 
+          turma: turma.nome, 
+          status: statusText, 
+          slots: slotsToFill.length,
+          relaxedStage: stageSucceeded
+        });
       }
 
-      const successCount = results.filter(r => r.status === 'OK').length;
-      const failCount = results.filter(r => r.status !== 'OK').length;
+      const successCount = results.filter(r => r.status.startsWith('OK')).length;
+      const failCount = results.filter(r => !r.status.startsWith('OK')).length;
+
+      if (failCount > 0) {
+        const failedDetails = results
+          .filter(r => !r.status.startsWith('OK'))
+          .map(r => `• Turma ${r.turma}: ${r.status}`)
+          .join('\n\n');
+
+        return reply.status(400).send({
+          error: `Conflito ou Restrição de Recursos no Monarch Engine!\n\nNão foi possível gerar a grade coordenada devido aos seguintes gargalos de alocação:\n\n${failedDetails}\n\n👉 Dica: Revise a carga horária semanal e as restrições de horários dos professores listados.`
+        });
+      }
+
+      const anyRelaxed = results.some(r => r.relaxedStage && r.relaxedStage > 0);
+      const batchMsg = anyRelaxed
+        ? `⚡ Monarch Engine v3 Batch: Grades geradas! Algumas turmas foram geradas com ressalvas de conflitos/carga devido à falta de professores suficientes.`
+        : `⚡ Monarch Engine v3 Batch: ${successCount}/${eligibleTurmas.length} turmas geradas com sucesso para o turno ${shift}.`;
 
       return reply.send({
-        message: `⚡ Monarch Engine v3 Batch: ${successCount}/${eligibleTurmas.length} turmas geradas com sucesso para o turno ${shift}.${failCount > 0 ? ` ${failCount} turma(s) com conflito.` : ''}`,
+        message: batchMsg,
         results
       });
     } catch (error: any) {
