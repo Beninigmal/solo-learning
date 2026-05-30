@@ -4576,5 +4576,80 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
       }
     }
   );
+
+  // ─── POST /quests/mestre/gift-artifact ─────────────────────────────────────
+  fastify.post<{ Body: { studentId: string; artifactId: string } }>(
+    '/mestre/gift-artifact',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        if (request.user.role !== 'PROFESSOR' && request.user.role !== 'ADMIN') {
+          return reply.status(403).send({ error: 'Apenas Mestres e Arquitetos podem conceder artefatos.' });
+        }
+
+        const { studentId, artifactId } = request.body;
+        if (!studentId || !artifactId) {
+          return reply.status(400).send({ error: 'Os campos studentId e artifactId são obrigatórios.' });
+        }
+
+        // Verifica se o aluno existe
+        const student = await prisma.user.findFirst({
+          where: { id: studentId, role: 'ALUNO' }
+        });
+
+        if (!student) {
+          return reply.status(404).send({ error: 'Aluno não encontrado ou não qualificado.' });
+        }
+
+        // Cria o registro de artefato presenteado
+        const gift = await prisma.giftedArtifact.create({
+          data: {
+            userId: studentId,
+            artifactId
+          }
+        });
+
+        return reply.send({
+          success: true,
+          message: 'Artefato concedido com sucesso!',
+          gift
+        });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao conceder artefato.', details: error.message });
+      }
+    }
+  );
+
+  // ─── GET /quests/pending-gifts ─────────────────────────────────────────────
+  fastify.get(
+    '/pending-gifts',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const userId = request.user.id;
+
+        // Busca artefatos presenteados pendentes
+        const gifts = await prisma.giftedArtifact.findMany({
+          where: { userId }
+        });
+
+        if (gifts.length > 0) {
+          // Deleta para limpar e não receber novamente
+          await prisma.giftedArtifact.deleteMany({
+            where: { userId }
+          });
+        }
+
+        return reply.send({
+          success: true,
+          gifts: gifts.map((g) => g.artifactId)
+        });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao resgatar artefatos presenteados.', details: error.message });
+      }
+    }
+  );
 };
 

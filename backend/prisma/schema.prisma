@@ -42,6 +42,7 @@ model User {
   goldenQuestionsCreated GoldenQuestion[]  @relation("UserGoldenQuestions")
   calendarEventsCreated  CalendarEvent[]   @relation("UserCalendarEvents")
   raidMessages    RaidMessage[]
+  giftedArtifacts GiftedArtifact[]
   anelSerpenteExpires DateTime?
   bolsaSorteExpires   DateTime?
 
@@ -319,4 +320,12 @@ model ProfessorRestriction {
   createdAt   DateTime @default(now())
 
   @@unique([professorId, diaSemana, shift, posicao])
+}
+
+model GiftedArtifact {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artifactId String
+  createdAt  DateTime @default(now())
 }
