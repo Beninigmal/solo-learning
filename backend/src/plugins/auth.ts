@@ -10,6 +10,11 @@ export default fp(async (fastify: FastifyInstance) => {
 
   fastify.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
+      const queryToken = (request.query as any)?.token;
+      if (queryToken && !request.headers.authorization) {
+        request.headers.authorization = `Bearer ${queryToken}`;
+      }
+
       await request.jwtVerify();
       if (request.user && request.user.id) {
         // Atualiza o timestamp de atividade em background (fire-and-forget)
