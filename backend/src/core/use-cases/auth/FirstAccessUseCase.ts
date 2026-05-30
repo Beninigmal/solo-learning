@@ -26,7 +26,28 @@ export class FirstAccessUseCase {
       throw new Error('Usuário não encontrado.');
     }
 
-    const existingWithNick = await this.userRepository.findByNicknameInInstitution(nickname, user.institutionId, userId);
+    const getSchoolNick = (inst: string): string => {
+      if (!inst) return '';
+      return inst
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s]/g, "")
+        .trim()
+        .split(/\s+/)
+        .map((word, idx, arr) => {
+          if (arr.length === 1) return word;
+          if (idx === 0) return word[0];
+          return word;
+        })
+        .join('.');
+    };
+
+    const cleanInputNick = nickname.includes('@') ? nickname.split('@').pop()! : nickname;
+    const schoolPrefix = getSchoolNick(user.instituicao || '');
+    const fullNickname = schoolPrefix ? `${schoolPrefix}@${cleanInputNick.trim()}` : cleanInputNick.trim();
+
+    const existingWithNick = await this.userRepository.findByNicknameInInstitution(fullNickname, user.institutionId, userId);
     if (existingWithNick) {
       throw new Error('Este nickname já está em uso na sua instituição.');
     }
@@ -34,7 +55,7 @@ export class FirstAccessUseCase {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     const updatedUser = await this.userRepository.update(userId, {
-      nickname: nickname.trim(),
+      nickname: fullNickname,
       password: hashedPassword,
       isFirstAccess: false
     });

@@ -164,6 +164,8 @@ model QuestDelivery {
   xpParcial     Int       @default(0)
   xpGanho       Int       @default(0)
 
+  usedHelpers   String    @default("")
+
   @@unique([questId, userId]) // 1 entrega por quest por aluno
 }
 
@@ -176,6 +178,9 @@ model Raid {
   messages     RaidMessage[]
   bandeiraGuerraActive  Boolean   @default(false)
   bandeiraGuerraExpires DateTime?
+  raidModeActive         Boolean   @default(false)
+  activeQuestId          String?
+  activeQuestDeliveryId  String?
 }
 
 model RaidMessage {

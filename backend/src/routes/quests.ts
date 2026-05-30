@@ -215,7 +215,8 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
               subjectName: d.quest.disciplina?.nome || 'Estudos Gerais',
               erros: d.erros,
               monsterName,
-              expiresAt: d.expiresAt || d.quest.expiresAt
+              expiresAt: d.expiresAt || d.quest.expiresAt,
+              usedHelpers: d.usedHelpers ? d.usedHelpers.split(',').filter(Boolean) : []
             };
           })
         });
@@ -255,7 +256,8 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           nivel: delivered.quest.nivel,
           tags: delivered.quest.tags,
           erros: delivered.erros,
-          expiresAt: delivered.expiresAt || delivered.quest.expiresAt
+          expiresAt: delivered.expiresAt || delivered.quest.expiresAt,
+          usedHelpers: delivered.usedHelpers ? delivered.usedHelpers.split(',').filter(Boolean) : []
         });
       }
 
@@ -290,7 +292,8 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           fromQueue: true,
           tags: waiting.quest.tags,
           erros: waiting.erros,
-          expiresAt: reactivated.expiresAt || waiting.quest.expiresAt
+          expiresAt: reactivated.expiresAt || waiting.quest.expiresAt,
+          usedHelpers: reactivated.usedHelpers ? reactivated.usedHelpers.split(',').filter(Boolean) : []
         });
       }
 
@@ -312,7 +315,8 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           nivel: scheduled.quest.nivel,
           tags: scheduled.quest.tags,
           erros: scheduled.erros,
-          expiresAt: updated.expiresAt || scheduled.quest.expiresAt
+          expiresAt: updated.expiresAt || scheduled.quest.expiresAt,
+          usedHelpers: updated.usedHelpers ? updated.usedHelpers.split(',').filter(Boolean) : []
         });
       }
 
@@ -876,7 +880,18 @@ Exemplo de formato esperado:
     if (!deliveryId || !question || !answer) return reply.status(400).send({ error: 'Campos obrigatórios faltando.' });
     try {
       const delivery = await prisma.questDelivery.findUnique({ where: { id: deliveryId }, include: { quest: true } });
-      if (!delivery || delivery.userId !== userId) return reply.status(404).send({ error: 'Entrega não encontrada.' });
+      
+      const isRaidQuest = await prisma.raid.findFirst({
+        where: {
+          activeQuestDeliveryId: deliveryId,
+          status: 'OPEN',
+          participantes: { some: { userId } }
+        }
+      });
+
+      if (!delivery || (delivery.userId !== userId && !isRaidQuest)) {
+        return reply.status(404).send({ error: 'Entrega não encontrada.' });
+      }
       
       let prompt = answer === 'Cálculo na imagem'
         ? `Você é um tutor educacional rigoroso que avalia respostas de alunos de escola pública brasileira.
@@ -1651,6 +1666,129 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       return reply.send({ message: 'Você saiu da Party com sucesso.' });
     } catch (e) {
       return reply.status(500).send({ error: 'Erro ao sair da Party.' });
+    }
+  });
+
+  // ─── POST /quests/party/toggle-raid ─────────────────────────────────────────
+  fastify.post('/party/toggle-raid', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    const userId = request.user.id;
+    try {
+      const activeParticipant = await prisma.raidParticipant.findFirst({
+        where: { userId, raid: { status: 'OPEN' } },
+        include: { raid: { include: { participantes: { orderBy: { joinedAt: 'asc' } } } } }
+      });
+
+      if (!activeParticipant) {
+        return reply.status(400).send({ error: 'Você não está em nenhuma Party ativa.' });
+      }
+
+      const isLeader = activeParticipant.raid.participantes[0]?.userId === userId;
+      if (!isLeader) {
+        return reply.status(403).send({ error: 'Apenas o líder do grupo pode iniciar ou parar o modo Raid.' });
+      }
+
+      const nextRaidMode = !activeParticipant.raid.raidModeActive;
+      const updated = await prisma.raid.update({
+        where: { id: activeParticipant.raidId },
+        data: {
+          raidModeActive: nextRaidMode,
+          ...(!nextRaidMode ? { activeQuestId: null, activeQuestDeliveryId: null } : {})
+        },
+        include: {
+          participantes: {
+            include: {
+              user: {
+                select: { nome: true, nickname: true, xp: true, lastActiveAt: true }
+              }
+            }
+          }
+        }
+      });
+
+      // Mensagem no chat
+      await prisma.raidMessage.create({
+        data: {
+          raidId: activeParticipant.raidId,
+          userId,
+          content: nextRaidMode 
+            ? `⚡ [Mural do Sistema] O líder ativou o MODO RAID! Preparem seus artefatos, a missão em andamento agora é compartilhada!`
+            : `💤 [Mural do Sistema] O líder desativou o MODO RAID.`
+        }
+      });
+
+      return reply.send(updated);
+    } catch (e: any) {
+      request.log.error(e);
+      return reply.status(500).send({ error: 'Erro ao alternar modo Raid.', details: e.message });
+    }
+  });
+
+  // ─── POST /quests/party/share-quest ─────────────────────────────────────────
+  fastify.post<{ Body: { deliveryId: string } }>('/party/share-quest', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    const userId = request.user.id;
+    const { deliveryId } = request.body;
+
+    if (!deliveryId) {
+      return reply.status(400).send({ error: 'deliveryId é obrigatório.' });
+    }
+
+    try {
+      const activeParticipant = await prisma.raidParticipant.findFirst({
+        where: { userId, raid: { status: 'OPEN' } },
+        include: { raid: { include: { participantes: { orderBy: { joinedAt: 'asc' } } } } }
+      });
+
+      if (!activeParticipant) {
+        return reply.status(400).send({ error: 'Você não está em nenhuma Party ativa.' });
+      }
+
+      const isLeader = activeParticipant.raid.participantes[0]?.userId === userId;
+      if (!isLeader) {
+        return reply.status(403).send({ error: 'Apenas o líder do grupo pode compartilhar a missão na Raid.' });
+      }
+
+      if (!activeParticipant.raid.raidModeActive) {
+        return reply.status(400).send({ error: 'Ative o modo Raid na sua Party primeiro!' });
+      }
+
+      const delivery = await prisma.questDelivery.findUnique({
+        where: { id: deliveryId }
+      });
+
+      if (!delivery || delivery.userId !== userId) {
+        return reply.status(404).send({ error: 'Missão ativa não encontrada ou você não é o dono.' });
+      }
+
+      const updated = await prisma.raid.update({
+        where: { id: activeParticipant.raidId },
+        data: {
+          activeQuestId: delivery.questId,
+          activeQuestDeliveryId: deliveryId
+        },
+        include: {
+          participantes: {
+            include: {
+              user: {
+                select: { nome: true, nickname: true, xp: true, lastActiveAt: true }
+              }
+            }
+          }
+        }
+      });
+
+      // Mensagem no chat
+      await prisma.raidMessage.create({
+        data: {
+          raidId: activeParticipant.raidId,
+          userId,
+          content: `⚔️ [Alerta de Masmorra] O líder compartilhou a missão na Raid! Todos os caçadores podem entrar na batalha e usar seus artefatos compartilhados!`
+        }
+      });
+
+      return reply.send(updated);
+    } catch (e: any) {
+      request.log.error(e);
+      return reply.status(500).send({ error: 'Erro ao compartilhar missão na Raid.', details: e.message });
     }
   });
 
@@ -3748,8 +3886,19 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         const { artifactId, studentDoubt } = request.body;
         const userId = request.user.id;
 
+        const isRaidQuest = await prisma.raid.findFirst({
+          where: {
+            activeQuestDeliveryId: deliveryId,
+            status: 'OPEN',
+            participantes: { some: { userId } }
+          }
+        });
+
         let delivery = await prisma.questDelivery.findFirst({
-          where: { id: deliveryId, userId },
+          where: {
+            id: deliveryId,
+            ...(isRaidQuest ? {} : { userId })
+          },
           include: { quest: true }
         });
 
@@ -3789,6 +3938,19 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         if (!delivery) {
           return reply.status(404).send({ error: 'Entrega de quest não encontrada.' });
         }
+
+        // Verificar se este artefato já foi usado nesta missão
+        const usedList = delivery.usedHelpers ? delivery.usedHelpers.split(',') : [];
+        if (usedList.includes(artifactId)) {
+          return reply.status(400).send({ error: 'Este artefato já foi utilizado nesta missão.' });
+        }
+
+        // Registrar o uso do artefato
+        usedList.push(artifactId);
+        await prisma.questDelivery.update({
+          where: { id: delivery.id },
+          data: { usedHelpers: usedList.filter(Boolean).join(',') }
+        });
 
         const enunciado = delivery.quest.enunciado;
 
@@ -4525,12 +4687,24 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
         const { deliveryId } = request.params;
         const userId = request.user.id;
 
-        // Primeiro, busca em QuestDelivery
-        let delivery = await prisma.questDelivery.findFirst({
-          where: { id: deliveryId, userId }
+        const isRaidQuest = await prisma.raid.findFirst({
+          where: {
+            activeQuestDeliveryId: deliveryId,
+            status: 'OPEN',
+            participantes: { some: { userId } }
+          }
         });
 
-        if (!delivery) {
+        // Primeiro, busca em QuestDelivery
+        let delivery = await prisma.questDelivery.findFirst({
+          where: {
+            id: deliveryId,
+            ...(isRaidQuest ? {} : { userId })
+          },
+          include: { quest: true }
+        });
+
+        if (!delivery && !isRaidQuest) {
           // Se não encontrar, tenta buscar a WrongAnswer para achar a QuestDelivery vinculada
           const wrongAnswer = await prisma.wrongAnswer.findFirst({
             where: { id: deliveryId, userId }
@@ -4543,7 +4717,8 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
                   questId: wrongAnswer.questId,
                   userId
                 }
-              }
+              },
+              include: { quest: true }
             });
 
             if (!delivery) {
@@ -4555,7 +4730,8 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
                   scheduledAt: new Date(),
                   deliveredAt: new Date(),
                   erros: wrongAnswer.tentativas
-                }
+                },
+                include: { quest: true }
               });
             }
           }
@@ -4567,6 +4743,14 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
 
         return reply.send({
           id: delivery.id,
+          deliveryId: delivery.id,
+          question: delivery.quest.enunciado,
+          tags: delivery.quest.tags,
+          nivel: delivery.quest.nivel,
+          xp: delivery.quest.xp,
+          erros: delivery.erros,
+          expiresAt: delivery.expiresAt || delivery.quest.expiresAt,
+          usedHelpers: delivery.usedHelpers ? delivery.usedHelpers.split(',').filter(Boolean) : [],
           helpRequested: delivery.helpRequested,
           helpResponse: delivery.helpResponse,
           studentDoubt: delivery.studentDoubt
