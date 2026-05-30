@@ -443,6 +443,31 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     }
   });
 
+  // Resetar Mestre (Voltar para primeiro acesso)
+  fastify.post<{ Params: { id: string } }>('/masters/:id/reset', async (request, reply) => {
+    const { id } = request.params;
+    const instituicao = request.user.instituicao!;
+
+    try {
+      const defaultPassword = await bcrypt.hash('Solen2026', 10);
+      await prisma.user.update({
+        where: { 
+          id, 
+          role: 'PROFESSOR',
+          instituicao
+        },
+        data: { 
+          isFirstAccess: true,
+          nickname: null,
+          password: defaultPassword
+        }
+      });
+      return reply.send({ message: 'Acesso do mestre resetado com sucesso! A senha padrão voltou a ser "Solen2026" e ele fará o primeiro acesso novamente.' });
+    } catch (error) {
+      return reply.status(404).send({ error: 'Mestre não encontrado ou sem permissão.' });
+    }
+  });
+
   // ==========================================
   // EXCEL BULK PARSING AND TEMPLATES
   // ==========================================
