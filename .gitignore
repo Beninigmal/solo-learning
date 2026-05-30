@@ -1,0 +1,6 @@
+solen-v1.0.1.apk
+*.apk
+node_modules/
+.env
+dist/
+build/
