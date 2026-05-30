@@ -1371,7 +1371,8 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
               helpRequested: false,
               helpResponse: null,
               studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
-              studentImage: image || null
+              studentImage: image || null,
+              erros: novasTentativas
             }
           }).catch(console.error);
         } else {
@@ -1380,7 +1381,8 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
             where: { userId, questId: wrongAnswer.questId },
             data: {
               studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
-              studentImage: image || null
+              studentImage: image || null,
+              erros: novasTentativas
             }
           }).catch(console.error);
         }
