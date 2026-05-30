@@ -4288,25 +4288,28 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
         }
 
         if (artifactId === 'olhar_monarca') {
-          const bossDeliveries = await prisma.questDelivery.findMany({
+          const activeQuests = await prisma.quest.findMany({
             where: {
-              userId,
-              quest: {
-                nivel: { in: ['BOSS', 'MINIBOSS', 'DIFICIL'] }
+              turmaAlvoId: user.turmaId || undefined,
+              status: 'ATIVA',
+              deliveries: {
+                none: {
+                  userId,
+                  status: 'COMPLETED'
+                }
               }
             },
-            include: { quest: true },
-            orderBy: { scheduledAt: 'asc' },
+            orderBy: { createdAt: 'desc' },
             take: 3
           });
 
-          const topics = bossDeliveries.length > 0
-            ? bossDeliveries.map(d => d.quest.tema || d.quest.enunciado.substring(0, 45) + '...').join(', ')
+          const topics = activeQuests.length > 0
+            ? activeQuests.map(q => q.tema || q.enunciado.substring(0, 45) + '...').join(', ')
             : 'Equações Quadráticas, Crase Gramatical, Leis de Newton';
 
           return reply.send({
             success: true,
-            message: `Sua visão brilha com o Olhar do Monarca! As próximas ameaças de elite envolverão os seguintes tópicos: ${topics}. Prepare-se!`
+            message: `Sua visão brilha com o Olhar do Monarca! As próximas ameaças envolverão os seguintes tópicos: ${topics}. Prepare-se!`
           });
         }
 
