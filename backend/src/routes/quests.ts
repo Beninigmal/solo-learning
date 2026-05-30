@@ -3887,6 +3887,56 @@ Retorne APENAS o JSON.`;
           return reply.send({ keywords: parsed.keywords || ["Relevante", "Conceitual", "Tema"] });
         }
 
+        if (artifactId === 'sapatilhas_veloz') {
+          if (delivery.quest.nivel === 'DIFICIL' || delivery.quest.nivel === 'MEDIO') {
+            const novoNivel = delivery.quest.nivel === 'DIFICIL' ? 'MEDIO' : 'FACIL';
+            const novoXp = delivery.quest.nivel === 'DIFICIL' ? 350 : 200;
+
+            const prompt = `Você é um refinador de RPG educativo.
+A questão original do tipo ${delivery.quest.nivel} é: "${enunciado}"
+O gabarito atual é: "${delivery.quest.gabarito || ''}"
+
+O estudante usou um artefato que reduziu a dificuldade da missão para o nível ${novoNivel}.
+Por favor, reformule esta questão acadêmica para que ela fique no nível ${novoNivel}.
+Seja pedagógico, claro e reduza a complexidade matemática, interpretativa ou teórica.
+Se a questão for de múltipla escolha com opções, reescreva-a com opções mais simples e claras e atualize o gabarito. Se for discursiva, torne-a mais direta.
+
+Retorne APENAS um JSON no formato:
+{
+  "enunciado": "Novo enunciado da questão reformulado para o nível ${novoNivel}",
+  "gabarito": "Novo gabarito correspondente da questão reformulada"
+}`;
+
+            let raw = await callGemini(prompt);
+            raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+            const firstBrace = raw.indexOf('{');
+            const lastBrace = raw.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1) {
+              raw = raw.substring(firstBrace, lastBrace + 1);
+            }
+            const parsed = JSON.parse(raw);
+
+            const updatedQuest = await prisma.quest.update({
+              where: { id: delivery.questId },
+              data: {
+                enunciado: parsed.enunciado || delivery.quest.enunciado,
+                gabarito: parsed.gabarito || delivery.quest.gabarito,
+                nivel: novoNivel,
+                xp: novoXp
+              }
+            });
+
+            return reply.send({
+              nivel: novoNivel,
+              enunciado: updatedQuest.enunciado,
+              gabarito: updatedQuest.gabarito,
+              message: `As Sapatilhas do Mundo Lento desaceleraram o tempo! A missão foi simplificada para o nível ${novoNivel}.`
+            });
+          } else {
+            return reply.status(400).send({ error: 'Esta missão já está no nível FÁCIL e não pode ser mais simplificada.' });
+          }
+        }
+
         return reply.status(400).send({ error: 'Artefato utilitário inválido ou não suportado para esta rota.' });
       } catch (error: any) {
         request.log.error(error);
