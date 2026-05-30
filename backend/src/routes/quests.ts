@@ -215,7 +215,7 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
               subjectName: d.quest.disciplina?.nome || 'Estudos Gerais',
               erros: d.erros,
               monsterName,
-              expiresAt: d.quest.expiresAt
+              expiresAt: d.expiresAt || d.quest.expiresAt
             };
           })
         });
@@ -255,7 +255,7 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           nivel: delivered.quest.nivel,
           tags: delivered.quest.tags,
           erros: delivered.erros,
-          expiresAt: delivered.quest.expiresAt
+          expiresAt: delivered.expiresAt || delivered.quest.expiresAt
         });
       }
 
@@ -290,7 +290,7 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           fromQueue: true,
           tags: waiting.quest.tags,
           erros: waiting.erros,
-          expiresAt: waiting.quest.expiresAt
+          expiresAt: reactivated.expiresAt || waiting.quest.expiresAt
         });
       }
 
@@ -311,7 +311,8 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           xp: Math.max(Math.round(scheduled.quest.xp * Math.pow(0.75, scheduled.erros)), 25),
           nivel: scheduled.quest.nivel,
           tags: scheduled.quest.tags,
-          erros: scheduled.erros
+          erros: scheduled.erros,
+          expiresAt: updated.expiresAt || scheduled.quest.expiresAt
         });
       }
 
@@ -3990,7 +3991,7 @@ Retorne APENAS um JSON no formato:
         }
 
         if (artifactId === 'relogio_tempo') {
-          const currentExpiration = delivery.expiresAt || new Date();
+          const currentExpiration = delivery.expiresAt || delivery.quest.expiresAt || new Date();
           const novaExpiracao = new Date(currentExpiration.getTime() + 24 * 60 * 60 * 1000);
 
           await prisma.questDelivery.update({
