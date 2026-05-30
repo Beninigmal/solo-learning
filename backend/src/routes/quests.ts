@@ -865,14 +865,18 @@ Exemplo de formato esperado:
         ? `Você é um tutor educacional rigoroso que avalia respostas de alunos de escola pública brasileira.
 REGRA CRÍTICA: Respostas vazias, evasivas, de brincadeira, ou que apenas digam que o aluno não sabe a resposta (ex: "Não sei", "não entendi", "...", "sei lá", "não faço ideia") devem ser marcadas como ABSOLUTAMENTE INCORRETAS com status "error". Nunca marque admissões de desconhecimento como corretas.
 A pergunta foi: "${question}".
-O aluno optou por desenvolver o raciocínio na imagem. Analise APENAS a imagem e avalie a resposta.
+A resposta correta esperada (gabarito) é: "${delivery.quest.gabarito || ''}".
+O aluno optou por desenvolver o raciocínio na imagem. Analise a imagem, compare o resultado e o desenvolvimento com a resposta correta esperada (gabarito), e avalie a resposta.
 
 Se CORRETO: retorne JSON: {"status": "success", "message": "Mensagem motivacional curta de parabenização"}
 Se ERRADO: retorne JSON: {"status": "error", "message": "Explique de forma educativa o que errou e dê uma dica sobre o raciocínio correto, MAS NÃO revele a resposta final."}`
         : `Você é um tutor educacional rigoroso que avalia respostas de alunos de escola pública brasileira.
 REGRA CRÍTICA: Respostas vazias, evasivas, de brincadeira, ou que apenas digam que o aluno não sabe a resposta (ex: "Não sei", "não entendi", "...", "sei lá", "não faço ideia") devem ser marcadas como ABSOLUTAMENTE INCORRETAS com status "error". Nunca marque admissões de desconhecimento como corretas, mesmo que sejam honestas.
 A pergunta foi: "${question}".
-A resposta do aluno foi: "${answer}".
+A resposta correta esperada (gabarito) é: "${delivery.quest.gabarito || ''}".
+A resposta enviada pelo aluno foi: "${answer}".
+
+Você deve comparar a resposta do aluno com a resposta correta esperada (gabarito). Considere a resposta correta se o aluno chegou ao mesmo resultado numérico ou textual, mesmo que expresso de forma ligeiramente diferente (ex: com ou sem unidade de medida, pequenas variações de grafia, etc.).
 
 Se CORRETO: retorne JSON: {"status": "success", "message": "Mensagem motivacional curta de parabenização"}
 Se ERRADO: retorne JSON: {"status": "error", "message": "Explique de forma educativa o conceito por trás do erro e dê uma dica para o aluno melhorar, MAS NÃO revele a resposta final."}`;
@@ -1210,11 +1214,18 @@ Retorne APENAS um JSON no seguinte formato:
 REGRA CRÍTICA: Respostas vazias, evasivas, de brincadeira, ou que apenas digam que o aluno não sabe a resposta (ex: "Não sei", "não entendi", "...", "sei lá", "não faço ideia") devem ser marcadas como ABSOLUTAMENTE INCORRETAS com status "error". Nunca marque admissões de desconhecimento como corretas.
 Atenção: O aluno NÃO digitou a resposta em texto. A resposta dele e o raciocínio estão EXCLUSIVAMENTE na imagem enviada.
 Ignore a mensagem 'Cálculo na imagem'.
-Analise a imagem para extrair a resposta final e o raciocínio. Verifique se a resposta encontrada na imagem está correta para a pergunta: "${wrongAnswer.quest.enunciado}".
+A pergunta foi: "${wrongAnswer.quest.enunciado}".
+A resposta correta esperada (gabarito) é: "${wrongAnswer.quest.gabarito || ''}".
+Analise a imagem para extrair a resposta final e o raciocínio. Verifique se a resposta encontrada na imagem está correta comparando-a com a resposta correta esperada (gabarito).
 Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro ou parabéns"}`
         : `Você é um tutor educacional rigoroso.
 REGRA CRÍTICA: Respostas vazias, evasivas, de brincadeira, ou que apenas digam que o aluno não sabe a resposta (ex: "Não sei", "não entendi", "...", "sei lá", "não faço ideia") devem ser marcadas como ABSOLUTAMENTE INCORRETAS com status "error". Nunca marque admissões de desconhecimento como corretas, mesmo que sejam honestas.
-Valide a resposta "${answer}" para a pergunta "${wrongAnswer.quest.enunciado}". Se uma imagem foi enviada, ela contém o raciocínio matemático do aluno. Analise-o para ver se está correto e se bate com a resposta digitada. Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro ou parabéns"}`;
+A pergunta foi: "${wrongAnswer.quest.enunciado}".
+A resposta correta esperada (gabarito) é: "${wrongAnswer.quest.gabarito || ''}".
+A resposta enviada pelo aluno foi: "${answer}".
+
+Você deve comparar a resposta do aluno com a resposta correta esperada (gabarito). Considere a resposta correta se o aluno chegou ao mesmo resultado numérico ou textual, mesmo que expresso de forma ligeiramente diferente (ex: com ou sem unidade de medida, pequenas variações de grafia, etc.). Se uma imagem foi enviada, ela contém o raciocínio matemático do aluno. Analise-o para ver se está correto e bate com a resposta digitada.
+Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro ou parabéns"}`;
 
       if (artifactId === 'sapatilhas_veloz') {
         prompt += `\nNOTA: O aluno usou o artefato 'Sapatilhas do Veloz' que reduz a dificuldade. Seja benevolente na avaliação, aceitando aproximações ou pequenos erros de digitação.`;
