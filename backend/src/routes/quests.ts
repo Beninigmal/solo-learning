@@ -3960,12 +3960,20 @@ A questão de cálculo atual é: "${enunciado}"
 O gabarito atual é: "${delivery.quest.gabarito || ''}"
 
 O estudante usou o artefato 'Varinha de Pinheiro' que transforma uma missão de cálculo discursiva em múltipla escolha.
-Por favor, resolva a questão e crie 5 alternativas claras de múltipla escolha (A, B, C, D, E), onde exatamente uma delas seja a resposta correta baseada no gabarito original.
-Escreva a questão em formato de múltipla escolha tradicional, listando as opções logo após o enunciado da questão.
+Por favor, resolva a questão e crie exatamente 5 alternativas de múltipla escolha (A, B, C, D, E), onde exatamente uma delas seja a resposta correta baseada no gabarito original.
+Escreva a questão em formato de múltipla escolha tradicional. Você DEVE colocar cada opção em uma nova linha, precedida por pelo menos um caractere de quebra de linha (\\n), exatamente no seguinte formato:
+
+[Texto do enunciado da pergunta]
+
+A) [Opção A]
+B) [Opção B]
+C) [Opção C]
+D) [Opção D]
+E) [Opção E]
 
 Retorne APENAS um JSON no formato:
 {
-  "enunciado": "Novo enunciado contendo a pergunta original de cálculo seguida pelas opções A, B, C, D, E formatadas no padrão:\\nA) Opção A\\nB) Opção B\\nC) Opção C\\nD) Opção D\\nE) Opção E",
+  "enunciado": "[Texto da pergunta]\\n\\nA) [Texto A]\\nB) [Texto B]\\nC) [Texto C]\\nD) [Texto D]\\nE) [Texto E]",
   "gabarito": "A letra correspondente à alternativa correta (ex: A, B, C, D ou E)"
 }`;
 
