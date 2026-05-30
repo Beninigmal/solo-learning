@@ -221,21 +221,25 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
         });
       }
 
-      // Expirar quests de 7 dias ultrapassadas
-      await prisma.questDelivery.updateMany({
+      // Expirar quests ultrapassadas (respeitando prazo estendido individual se houver)
+      const activeDeliveries = await prisma.questDelivery.findMany({
         where: {
           userId,
-          status: { in: ['SCHEDULED', 'DELIVERED'] },
-          quest: { expiresAt: { lte: now } }
+          status: { in: ['SCHEDULED', 'DELIVERED', 'WAITING'] }
         },
-        data: { status: 'EXPIRED' }
+        include: { quest: true }
       });
 
-      // Expirar fila de espera (WAITING > 40 min)
-      await prisma.questDelivery.updateMany({
-        where: { userId, status: 'WAITING', expiresAt: { lte: now } },
-        data: { status: 'EXPIRED' }
-      });
+      for (const d of activeDeliveries) {
+        // O prazo individual da entrega (expiresAt do QuestDelivery) tem prioridade sobre o prazo global da Quest
+        const limitDate = d.expiresAt || d.quest.expiresAt;
+        if (limitDate && limitDate <= now) {
+          await prisma.questDelivery.update({
+            where: { id: d.id },
+            data: { status: 'EXPIRED' }
+          }).catch(console.error);
+        }
+      }
 
       const delivered = await prisma.questDelivery.findFirst({
         where: { userId, status: 'DELIVERED' },
@@ -256,7 +260,19 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
       }
 
       const waiting = await prisma.questDelivery.findFirst({
-        where: { userId, status: 'WAITING', expiresAt: { gt: now } },
+        where: { 
+          userId, 
+          status: 'WAITING', 
+          OR: [
+            { expiresAt: null },
+            { expiresAt: { gt: now } }
+          ],
+          quest: {
+            wrongAnswers: {
+              none: { userId, resolvido: false }
+            }
+          }
+        },
         include: { quest: true },
         orderBy: { waitingSince: 'asc' }
       });
@@ -881,6 +897,15 @@ Você deve comparar a resposta do aluno com a resposta correta esperada (gabarit
 Se CORRETO: retorne JSON: {"status": "success", "message": "Mensagem motivacional curta de parabenização"}
 Se ERRADO: retorne JSON: {"status": "error", "message": "Explique de forma educativa o conceito por trás do erro e dê uma dica para o aluno melhorar, MAS NÃO revele a resposta final."}`;
 
+      const isMultipleChoice = /(?:\r?\n)+(?:[A-Ea-e][\.\)\-]\s+)/.test(delivery.quest.enunciado) || 
+                              (delivery.quest.gabarito && /^[A-E]$/i.test(delivery.quest.gabarito.trim()));
+
+      if (isMultipleChoice) {
+        prompt += `\nNOTA DE MÚLTIPLA ESCOLHA: Esta é uma questão de múltipla escolha. O gabarito oficial é a letra "${(delivery.quest.gabarito || '').trim()}".
+Se a resposta do aluno corresponder à letra correta (ex: se o gabarito é "A" e o aluno enviou "A" ou "A) ...", "A - ..."), ou se a resposta do aluno for exatamente/semelhante ao texto da alternativa correta correspondente ao gabarito, considere a resposta ABSOLUTAMENTE CORRETA (status: "success").
+Seja inteligente e flexível na correspondência de letras e textos!`;
+      }
+
       if (artifactId === 'sapatilhas_veloz') {
         prompt += `\nNOTA: O aluno usou o artefato 'Sapatilhas do Veloz' que reduz a dificuldade. Seja benevolente na avaliação, aceitando aproximações ou pequenos erros de digitação.`;
       }
@@ -1095,7 +1120,7 @@ Retorne APENAS um JSON no seguinte formato:
           request.log.error({ err: spawnErr }, 'Erro ao tentar spawnar Mini Boss');
         }
 
-        return reply.send({ ...validation, xpGanho: result.xpToAward, miniBossSpawned });
+        return reply.send({ ...validation, isCorrect: true, xpGanho: result.xpToAward, miniBossSpawned });
       } else {
         const hasExtraAttempt = delivery.helpRequested && delivery.helpResponse !== null;
         const novosErros = (artifactId === 'escudo_arcano' || hasExtraAttempt) ? delivery.erros : delivery.erros + 1;
@@ -1103,6 +1128,8 @@ Retorne APENAS um JSON no seguinte formato:
         await prisma.questDelivery.update({
           where: { id: deliveryId },
           data: { 
+            status: 'WAITING',
+            waitingSince: now,
             erros: novosErros,
             studentAnswer: answer,
             studentImage: image,
@@ -1122,7 +1149,7 @@ Retorne APENAS um JSON no seguinte formato:
         const xpRestante = isBoss
           ? delivery.quest.xp
           : Math.max(Math.round(delivery.quest.xp * Math.pow(0.75, novosErros)), 25);
-        return reply.send({ ...validation, xpRestante, erros: novosErros });
+        return reply.send({ ...validation, isCorrect: false, xpRestante, erros: novosErros });
       }
     } catch (error: any) {
       return reply.status(500).send({ error: 'Erro ao submeter resposta.' });
@@ -1227,6 +1254,15 @@ A resposta enviada pelo aluno foi: "${answer}".
 Você deve comparar a resposta do aluno com a resposta correta esperada (gabarito). Considere a resposta correta se o aluno chegou ao mesmo resultado numérico ou textual, mesmo que expresso de forma ligeiramente diferente (ex: com ou sem unidade de medida, pequenas variações de grafia, etc.). Se uma imagem foi enviada, ela contém o raciocínio matemático do aluno. Analise-o para ver se está correto e bate com a resposta digitada.
 Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro ou parabéns"}`;
 
+      const isMultipleChoice = /(?:\r?\n)+(?:[A-Ea-e][\.\)\-]\s+)/.test(wrongAnswer.quest.enunciado) || 
+                              (wrongAnswer.quest.gabarito && /^[A-E]$/i.test(wrongAnswer.quest.gabarito.trim()));
+
+      if (isMultipleChoice) {
+        prompt += `\nNOTA DE MÚLTIPLA ESCOLHA: Esta é uma questão de múltipla escolha. O gabarito oficial é a letra "${(wrongAnswer.quest.gabarito || '').trim()}".
+Se a resposta do aluno corresponder à letra correta (ex: se o gabarito é "A" e o aluno enviou "A" ou "A" / "A) ...", "A - ..."), ou se a resposta do aluno for exatamente/semelhante ao texto da alternativa correta correspondente ao gabarito, considere a resposta ABSOLUTAMENTE CORRETA (status: "success").
+Seja inteligente e flexível na correspondência de letras e textos!`;
+      }
+
       if (artifactId === 'sapatilhas_veloz') {
         prompt += `\nNOTA: O aluno usou o artefato 'Sapatilhas do Veloz' que reduz a dificuldade. Seja benevolente na avaliação, aceitando aproximações ou pequenos erros de digitação.`;
       }
@@ -1314,7 +1350,7 @@ Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro
           }).catch(console.error);
         }
 
-        return reply.send({ ...validation, xpGanho: result.xpToAward });
+        return reply.send({ ...validation, isCorrect: true, xpGanho: result.xpToAward });
       } else {
         const hasExtraAttempt = delivery?.helpRequested && delivery?.helpResponse !== null;
         const novasTentativas = (artifactId === 'escudo_arcano' || hasExtraAttempt) ? wrongAnswer.tentativas : wrongAnswer.tentativas + 1;
@@ -1357,7 +1393,7 @@ Retorne JSON: {"status": "success/error", "message": "Explicação curta do erro
           ? wrongAnswer.quest.xp
           : Math.max(Math.round(wrongAnswer.quest.xp * Math.pow(0.75, novasTentativas)), 25);
 
-        return reply.send({ ...validation, xpRestante, erros: novasTentativas });
+        return reply.send({ ...validation, isCorrect: false, xpRestante, erros: novasTentativas });
       }
     } catch (error: any) {
       request.log.error(error);
@@ -3964,8 +4000,8 @@ Retorne APENAS um JSON no formato:
         }
 
         if (artifactId === 'varinha_pinheiro') {
-          const isCalculo = delivery.quest.tags.includes('CALCULO') || delivery.quest.tags.includes('calculo');
-          if (isCalculo) {
+          const hasOptions = /(?:\r?\n)+(?:[A-Ea-e][\.\)\-]\s+)/.test(delivery.quest.enunciado);
+          if (!hasOptions) {
             const prompt = `Você é um transformador mágico de RPG educativo.
 A questão de cálculo atual é: "${enunciado}"
 O gabarito atual é: "${delivery.quest.gabarito || ''}"
@@ -3997,12 +4033,12 @@ Retorne APENAS um JSON no formato:
             }
             const parsed = JSON.parse(raw);
 
-            const novasTags = delivery.quest.tags.filter(t => t !== 'CALCULO' && t !== 'calculo');
+            const novasTags = delivery.quest.tags.filter(t => !/calculo|cálculo|calculos|cálculos/i.test(t));
             const updatedQuest = await prisma.quest.update({
               where: { id: delivery.questId },
               data: {
                 enunciado: parsed.enunciado || delivery.quest.enunciado,
-                gabarito: parsed.gabarito || delivery.quest.gabarito,
+                gabarito: (parsed.gabarito || delivery.quest.gabarito || '').trim().toUpperCase(),
                 tags: novasTags
               }
             });
