@@ -16,19 +16,43 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
   });
 
   // ─── POST /institutions ───────────────────────────────────────────────────
-  fastify.post<{ Body: { nome: string } }>('/institutions', async (request, reply) => {
-    const { nome } = request.body;
+  fastify.post<{ Body: { nome: string; codigo?: string } }>('/institutions', async (request, reply) => {
+    const { nome, codigo } = request.body;
     if (!nome || !nome.trim()) {
       return reply.status(400).send({ error: 'O nome da instituição é obrigatório.' });
     }
 
     try {
+      let finalCodigo = codigo ? codigo.trim() : '';
+      if (!finalCodigo) {
+        // Autogerar código numérico sequencial
+        const institutions = await prisma.institution.findMany({
+          where: { codigo: { not: null } },
+          select: { codigo: true }
+        });
+        let nextCode = 101;
+        const numericCodes = institutions
+          .map(i => parseInt(i.codigo || '', 10))
+          .filter(n => !isNaN(n));
+        if (numericCodes.length > 0) {
+          nextCode = Math.max(...numericCodes) + 1;
+        }
+        finalCodigo = String(nextCode).padStart(4, '0');
+      }
+
       const institution = await prisma.institution.create({
-        data: { nome: nome.trim() }
+        data: { 
+          nome: nome.trim(),
+          codigo: finalCodigo
+        }
       });
       return reply.status(201).send(institution);
     } catch (error: any) {
       if (error.code === 'P2002') {
+        const target = error.meta?.target || [];
+        if (target.includes('codigo')) {
+          return reply.status(400).send({ error: 'Este código de instituição já está em uso.' });
+        }
         return reply.status(400).send({ error: 'Uma instituição com este nome já existe.' });
       }
       return reply.status(500).send({ error: 'Erro ao criar instituição.' });
@@ -123,9 +147,9 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
   });
 
   // ─── PUT /institutions/:id ────────────────────────────────────────────────
-  fastify.put<{ Params: { id: string }; Body: { nome: string } }>('/institutions/:id', async (request, reply) => {
+  fastify.put<{ Params: { id: string }; Body: { nome: string; codigo?: string } }>('/institutions/:id', async (request, reply) => {
     const { id } = request.params;
-    const { nome } = request.body;
+    const { nome, codigo } = request.body;
 
     if (!nome || !nome.trim()) {
       return reply.status(400).send({ error: 'O nome da instituição é obrigatório.' });
@@ -142,7 +166,10 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
       const updated = await prisma.$transaction(async (tx) => {
         const inst = await tx.institution.update({
           where: { id },
-          data: { nome: newNomeClean }
+          data: { 
+            nome: newNomeClean,
+            codigo: codigo ? codigo.trim() : undefined
+          }
         });
 
         // Cascata nas turmas
@@ -169,6 +196,10 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
       return reply.status(200).send(updated);
     } catch (error: any) {
       if (error.code === 'P2002') {
+        const target = error.meta?.target || [];
+        if (target.includes('codigo')) {
+          return reply.status(400).send({ error: 'Este código de instituição já está em uso.' });
+        }
         return reply.status(400).send({ error: 'Uma instituição com este nome já existe.' });
       }
       return reply.status(500).send({ error: 'Erro ao atualizar instituição.' });

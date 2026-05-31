@@ -44,7 +44,7 @@ export class FirstAccessUseCase {
     };
 
     const cleanInputNick = nickname.includes('@') ? nickname.split('@').pop()! : nickname;
-    const schoolPrefix = getSchoolNick(user.instituicao || '');
+    const schoolPrefix = user.institution?.codigo || getSchoolNick(user.instituicao || '');
     const fullNickname = schoolPrefix ? `${schoolPrefix}@${cleanInputNick.trim()}` : cleanInputNick.trim();
 
     const existingWithNick = await this.userRepository.findByNicknameInInstitution(fullNickname, user.institutionId, userId);

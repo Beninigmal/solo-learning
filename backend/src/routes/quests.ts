@@ -980,7 +980,8 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
             helpResponse: null,
             studentAnswer: answer,
             studentImage: image,
-            xpGanho: result.xpGanho
+            xpGanho: result.xpGanho,
+            usedHelpers: ""
           }
         });
         await prisma.user.update({ where: { id: userId }, data: { xp: { increment: result.xpToAward } } });
@@ -1151,6 +1152,7 @@ Retorne APENAS um JSON no seguinte formato:
             erros: novosErros,
             studentAnswer: answer,
             studentImage: image,
+            usedHelpers: "",
             ...(hasExtraAttempt ? { helpRequested: false, helpResponse: null } : {})
           }
         });
@@ -1194,7 +1196,7 @@ Retorne APENAS um JSON no seguinte formato:
       // Marca a entrega como WAITING para liberar o slot da missão diária
       await prisma.questDelivery.update({
         where: { id: deliveryId },
-        data: { status: 'WAITING', waitingSince: new Date() }
+        data: { status: 'WAITING', waitingSince: new Date(), usedHelpers: "" }
       });
 
       return reply.status(200).send({ message: 'Missão guardada no Baú com sucesso!' });
@@ -1350,7 +1352,8 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
               helpResponse: null,
               studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
               studentImage: image || null,
-              xpGanho: result.xpGanho
+              xpGanho: result.xpGanho,
+              usedHelpers: ""
             }
           }).catch(err => {
             console.error('[QuestDelivery Update Error in Baú Retry]', err);
@@ -1388,7 +1391,8 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
               helpResponse: null,
               studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
               studentImage: image || null,
-              erros: novasTentativas
+              erros: novasTentativas,
+              usedHelpers: ""
             }
           }).catch(console.error);
         } else {
@@ -1398,7 +1402,8 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
             data: {
               studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
               studentImage: image || null,
-              erros: novasTentativas
+              erros: novasTentativas,
+              usedHelpers: ""
             }
           }).catch(console.error);
         }
@@ -3894,6 +3899,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           }
         });
 
+        let isBaú = false;
         let delivery = await prisma.questDelivery.findFirst({
           where: {
             id: deliveryId,
@@ -3909,6 +3915,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           });
 
           if (wrongAnswer) {
+            isBaú = true;
             delivery = await prisma.questDelivery.findUnique({
               where: {
                 questId_userId: {
@@ -3940,17 +3947,20 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         }
 
         // Verificar se este artefato já foi usado nesta missão
-        const usedList = delivery.usedHelpers ? delivery.usedHelpers.split(',') : [];
+        // Para retentativas do Baú, ignoramos as restrições e registros do histórico da missão diária original
+        const usedList = (delivery.usedHelpers && !isBaú) ? delivery.usedHelpers.split(',') : [];
         if (usedList.includes(artifactId)) {
           return reply.status(400).send({ error: 'Este artefato já foi utilizado nesta missão.' });
         }
 
         // Registrar o uso do artefato
-        usedList.push(artifactId);
-        await prisma.questDelivery.update({
-          where: { id: delivery.id },
-          data: { usedHelpers: usedList.filter(Boolean).join(',') }
-        });
+        if (!isBaú) {
+          usedList.push(artifactId);
+          await prisma.questDelivery.update({
+            where: { id: delivery.id },
+            data: { usedHelpers: usedList.filter(Boolean).join(',') }
+          });
+        }
 
         const enunciado = delivery.quest.enunciado;
 
@@ -4054,7 +4064,7 @@ Retorne APENAS o JSON.`;
             raw = raw.substring(firstBrace, lastBrace + 1);
           }
           const parsed = JSON.parse(raw);
-          return reply.send({ eliminate: parsed.eliminate || 'C' });
+          return reply.send({ eliminate: String(parsed.eliminate || 'C').toUpperCase() });
         }
 
         if (artifactId === 'pergaminho_oraculo') {

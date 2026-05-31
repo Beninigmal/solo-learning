@@ -295,6 +295,7 @@ model GoldenAnswer {
 model Institution {
   id            String       @id @default(uuid())
   nome          String       @unique
+  codigo        String?      @unique
   createdAt     DateTime     @default(now())
   users         User[]
   turmas        Turma[]
