@@ -21,8 +21,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
   // ─── GESTÃO DE MESTRES ──────────────────────────────────────────────────
 
   // Criar Mestre
-  fastify.post<{ Body: { matricula: string; nome: string; nickname?: string; novaMateria?: string; maxAulasSemanais?: number } }>('/masters', async (request, reply) => {
-    const { matricula, nome, nickname, novaMateria, maxAulasSemanais } = request.body;
+  fastify.post<{ Body: { matricula: string; nome: string; novaMateria?: string; maxAulasSemanais?: number; categoria?: string } }>('/masters', async (request, reply) => {
+    const { matricula, nome, novaMateria, maxAulasSemanais, categoria } = request.body;
     const instituicao = request.user.instituicao!;
 
     if (!matricula || !nome) {
@@ -30,21 +30,6 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     }
 
     try {
-      if (nickname) {
-        const existingWithNick = await prisma.user.findFirst({
-          where: {
-            nickname: { equals: nickname.trim(), mode: 'insensitive' },
-            OR: [
-              { institutionId: request.user.institutionId || 'NO_INSTITUTION' },
-              { instituicao: request.user.instituicao || 'NO_INSTITUTION' }
-            ]
-          }
-        });
-        if (existingWithNick) {
-          return reply.status(400).send({ error: 'Este nickname já está em uso na sua instituição.' });
-        }
-      }
-
       const defaultPassword = await bcrypt.hash('Solen2026', 10);
       
       // Se tiver nova matéria, criar ou buscar
@@ -64,23 +49,34 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         }
       }
 
+      let instType = 'MUNICIPAL';
+      if (request.user.institutionId) {
+        const inst = await prisma.institution.findUnique({
+          where: { id: request.user.institutionId }
+        });
+        if (inst) instType = inst.tipo;
+      }
+      const isPrivate = instType.startsWith('PRIVADO');
+      const finalCategoria = isPrivate ? 'CLT' : (categoria || 'CONCURSADO');
+
       const user = await prisma.user.create({
         data: {
           matricula: matricula.toLowerCase().trim(),
           nome: nome.trim(),
-          nickname: nickname ? nickname.trim() : null,
+          nickname: null,
           role: 'PROFESSOR',
           password: defaultPassword,
           isFirstAccess: true,
           instituicao,
           institutionId: request.user.institutionId || null,
-          maxAulasSemanais: maxAulasSemanais !== undefined ? Math.max(0, maxAulasSemanais) : 16
+          maxAulasSemanais: maxAulasSemanais !== undefined ? Math.max(0, maxAulasSemanais) : 16,
+          categoria: finalCategoria
         }
       });
       return reply.status(201).send({ message: 'Mestre cadastrado com sucesso!', user });
     } catch (error: any) {
       if (error.code === 'P2002') {
-        return reply.status(400).send({ error: 'Matrícula ou Nickname já cadastrada.' });
+        return reply.status(400).send({ error: 'Matrícula já cadastrada.' });
       }
       return reply.status(500).send({ error: 'Erro ao cadastrar mestre.' });
     }
@@ -97,18 +93,29 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
   });
 
   // Editar Mestre da Instituição
-  fastify.put<{ Params: { id: string }; Body: { nome?: string; nickname?: string; maxAulasSemanais?: number } }>('/masters/:id', async (request, reply) => {
+  fastify.put<{ Params: { id: string }; Body: { nome?: string; nickname?: string; maxAulasSemanais?: number; categoria?: string } }>('/masters/:id', async (request, reply) => {
     const { id } = request.params;
-    const { nome, nickname, maxAulasSemanais } = request.body;
+    const { nome, nickname, maxAulasSemanais, categoria } = request.body;
     const instituicao = request.user.instituicao!;
 
     try {
+      let instType = 'MUNICIPAL';
+      if (request.user.institutionId) {
+        const inst = await prisma.institution.findUnique({
+          where: { id: request.user.institutionId }
+        });
+        if (inst) instType = inst.tipo;
+      }
+      const isPrivate = instType.startsWith('PRIVADO');
+      const finalCategoria = isPrivate ? 'CLT' : (categoria !== undefined ? categoria : undefined);
+
       const updated = await prisma.user.update({
         where: { id, role: 'PROFESSOR', instituicao },
         data: { 
           nome: nome ? nome.trim() : undefined, 
           nickname: nickname ? nickname.trim() : undefined,
-          maxAulasSemanais: maxAulasSemanais !== undefined ? Math.max(0, maxAulasSemanais) : undefined
+          maxAulasSemanais: maxAulasSemanais !== undefined ? Math.max(0, maxAulasSemanais) : undefined,
+          categoria: finalCategoria
         }
       });
       return reply.send(updated);
@@ -542,7 +549,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
   });
 
   // Cadastro de Professores/Mestres em Lote
-  fastify.post<{ Body: { teachers: { nome: string; matricula: string; maxAulasSemanais?: number; cargahoraria?: number; cargahorariacontratual?: number }[] } }>('/masters/batch', async (request, reply) => {
+  fastify.post<{ Body: { teachers: { nome: string; matricula: string; maxAulasSemanais?: number; cargahoraria?: number; cargahorariacontratual?: number; categoria?: string }[] } }>('/masters/batch', async (request, reply) => {
     const { teachers } = request.body;
     const instituicao = request.user.instituicao!;
     const institutionId = request.user.institutionId || null;
@@ -552,6 +559,15 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     }
 
     try {
+      let instType = 'MUNICIPAL';
+      if (institutionId) {
+        const inst = await prisma.institution.findUnique({
+          where: { id: institutionId }
+        });
+        if (inst) instType = inst.tipo;
+      }
+      const isPrivate = instType.startsWith('PRIVADO');
+
       const defaultPassword = await bcrypt.hash('Solen2026', 10);
       let createdCount = 0;
       let errors: string[] = [];
@@ -562,17 +578,27 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           continue;
         }
 
-        // Mapear carga contratual ou limite de aulas com base no MEC 1/3
+        // Mapear carga contratual ou limite de aulas com base no MEC 1/3 (Concursado) ou 80% (REDA) ou 100% (CLT)
         let maxAulas = 16;
         const rawCarga = t.cargahoraria || t.cargahorariacontratual;
+        let catClean = isPrivate ? 'CLT' : String(t.categoria || 'CONCURSADO').toUpperCase().trim();
+
         if (rawCarga) {
           const hours = Number(rawCarga);
-          if (hours === 20) maxAulas = 13;
-          else if (hours === 24) maxAulas = 16;
-          else if (hours === 26) maxAulas = 17;
-          else if (hours === 30) maxAulas = 20;
-          else if (hours === 40) maxAulas = 26;
-          else maxAulas = Math.floor(hours * (2 / 3));
+          if (catClean === 'CLT') {
+            maxAulas = hours;
+          } else if (catClean === 'REDA') {
+            if (hours === 20) maxAulas = 16;
+            else if (hours === 40) maxAulas = 32;
+            else maxAulas = Math.floor(hours * 0.80);
+          } else {
+            if (hours === 20) maxAulas = 13;
+            else if (hours === 24) maxAulas = 16;
+            else if (hours === 26) maxAulas = 17;
+            else if (hours === 30) maxAulas = 20;
+            else if (hours === 40) maxAulas = 26;
+            else maxAulas = Math.floor(hours * (2 / 3));
+          }
         } else if (t.maxAulasSemanais) {
           maxAulas = t.maxAulasSemanais;
         }
@@ -587,7 +613,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
               isFirstAccess: true,
               instituicao,
               institutionId,
-              maxAulasSemanais: maxAulas
+              maxAulasSemanais: maxAulas,
+              categoria: catClean
             }
           });
           createdCount++;

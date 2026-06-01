@@ -16,8 +16,8 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
   });
 
   // ─── POST /institutions ───────────────────────────────────────────────────
-  fastify.post<{ Body: { nome: string; codigo?: string } }>('/institutions', async (request, reply) => {
-    const { nome, codigo } = request.body;
+  fastify.post<{ Body: { nome: string; codigo?: string; tipo?: string } }>('/institutions', async (request, reply) => {
+    const { nome, codigo, tipo } = request.body;
     if (!nome || !nome.trim()) {
       return reply.status(400).send({ error: 'O nome da instituição é obrigatório.' });
     }
@@ -43,7 +43,8 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
       const institution = await prisma.institution.create({
         data: { 
           nome: nome.trim(),
-          codigo: finalCodigo
+          codigo: finalCodigo,
+          tipo: tipo || 'MUNICIPAL'
         }
       });
       return reply.status(201).send(institution);
@@ -147,9 +148,11 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
   });
 
   // ─── PUT /institutions/:id ────────────────────────────────────────────────
-  fastify.put<{ Params: { id: string }; Body: { nome: string; codigo?: string } }>('/institutions/:id', async (request, reply) => {
+  fastify.put<{ Params: { id: string }; Body: { nome: string; codigo?: string; tipo?: string } }>('/institutions/:id', async (request, reply) => {
     const { id } = request.params;
-    const { nome, codigo } = request.body;
+    const { nome, codigo, tipo } = request.body;
+
+    console.log('[PUT /institutions/:id] BODY RECEIVED:', { id, nome, codigo, tipo });
 
     if (!nome || !nome.trim()) {
       return reply.status(400).send({ error: 'O nome da instituição é obrigatório.' });
@@ -168,9 +171,11 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
           where: { id },
           data: { 
             nome: newNomeClean,
-            codigo: codigo ? codigo.trim() : undefined
+            codigo: codigo ? codigo.trim() : undefined,
+            tipo: tipo !== undefined ? tipo : undefined
           }
         });
+        console.log('[PUT /institutions/:id] DATABASE UPDATED RESULT:', inst);
 
         // Cascata nas turmas
         await tx.turma.updateMany({
