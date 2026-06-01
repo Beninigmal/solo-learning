@@ -51,6 +51,7 @@ model User {
   /// Limite semanal de aulas em regência (2/3 da carga). Default: 16 (contrato 20h).
   /// Para contrato 40h configure como 32. Usado pelo Monarch Engine para controle cross-turma.
   maxAulasSemanais Int? // null = usar default 16
+  categoria        String?  @default("CONCURSADO") // CONCURSADO, REDA
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -296,6 +297,7 @@ model Institution {
   id            String       @id @default(uuid())
   nome          String       @unique
   codigo        String?      @unique
+  tipo          String       @default("MUNICIPAL") // MUNICIPAL, ESTADUAL, PRIVADO_FUNDAMENTAL, PRIVADO_MEDIO, PRIVADO_LIVRE
   createdAt     DateTime     @default(now())
   users         User[]
   turmas        Turma[]
