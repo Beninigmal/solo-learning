@@ -152,7 +152,7 @@ model QuestDelivery {
   expiresAt    DateTime? // = waitingSince + 40 min (TTL da fila de espera)
   answeredAt   DateTime?
   isCorrect    Boolean?
-  erros        Int       @default(0) // Contador de erros para cálculo da maldição 25%
+  erros        Int       @default(0) // Contador de erros para cálculo da penalidade 25%
 
   createdAt   DateTime @default(now())
 
@@ -337,3 +337,16 @@ model GiftedArtifact {
   artifactId String
   createdAt  DateTime @default(now())
 }
+
+model DeleteAccountRequest {
+  id          String   @id @default(uuid())
+  userId      String
+  nome        String
+  matricula   String
+  role        String
+  motivo      String
+  email       String
+  instituicao String
+  createdAt   DateTime @default(now())
+}
+

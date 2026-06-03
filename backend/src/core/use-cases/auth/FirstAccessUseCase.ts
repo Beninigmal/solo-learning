@@ -44,6 +44,9 @@ export class FirstAccessUseCase {
     };
 
     const cleanInputNick = nickname.includes('@') ? nickname.split('@').pop()! : nickname;
+    if (/\s/.test(cleanInputNick.trim())) {
+      throw new Error('O nickname não pode conter espaços.');
+    }
     const schoolPrefix = user.institution?.codigo || getSchoolNick(user.instituicao || '');
     const fullNickname = schoolPrefix ? `${schoolPrefix}@${cleanInputNick.trim()}` : cleanInputNick.trim();
 

@@ -61,7 +61,7 @@ export class GeminiAIProvider implements IAIProvider {
         });
       }
       
-      const result = await model.generateContent(parts);
+      const result = await model.generateContent(image ? parts : parts[0]);
       let raw = result.response.text().trim();
       raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
       return raw;

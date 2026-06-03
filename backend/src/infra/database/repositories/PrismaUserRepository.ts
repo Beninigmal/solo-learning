@@ -58,9 +58,18 @@ export class PrismaUserRepository implements IUserRepository {
         await tx.disciplinaProfessor.deleteMany({ where: { professorId: id } });
         await tx.turmaDisciplina.deleteMany({ where: { professorId: id } });
         await tx.calendarEvent.deleteMany({ where: { professorId: id } });
+        await tx.professorRestriction.deleteMany({ where: { professorId: id } });
       }
 
+      await tx.goldenQuestion.updateMany({
+        where: { criadorId: id },
+        data: { criadorId: null }
+      });
+
+      await tx.raidMessage.deleteMany({ where: { userId: id } });
       await tx.raidParticipant.deleteMany({ where: { userId: id } });
+      await tx.giftedArtifact.deleteMany({ where: { userId: id } });
+      await tx.deleteAccountRequest.deleteMany({ where: { userId: id } });
       await tx.user.delete({ where: { id } });
     });
   }

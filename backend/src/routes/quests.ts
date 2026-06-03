@@ -94,7 +94,7 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
         });
       }
       
-      const result = await model.generateContent(parts);
+      const result = await model.generateContent(image ? parts : parts[0]);
       let raw = result.response.text().trim();
       raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
       return raw;
@@ -253,7 +253,7 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
         return reply.status(200).send({
           deliveryId: delivered.id,
           question: delivered.quest.enunciado,
-          xp: Math.max(Math.round(delivered.quest.xp * Math.pow(0.75, delivered.erros)), 25), // Maldição
+          xp: Math.max(Math.round(delivered.quest.xp * Math.pow(0.75, delivered.erros)), 25), // Penalidade
           nivel: delivered.quest.nivel,
           tags: delivered.quest.tags,
           erros: delivered.erros,
@@ -946,7 +946,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       const isCorrect = validation.status === 'success';
 
       if (isCorrect) {
-        // Calcular XP com maldição de 25% por erro acumulado (Boss e Mini Boss não sofrem maldição)
+        // Calcular XP com penalidade de 25% por erro acumulado (Boss e Mini Boss não sofrem penalidade)
         const isBoss = delivery.quest.nivel === 'BOSS' || delivery.quest.nivel === 'MINIBOSS';
         const effectiveErros = artifactId === 'escudo_arcano' ? 0 : delivery.erros;
         let xpFinalBeforeBuffs = isBoss
@@ -1366,7 +1366,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           data: { xp: { increment: result.xpToAward } }
         });
 
-        // Se acertou usando escudo arcano, remove a maldição do QuestDelivery no BD resetando erros para 0!
+        // Se acertou usando escudo arcano, remove a penalidade do QuestDelivery no BD resetando erros para 0!
         if (artifactId === 'escudo_arcano') {
           await prisma.questDelivery.updateMany({
             where: { userId, questId: wrongAnswer.questId },
@@ -2164,8 +2164,8 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
   fastify.put<{ Params: { id: string }; Body: { unidade: number } }>('/turmas/:id/unidade', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     try {
       const user = await prisma.user.findUnique({ where: { id: request.user.id } });
-      if (!user || (user.role !== 'ADMIN' && user.role !== 'PROFESSOR')) {
-        return reply.status(403).send({ error: 'Apenas diretores e mestres podem alterar a unidade da turma.' });
+      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+        return reply.status(403).send({ error: 'Acesso negado. Apenas o Arquiteto tem permissão.' });
       }
       const { id } = request.params;
       const { unidade } = request.body;
@@ -2365,7 +2365,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         professores: d.professores.map(p => {
           const associatedTurmas = allTurmaDisciplinas
             .filter(td => td.professorId === p.professor.id && td.disciplinaId === d.id)
-            .map(td => ({ id: td.turma.id, nome: td.turma.nome }));
+            .map(td => ({ id: td.turma.id, nome: td.turma.nome, aulasSemanais: td.aulasSemanais }));
           return {
             id: p.professor.id,
             nome: p.professor.nome,
@@ -2383,13 +2383,13 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
     }
   });
 
-  fastify.post<{ Body: { professorId: string; disciplinaId: string; temp?: any; turmaIds?: string[] } }>('/disciplinas/professor', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+  fastify.post<{ Body: { professorId: string; disciplinaId: string; temp?: any; turmaIds?: string[]; aulasSemanais?: number } }>('/disciplinas/professor', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     try {
       const user = await prisma.user.findUnique({ where: { id: request.user.id } });
       if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
         return reply.status(403).send({ error: 'Apenas o Diretor/ADMIN ou Arquiteto pode vincular professores.' });
       }
-      const { professorId, disciplinaId, temp, turmaIds } = request.body;
+      const { professorId, disciplinaId, temp, turmaIds, aulasSemanais } = request.body;
       const targetTurmaIds = Array.isArray(turmaIds) ? turmaIds : [];
 
       const targetProf = await prisma.user.findFirst({
@@ -2490,18 +2490,11 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       const targetTurmas = await prisma.turma.findMany({
         where: { id: { in: targetTurmaIds } }
       });
-      const existingVinculosForThisDisc = await prisma.turmaDisciplina.findMany({
-        where: {
-          disciplinaId,
-          turmaId: { in: targetTurmaIds }
-        }
-      });
 
       let newHours = 0;
       for (const tid of targetTurmaIds) {
         const matchingTurma = targetTurmas.find(t => t.id === tid);
-        const match = existingVinculosForThisDisc.find(ev => ev.turmaId === tid);
-        newHours += (match && match.aulasSemanais > 0) ? match.aulasSemanais : getSubjectDefaultHours(targetDisc.nome, matchingTurma?.nome, matchingTurma?.nivel);
+        newHours += (aulasSemanais && aulasSemanais > 0) ? Number(aulasSemanais) : getSubjectDefaultHours(targetDisc.nome, matchingTurma?.nome, matchingTurma?.nivel);
       }
 
       const limit = targetProf.maxAulasSemanais ?? 32;
@@ -2547,13 +2540,14 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
               turmaId_disciplinaId: { turmaId: tid, disciplinaId }
             },
             update: {
-              professorId // Reatribui para este professor se pertencia a outro!
+              professorId, // Reatribui para este professor se pertencia a outro!
+              aulasSemanais: aulasSemanais !== undefined ? Math.max(0, Number(aulasSemanais)) : 0
             },
             create: {
               turmaId: tid,
               disciplinaId,
               professorId,
-              aulasSemanais: 0,
+              aulasSemanais: aulasSemanais !== undefined ? Math.max(0, Number(aulasSemanais)) : 0,
               geminada: false
             }
           });
@@ -3040,46 +3034,53 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
     if (totalRequired !== totalSlots) {
       let diff = totalSlots - totalRequired;
       
-      // Ordenar chaves: priorizar disciplinas VIRTUAIS (sem professor) para ajuste!
-      const sortedKeys = Object.keys(requiredCounts).sort((a, b) => {
-        const tdA = turmaDisciplinas.find(x => x.disciplinaId === a);
-        const tdB = turmaDisciplinas.find(x => x.disciplinaId === b);
-        const isVirtualA = tdA?.professorId === 'UNLINKED' ? 1 : 0;
-        const isVirtualB = tdB?.professorId === 'UNLINKED' ? 1 : 0;
-        
-        // Colocar as virtuais primeiro para que sejam ajustadas antes das reais!
-        if (isVirtualA !== isVirtualB) {
-          return isVirtualB - isVirtualA; // virtual vem antes
-        }
-        return requiredCounts[b] - requiredCounts[a];
-      });
-
-      if (sortedKeys.length > 0) {
-        let i = 0;
-        let loopSafety = 0;
-        while (diff !== 0 && loopSafety < 1000) {
-          loopSafety++;
-          const k = sortedKeys[i % sortedKeys.length];
-          const td = turmaDisciplinas.find(x => x.disciplinaId === k);
-          const isVirtual = td?.professorId === 'UNLINKED';
+      if (diff > 0) {
+        // Se temos vagas sobrando na grade, criamos a disciplina fictícia 'VAGO' para preenchê-las!
+        // Isso impede que matérias reais (como Geografia) sejam artificialmente infladas.
+        requiredCounts['VAGO'] = diff;
+        isGeminada['VAGO'] = false;
+        turmaDisciplinas.push({
+          id: 'virtual_vago',
+          turmaId: turmaDisciplinas[0]?.turmaId || '',
+          disciplinaId: 'VAGO',
+          professorId: 'UNLINKED',
+          professor: null,
+          aulasSemanais: diff,
+          geminada: false,
+          disciplina: { id: 'VAGO', nome: 'Vago' }
+        });
+      } else {
+        // Se ultrapassou o totalSlots, reduzimos usando a ordenação e lógica normal
+        // Ordenar chaves: priorizar disciplinas VIRTUAIS (sem professor) para ajuste!
+        const sortedKeys = Object.keys(requiredCounts).sort((a, b) => {
+          const tdA = turmaDisciplinas.find(x => x.disciplinaId === a);
+          const tdB = turmaDisciplinas.find(x => x.disciplinaId === b);
+          const isVirtualA = tdA?.professorId === 'UNLINKED' ? 1 : 0;
+          const isVirtualB = tdB?.professorId === 'UNLINKED' ? 1 : 0;
           
-          if (diff > 0) {
-            // Se precisamos de mais slots, só adicionamos em virtual (se houver virtual)
-            // ou se não houver virtual, adicionamos em qualquer um
-            const hasVirtuals = sortedKeys.some(x => turmaDisciplinas.find(y => y.disciplinaId === x)?.professorId === 'UNLINKED');
-            if (isVirtual || !hasVirtuals) {
-              requiredCounts[k]++;
-              diff--;
-            }
-          } else {
-            // Se precisamos remover slots, só removemos se for > 1 e for virtual (se houver virtual)
+          if (isVirtualA !== isVirtualB) {
+            return isVirtualB - isVirtualA; // virtual vem antes
+          }
+          return requiredCounts[b] - requiredCounts[a];
+        });
+
+        if (sortedKeys.length > 0) {
+          let i = 0;
+          let loopSafety = 0;
+          while (diff !== 0 && loopSafety < 1000) {
+            loopSafety++;
+            const k = sortedKeys[i % sortedKeys.length];
+            const td = turmaDisciplinas.find(x => x.disciplinaId === k);
+            const isVirtual = td?.professorId === 'UNLINKED';
+            
+            // Só removemos se for > 1 e for virtual (se houver virtual)
             const hasVirtuals = sortedKeys.some(x => turmaDisciplinas.find(y => y.disciplinaId === x)?.professorId === 'UNLINKED');
             if ((isVirtual || !hasVirtuals) && requiredCounts[k] > 1) {
               requiredCounts[k]--;
               diff++;
             }
+            i++;
           }
-          i++;
         }
       }
     }
@@ -3445,12 +3446,14 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       await prisma.$transaction(async (tx) => {
         await tx.timetableSlot.deleteMany({ where: { turmaId, posicao: { in: positions } } });
         await tx.timetableSlot.createMany({
-          data: slotsToFill.map(({ day, pos }) => ({
-            turmaId,
-            diaSemana: day,
-            posicao: pos,
-            disciplinaId: assignedSlots[`${day}_${pos}`]
-          }))
+          data: slotsToFill
+            .filter(({ day, pos }) => assignedSlots[`${day}_${pos}`] !== 'VAGO')
+            .map(({ day, pos }) => ({
+              turmaId,
+              diaSemana: day,
+              posicao: pos,
+              disciplinaId: assignedSlots[`${day}_${pos}`]
+            }))
         });
       });
 
@@ -3677,12 +3680,14 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         await prisma.$transaction(async (tx) => {
           await tx.timetableSlot.deleteMany({ where: { turmaId: turma.id, posicao: { in: positions } } });
           await tx.timetableSlot.createMany({
-            data: slotsToFill.map(({ day, pos }) => ({
-              turmaId: turma.id,
-              diaSemana: day,
-              posicao: pos,
-              disciplinaId: assignedSlots[`${day}_${pos}`]
-            }))
+            data: slotsToFill
+              .filter(({ day, pos }) => assignedSlots[`${day}_${pos}`] !== 'VAGO')
+              .map(({ day, pos }) => ({
+                turmaId: turma.id,
+                diaSemana: day,
+                posicao: pos,
+                disciplinaId: assignedSlots[`${day}_${pos}`]
+              }))
           });
         });
 
@@ -3690,12 +3695,14 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         for (const day of ['SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA']) {
           for (const pos of positions) {
             const discId = assignedSlots[`${day}_${pos}`];
-            const td = combinedTurmaDisciplinas.find(x => x.disciplinaId === discId);
-            if (td) {
-              const profId = td.professorId;
-              if (profId !== 'UNLINKED') {
-                globalBusySlots.add(`${day}_${pos}_${profId}`);
-                professorWeeklyCount.set(profId, (professorWeeklyCount.get(profId) ?? 0) + 1);
+            if (discId !== 'VAGO') {
+              const td = combinedTurmaDisciplinas.find(x => x.disciplinaId === discId);
+              if (td) {
+                const profId = td.professorId;
+                if (profId !== 'UNLINKED') {
+                  globalBusySlots.add(`${day}_${pos}_${profId}`);
+                  professorWeeklyCount.set(profId, (professorWeeklyCount.get(profId) ?? 0) + 1);
+                }
               }
             }
           }
@@ -4292,10 +4299,10 @@ Retorne APENAS um JSON no formato:
           data: { erros: 0 }
         });
 
-        return reply.send({ success: true, message: 'Maldição expurgada! XP da quest restaurado para 100%.' });
+        return reply.send({ success: true, message: 'Penalidade expurgada! XP da quest restaurado para 100%.' });
       } catch (error: any) {
         request.log.error(error);
-        return reply.status(500).send({ error: 'Erro ao curar maldição da quest.', details: error.message });
+        return reply.status(500).send({ error: 'Erro ao curar penalidade da quest.', details: error.message });
       }
     }
   );

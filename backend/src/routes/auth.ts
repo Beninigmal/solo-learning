@@ -3,6 +3,7 @@ import { PrismaUserRepository } from '../infra/database/repositories/PrismaUserR
 import { LoginUseCase } from '../core/use-cases/auth/LoginUseCase';
 import { FirstAccessUseCase } from '../core/use-cases/auth/FirstAccessUseCase';
 import { AuthController } from '../presentation/controllers/AuthController';
+import { prisma } from '../prisma';
 
 export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   const userRepository = new PrismaUserRepository();
@@ -28,6 +29,41 @@ export const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
     '/delete-account', 
     { preValidation: [fastify.authenticate] }, 
     (req, rep) => authController.deleteAccount(req, rep)
+  );
+
+  fastify.post<{ Body: { motivo: string; email: string } }>(
+    '/request-delete-account',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      const { motivo, email } = request.body;
+      if (!motivo || !email) {
+        return reply.status(400).send({ error: 'Motivo e e-mail são obrigatórios.' });
+      }
+      try {
+        const userId = (request.user as any).id;
+        const user = await prisma.user.findUnique({
+          where: { id: userId }
+        });
+        if (!user) {
+          return reply.status(404).send({ error: 'Usuário não encontrado.' });
+        }
+        const requestDel = await prisma.deleteAccountRequest.create({
+          data: {
+            userId: user.id,
+            nome: user.nome,
+            matricula: user.matricula,
+            role: user.role,
+            motivo: motivo.trim(),
+            email: email.trim(),
+            instituicao: user.instituicao || ''
+          }
+        });
+        return reply.status(200).send({ message: 'Solicitação de exclusão de conta enviada com sucesso.', request: requestDel });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao solicitar exclusão de conta.' });
+      }
+    }
   );
 
   fastify.post<{ Body: { expoPushToken: string } }>(

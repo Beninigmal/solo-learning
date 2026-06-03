@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { prisma } from '../prisma';
+import { PrismaUserRepository } from '../infra/database/repositories/PrismaUserRepository';
 import bcrypt from 'bcryptjs';
 import * as XLSX from 'xlsx';
 
@@ -98,6 +99,10 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     const { nome, nickname, maxAulasSemanais, categoria } = request.body;
     const instituicao = request.user.instituicao!;
 
+    if (nickname && /\s/.test(nickname.trim())) {
+      return reply.status(400).send({ error: 'O nickname não pode conter espaços.' });
+    }
+
     try {
       let instType = 'MUNICIPAL';
       if (request.user.institutionId) {
@@ -148,6 +153,10 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     const { nome, nickname, turmaId } = request.body;
     const instituicao = request.user.instituicao!;
 
+    if (nickname && /\s/.test(nickname.trim())) {
+      return reply.status(400).send({ error: 'O nickname não pode conter espaços.' });
+    }
+
     try {
       // Verificar se a turma pertence à instituição se estiver trocando
       if (turmaId) {
@@ -195,12 +204,31 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         return reply.status(400).send({ error: 'Já existe uma turma com este nome na sua escola.' });
       }
 
+      let finalNivel = nivel;
+      if (request.user.institutionId) {
+        const inst = await prisma.institution.findUnique({
+          where: { id: request.user.institutionId }
+        });
+        if (inst) {
+          if (inst.tipo === 'MUNICIPAL' || inst.tipo === 'PRIVADO_FUNDAMENTAL') {
+            finalNivel = 'FUNDAMENTAL';
+          } else if (inst.tipo === 'ESTADUAL' || inst.tipo === 'PRIVADO_MEDIO') {
+            finalNivel = 'MEDIO';
+          } else if (inst.tipo === 'PRIVADO_LIVRE') {
+            finalNivel = 'LIVRE';
+          }
+        }
+      }
+      if (!finalNivel) {
+        finalNivel = 'FUNDAMENTAL';
+      }
+
       const turma = await prisma.turma.create({
         data: {
           nome: formattedNome,
           ano: ano.trim(),
           codigoInvocacao: codigoInvocacao ? codigoInvocacao.trim() : "1234",
-          nivel: nivel || "FUNDAMENTAL",
+          nivel: finalNivel,
           instituicao,
           institutionId: request.user.institutionId || null
         }
@@ -268,6 +296,74 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
 
       if (!p || !d || !t) {
         return reply.status(400).send({ error: 'Os elementos selecionados devem pertencer à mesma instituição.' });
+      }
+
+      // Calcular a carga atual em outras turmas/matérias
+      const existingVinculos = await prisma.turmaDisciplina.findMany({
+        where: { professorId },
+        include: { disciplina: true, turma: true }
+      });
+
+      const cleanNormalize = (name: string): string => {
+        return name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      };
+
+      const getSubjectDefaultHours = (subjectName: string, turmaNome?: string, turmaNivel?: string): number => {
+        const cleanSub = cleanNormalize(subjectName);
+        let level: "FUNDAMENTAL" | "MEDIO_REGULAR" | "MEDIO_TECNICO" = "FUNDAMENTAL";
+        if (turmaNivel) {
+          if (turmaNivel === 'MEDIO') level = 'MEDIO_REGULAR';
+          else if (turmaNivel === 'MEDIO_TECNICO') level = 'MEDIO_TECNICO';
+          else if (turmaNivel === 'FUNDAMENTAL') level = 'FUNDAMENTAL';
+        } else if (turmaNome) {
+          const cleanTurma = cleanNormalize(turmaNome);
+          if (/tec|tecnico|profes/.test(cleanTurma)) {
+            level = "MEDIO_TECNICO";
+          } else if (/[56789]/.test(cleanTurma)) {
+            level = "FUNDAMENTAL";
+          } else if (/[123]/.test(cleanTurma)) {
+            level = "MEDIO_REGULAR";
+          }
+        }
+        if (cleanSub.includes("portugues") || cleanSub.includes("lingua portuguesa") || cleanSub.includes("redacao")) {
+          return (level === "FUNDAMENTAL") ? 5 : 4;
+        }
+        if (cleanSub.includes("matematica") || cleanSub.includes("calculo")) {
+          if (level === "FUNDAMENTAL") return 5;
+          if (level === "MEDIO_REGULAR") return 2;
+          return 3;
+        }
+        if (cleanSub.includes("historia") || cleanSub.includes("geografia") || cleanSub.includes("ciencia") || cleanSub.includes("biologia")) {
+          return (level === "FUNDAMENTAL") ? 3 : 2;
+        }
+        if (cleanSub.includes("fisica") || cleanSub.includes("quimica")) {
+          return 2;
+        }
+        if (cleanSub.includes("ingles") || cleanSub.includes("ed") || cleanSub.includes("esport")) {
+          return 2;
+        }
+        if (cleanSub.includes("arte") || cleanSub.includes("filosofia") || cleanSub.includes("relig") || cleanSub.includes("sociologia")) {
+          return 1;
+        }
+        return 2;
+      };
+
+      let otherHours = 0;
+      for (const ov of existingVinculos) {
+        if (ov.turmaId === turmaId && ov.disciplinaId === disciplinaId) {
+          continue;
+        }
+        otherHours += ov.aulasSemanais > 0 ? ov.aulasSemanais : getSubjectDefaultHours(ov.disciplina.nome, ov.turma?.nome, ov.turma?.nivel);
+      }
+
+      const newHours = getSubjectDefaultHours(d.nome, t.nome, t.nivel);
+      const limit = p.maxAulasSemanais ?? 32;
+      const totalProposed = otherHours + newHours;
+
+      if (totalProposed > limit) {
+        return reply.status(400).send({
+          error: `Carga horária semanal excedida! O professor já possui ${otherHours} aulas/semana alocadas. Adicionar esta turma demandaria mais ${newHours} aulas, totalizando ${totalProposed} aulas/semana, o que supera o limite dele de ${limit} aulas/semana.`
+        });
       }
 
       const vinculo = await prisma.turmaDisciplina.create({
@@ -633,6 +729,73 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       });
     } catch (err: any) {
       return reply.status(500).send({ error: 'Erro interno ao processar lote.', details: err.message });
+    }
+  });
+
+  // ─── SOLICITAÇÕES DE EXCLUSÃO DE CONTA ────────────────────────────────────
+
+  fastify.get('/delete-requests', async (request, reply) => {
+    const instituicao = request.user.instituicao!;
+    try {
+      const requests = await prisma.deleteAccountRequest.findMany({
+        where: { instituicao },
+        orderBy: { createdAt: 'desc' }
+      });
+      return reply.status(200).send(requests);
+    } catch (error: any) {
+      return reply.status(500).send({ error: 'Erro ao listar solicitações de exclusão.' });
+    }
+  });
+
+  fastify.post<{ Params: { id: string } }>('/delete-requests/:id/confirm', async (request, reply) => {
+    const { id } = request.params;
+    const instituicao = request.user.instituicao!;
+    try {
+      const reqDel = await prisma.deleteAccountRequest.findUnique({
+        where: { id }
+      });
+      if (!reqDel) {
+        return reply.status(404).send({ error: 'Solicitação de exclusão não encontrada.' });
+      }
+      if (reqDel.instituicao !== instituicao) {
+        return reply.status(403).send({ error: 'Acesso negado.' });
+      }
+
+      const userRepository = new PrismaUserRepository();
+      await userRepository.delete(reqDel.userId);
+
+      try {
+        await prisma.deleteAccountRequest.delete({ where: { id } });
+      } catch (err) {}
+
+      return reply.status(200).send({ message: 'Conta excluída com sucesso.' });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao confirmar exclusão de conta.' });
+    }
+  });
+
+  fastify.delete<{ Params: { id: string } }>('/delete-requests/:id/reject', async (request, reply) => {
+    const { id } = request.params;
+    const instituicao = request.user.instituicao!;
+    try {
+      const reqDel = await prisma.deleteAccountRequest.findUnique({
+        where: { id }
+      });
+      if (!reqDel) {
+        return reply.status(404).send({ error: 'Solicitação de exclusão não encontrada.' });
+      }
+      if (reqDel.instituicao !== instituicao) {
+        return reply.status(403).send({ error: 'Acesso negado.' });
+      }
+
+      await prisma.deleteAccountRequest.delete({
+        where: { id }
+      });
+
+      return reply.status(200).send({ message: 'Solicitação de exclusão rejeitada com sucesso.' });
+    } catch (error: any) {
+      return reply.status(500).send({ error: 'Erro ao rejeitar exclusão de conta.' });
     }
   });
 };
