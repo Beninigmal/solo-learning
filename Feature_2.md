@@ -77,10 +77,25 @@ As missões não são estáticas; elas seguem uma fila de prioridade.
 - **Uso de Artefatos:**
   - **Modal de Resposta:** Durante qualquer missão (diária, baú ou boss), um ícone de uso de artefato aparecerá no modal de resposta. Ao clicar, o aluno acessará seus artefatos para facilitar a resolução da missão.
   - **Bolsa e Baú:** Os artefatos são exibidos na bolsa do jogador, mas podem ser consumidos diretamente na bolsa ou no **Baú de Quests Perdidas** para auxiliar a responder as missões acumuladas.
+  - **Efeito Visual de Consumo (Queimar de Carta):** Implementação de um shader SkSL acelerado por GPU (`CardBurnEffect`) utilizando `@shopify/react-native-skia` e `react-native-reanimated`. Quando um artefato é ativado no `ArtifactBurnModal` ou bolsa, a carta é consumida de baixo para cima com uma simulação física de queima:
+    - Transição de cinzas (tons de cinza com ruído FBM) que sobem acompanhando o fogo.
+    - Linha de fogo (ember line) com interpolação de cores (branco incandescente, amarelo, laranja, vermelho profundo).
+    - Animação sincronizada de 1.1s controlada por `progress` e `time` uniforms no fragment shader.
 
 ---
 
-## 4. Requisitos Técnicos e de Segurança
+## 4. Efeitos Sonoros e Ambientação
+- **Música do Boss (Boss Arena Loop):** Adicionada a faixa `boss_arena.mp3` para tocar em looping contínuo nas missões de nível `BOSS` e `MINIBOSS`.
+- **Gerenciador de Áudio:** Controlado de forma centralizada pelo hook `useSolenSounds` (com métodos assíncronos `playBossArena` e `stopBossArena`), integrando-se ao estado do modal `QuestWindowModal` para iniciar e parar a música automaticamente nas aberturas e fechamentos dos desafios.
+- **Configuração de Mudo (Mute):** O estado mutado persiste via `AsyncStorage` (`@Solen:muted`) e interrompe instantaneamente a música em execução caso seja ativado.
+
+---
+
+## 5. Requisitos Técnicos, Segurança e Testes
 - **Segurança de Identidade:** Autenticação biométrica local via chaveiro seguro do Expo (`expo-local-authentication` + `AsyncStorage`) integrada à API sem vazamento ou exposição de dados pessoais.
 - **Segurança Jurídica (LGPD):** Controle estrito de consentimento no front-end bloqueando hooks de polling e requisições assíncronas para usuários que ainda não aceitaram os termos legais.
 - **Interface e UX:** Layout cyberpunk gamificado responsivo adaptado com `<KeyboardAvoidingView>` inteligente (iOS: `padding` / Android: `nativamente redimensionável`) para evitar oclusão de teclados em caixas de textos longas.
+- **Testes Unitários:** Cobertura de testes em Jest (`jest-expo`) validando os novos fluxos de áudio e lógica de shaders em `effectsAndSounds.test.ts`. O arquivo cobre:
+  - Inicialização, carregamento e controle do ciclo de vida de áudio (`playBossArena`/`stopBossArena`) no hook `useSolenSounds`.
+  - Disparo condicional de trilha sonora em `QuestWindowModal` baseado na visibilidade e nível do desafio (BOSS/MINIBOSS).
+  - Cálculo de interpolação e progressão temporal para animações do shader de queima de cartas.
