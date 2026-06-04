@@ -254,7 +254,9 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
               subjectName,
               question: cleanQuestion,
               rawEnunciado: d.quest.enunciado,
-              xp: Math.max(Math.round(d.quest.xp * Math.pow(0.75, d.erros)), 25),
+              xp: d.quest.nivel === 'BOSS' 
+                   ? d.quest.xp 
+                   : Math.max(Math.round(d.quest.xp * Math.pow(0.75, d.erros)), 25),
               nivel: d.quest.nivel,
               tags: d.quest.tags,
               erros: d.erros,
