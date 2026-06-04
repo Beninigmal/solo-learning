@@ -186,6 +186,44 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
     const now = new Date();
 
     try {
+      // 1. VERIFICAR SE O USUÁRIO ESTÁ EM UMA RAID ATIVA COM MISSÃO COMPARTILHADA
+      const activeRaidParticipant = await prisma.raidParticipant.findFirst({
+        where: { userId, raid: { status: 'OPEN', raidModeActive: true } },
+        include: { raid: true }
+      });
+
+      if (activeRaidParticipant?.raid?.activeQuestDeliveryId) {
+        const sharedDeliveryId = activeRaidParticipant.raid.activeQuestDeliveryId;
+        const delivery = await prisma.questDelivery.findUnique({
+          where: { id: sharedDeliveryId },
+          include: { quest: true }
+        });
+        
+        // Se a entrega compartilhada da Raid ainda não foi concluída
+        if (delivery && delivery.status !== 'COMPLETED') {
+          return reply.status(200).send({
+            deliveryId: delivery.id,
+            status: delivery.status,
+            isRaidQuest: true,
+            currentResponderId: activeRaidParticipant.raid.currentResponderId,
+            question: delivery.quest.enunciado,
+            xp: Math.max(Math.round(delivery.quest.xp * Math.pow(0.75, delivery.erros)), 25),
+            nivel: delivery.quest.nivel,
+            tags: delivery.quest.tags,
+            erros: delivery.erros,
+            expiresAt: delivery.expiresAt || delivery.quest.expiresAt,
+            usedHelpers: delivery.usedHelpers ? delivery.usedHelpers.split(',').filter(Boolean) : [],
+            hammerSteps: delivery.hammerStepsRaw ? JSON.parse(delivery.hammerStepsRaw) : null,
+            oracleHint: delivery.oracleHint,
+            scribeKeywords: delivery.scribeKeywordsRaw ? JSON.parse(delivery.scribeKeywordsRaw) : [],
+            eliminatedOption: delivery.eliminatedOption,
+            helpRequested: delivery.helpRequested,
+            helpResponse: delivery.helpResponse,
+            studentDoubt: delivery.studentDoubt
+          });
+        }
+      }
+
       // Buscar todas as entregas de Mini Boss ativas (status DELIVERED, nivel MINIBOSS)
       const activeMiniBosses = await prisma.questDelivery.findMany({
         where: {
@@ -198,26 +236,37 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
       });
 
       if (activeMiniBosses.length > 0) {
+        // Return all active Mini Bosses as a selection wrapper so the frontend
+        // can render the boss-selection cards. Each boss includes its monster name
+        // extracted from the enunciado prefix and the clean question text.
         return reply.status(200).send({
           isMultiBoss: true,
           bosses: activeMiniBosses.map(d => {
-            const monsterMatch = d.quest.enunciado.match(/O inimigo (.*?) surgiu/);
-            const monsterName = monsterMatch ? monsterMatch[1] : 'Monstro';
-            
-            const parts = d.quest.enunciado.split('\n\n');
-            const cleanQuestion = parts.slice(1).join('\n\n') || d.quest.enunciado;
-
+            const monsterMatch = d.quest.enunciado.match(/O inimigo ([^!]+) surgiu!/);
+            const monsterName = monsterMatch ? monsterMatch[1].trim() : 'Monstro Desconhecido';
+            const subjectName = d.quest.disciplina?.nome || 'Estudos Gerais';
+            // Split out the raw question from the prefix
+            const questionParts = d.quest.enunciado.split('\n\n');
+            const cleanQuestion = questionParts.length > 1 ? questionParts.slice(1).join('\n\n') : d.quest.enunciado;
             return {
               deliveryId: d.id,
+              monsterName,
+              subjectName,
               question: cleanQuestion,
               rawEnunciado: d.quest.enunciado,
               xp: Math.max(Math.round(d.quest.xp * Math.pow(0.75, d.erros)), 25),
               nivel: d.quest.nivel,
-              subjectName: d.quest.disciplina?.nome || 'Estudos Gerais',
+              tags: d.quest.tags,
               erros: d.erros,
-              monsterName,
               expiresAt: d.expiresAt || d.quest.expiresAt,
-              usedHelpers: d.usedHelpers ? d.usedHelpers.split(',').filter(Boolean) : []
+              usedHelpers: d.usedHelpers ? d.usedHelpers.split(',').filter(Boolean) : [],
+              hammerSteps: d.hammerStepsRaw ? JSON.parse(d.hammerStepsRaw) : null,
+              oracleHint: d.oracleHint,
+              scribeKeywords: d.scribeKeywordsRaw ? JSON.parse(d.scribeKeywordsRaw) : [],
+              eliminatedOption: d.eliminatedOption,
+              helpRequested: d.helpRequested,
+              helpResponse: d.helpResponse,
+              studentDoubt: d.studentDoubt
             };
           })
         });
@@ -258,7 +307,14 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           tags: delivered.quest.tags,
           erros: delivered.erros,
           expiresAt: delivered.expiresAt || delivered.quest.expiresAt,
-          usedHelpers: delivered.usedHelpers ? delivered.usedHelpers.split(',').filter(Boolean) : []
+          usedHelpers: delivered.usedHelpers ? delivered.usedHelpers.split(',').filter(Boolean) : [],
+          hammerSteps: delivered.hammerStepsRaw ? JSON.parse(delivered.hammerStepsRaw) : null,
+          oracleHint: delivered.oracleHint,
+          scribeKeywords: delivered.scribeKeywordsRaw ? JSON.parse(delivered.scribeKeywordsRaw) : [],
+          eliminatedOption: delivered.eliminatedOption,
+          helpRequested: delivered.helpRequested,
+          helpResponse: delivered.helpResponse,
+          studentDoubt: delivered.studentDoubt
         });
       }
 
@@ -294,7 +350,14 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           tags: waiting.quest.tags,
           erros: waiting.erros,
           expiresAt: reactivated.expiresAt || waiting.quest.expiresAt,
-          usedHelpers: reactivated.usedHelpers ? reactivated.usedHelpers.split(',').filter(Boolean) : []
+          usedHelpers: reactivated.usedHelpers ? reactivated.usedHelpers.split(',').filter(Boolean) : [],
+          hammerSteps: reactivated.hammerStepsRaw ? JSON.parse(reactivated.hammerStepsRaw) : null,
+          oracleHint: reactivated.oracleHint,
+          scribeKeywords: reactivated.scribeKeywordsRaw ? JSON.parse(reactivated.scribeKeywordsRaw) : [],
+          eliminatedOption: reactivated.eliminatedOption,
+          helpRequested: reactivated.helpRequested,
+          helpResponse: reactivated.helpResponse,
+          studentDoubt: reactivated.studentDoubt
         });
       }
 
@@ -317,7 +380,14 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           tags: scheduled.quest.tags,
           erros: scheduled.erros,
           expiresAt: updated.expiresAt || scheduled.quest.expiresAt,
-          usedHelpers: updated.usedHelpers ? updated.usedHelpers.split(',').filter(Boolean) : []
+          usedHelpers: updated.usedHelpers ? updated.usedHelpers.split(',').filter(Boolean) : [],
+          hammerSteps: updated.hammerStepsRaw ? JSON.parse(updated.hammerStepsRaw) : null,
+          oracleHint: updated.oracleHint,
+          scribeKeywords: updated.scribeKeywordsRaw ? JSON.parse(updated.scribeKeywordsRaw) : [],
+          eliminatedOption: updated.eliminatedOption,
+          helpRequested: updated.helpRequested,
+          helpResponse: updated.helpResponse,
+          studentDoubt: updated.studentDoubt
         });
       }
 
@@ -726,18 +796,13 @@ Exemplo de formato esperado:
     questXp: number,
     xpFinalBeforeBuffs: number,
     deliveryId: string,
-    artifactId?: string
+    artifactId?: string,
+    studentAnswer?: string | null,
+    studentImage?: string | null
   ): Promise<{ xpFinal: number; xpToAward: number; xpGanho: number }> => {
     const now = new Date();
 
-    // 1. Fetch user information
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { nome: true, nickname: true }
-    });
-    const userName = user?.nickname || user?.nome || 'Caçador';
-
-    // 2. Fetch active open party and its participants
+    // 1. Fetch active open party and its participants
     const activeRaidParticipant = await prisma.raidParticipant.findFirst({
       where: { userId, raid: { status: 'OPEN' } },
       include: {
@@ -757,7 +822,7 @@ Exemplo de formato esperado:
 
     let xpFinal = xpFinalBeforeBuffs;
 
-    // 3. Apply War Banner buff (+20% XP) if active
+    // 2. Apply War Banner buff (+20% XP) if active
     const isWarBannerActive = activeRaidParticipant?.raid?.bandeiraGuerraActive &&
       activeRaidParticipant?.raid?.bandeiraGuerraExpires &&
       new Date(activeRaidParticipant.raid.bandeiraGuerraExpires) > now;
@@ -766,51 +831,176 @@ Exemplo de formato esperado:
       xpFinal = Math.round(xpFinal * 1.2);
     }
 
-    // 4. Retrieve the current delivery's xpParcial
-    const currentDelivery = await prisma.questDelivery.findUnique({
-      where: { id: deliveryId },
-      select: { xpParcial: true }
-    });
-    const xpParcial = currentDelivery?.xpParcial || 0;
+    // 3. Determine if it is a Raid quest
+    const isRaidQuest = activeRaidParticipant?.raid && 
+      activeRaidParticipant.raid.raidModeActive && 
+      (activeRaidParticipant.raid.activeQuestDeliveryId === deliveryId || 
+       activeRaidParticipant.raid.activeQuestId === questId);
 
-    let xpToAward = xpFinal;
-    let xpGanho = xpFinal;
+    // 4. Calculate XP for members
+    const memberXp = isRaidQuest ? xpFinal : Math.round(questXp * 0.25);
 
-    if (xpParcial > 0) {
-      if (artifactId) {
-        // If using an artifact: win total amount calculated by artifact (xpFinal) without subtracting partial
-        xpToAward = xpFinal;
-        xpGanho = xpParcial + xpFinal;
-      } else {
-        // If NOT using an artifact: win the remaining amount to reach 100% of calculated XP
-        xpToAward = Math.max(xpFinal - xpParcial, 0);
-        xpGanho = xpFinal;
-      }
-    }
-
-    // 5. If in an active party, distribute 25% passive XP to other party members
-    if (activeRaidParticipant?.raid) {
+    if (isRaidQuest && activeRaidParticipant?.raid) {
       const partyId = activeRaidParticipant.raid.id;
-      const otherMembers = activeRaidParticipant.raid.participantes.filter(p => p.userId !== userId);
-      const memberXp = Math.round(questXp * 0.25);
+      const participants = activeRaidParticipant.raid.participantes;
 
-      for (const member of otherMembers) {
+      for (const member of participants) {
         const targetUserId = member.userId;
         const targetUser = member.user;
         const targetUserName = targetUser?.nickname || targetUser?.nome || 'Membro';
 
-        // Check if they already have a delivery for this quest
+        // Resolve wrong answer in the chest for the member
+        await prisma.wrongAnswer.updateMany({
+          where: { userId: targetUserId, questId, resolvido: false },
+          data: { resolvido: true }
+        });
+
+        // Upsert QuestDelivery to COMPLETED for each member
         const existingDelivery = await prisma.questDelivery.findUnique({
           where: { questId_userId: { questId, userId: targetUserId } }
         });
 
-        if (existingDelivery) {
-          if (existingDelivery.status !== 'COMPLETED') {
-            if (existingDelivery.xpParcial === 0) {
-              // Update delivery and user XP
+        const errosCount = existingDelivery ? existingDelivery.erros : 0;
+
+        await prisma.questDelivery.upsert({
+          where: { questId_userId: { questId, userId: targetUserId } },
+          update: {
+            status: 'COMPLETED',
+            isCorrect: true,
+            answeredAt: now,
+            studentAnswer: studentAnswer || null,
+            studentImage: studentImage || null,
+            xpGanho: xpFinal,
+            erros: errosCount,
+            usedHelpers: "",
+            helpRequested: false,
+            helpResponse: null
+          },
+          create: {
+            questId,
+            userId: targetUserId,
+            status: 'COMPLETED',
+            isCorrect: true,
+            scheduledAt: now,
+            deliveredAt: now,
+            answeredAt: now,
+            studentAnswer: studentAnswer || null,
+            studentImage: studentImage || null,
+            xpGanho: xpFinal,
+            erros: errosCount,
+            usedHelpers: "",
+            helpRequested: false,
+            helpResponse: null
+          }
+        });
+
+        // Award user XP
+        await prisma.user.update({
+          where: { id: targetUserId },
+          data: { xp: { increment: xpFinal } }
+        });
+
+        // Send system message in the chat
+        if (targetUserId !== userId) {
+          await prisma.raidMessage.create({
+            data: {
+              raidId: partyId,
+              userId: targetUserId,
+              content: `📢 [Mural do Sistema] ${targetUserName} recebeu +${xpFinal} XP (recompensa igualitária da Raid)!`
+            }
+          });
+        }
+      }
+
+      // Send system message in the chat for the active responder
+      const activeUser = participants.find(p => p.userId === userId)?.user;
+      const activeUserName = activeUser?.nickname || activeUser?.nome || 'Caçador';
+      await prisma.raidMessage.create({
+        data: {
+          raidId: partyId,
+          userId,
+          content: `🏆 [Mural do Sistema] O caçador @${activeUserName} superou o desafio e purificou a quest na masmorra! +${xpFinal} XP concedidos a todos os caçadores da guilda!`
+        }
+      });
+
+    } else {
+      // SOLO QUEST (or normal non-raid party quest)
+      // Resolve wrong answer in the chest for the responder
+      await prisma.wrongAnswer.updateMany({
+        where: { userId, questId, resolvido: false },
+        data: { resolvido: true }
+      });
+
+      // Retrieve the current delivery's xpParcial
+      const currentDelivery = await prisma.questDelivery.findUnique({
+        where: { id: deliveryId },
+        select: { xpParcial: true, usedHelpers: true }
+      });
+      const xpParcial = currentDelivery?.xpParcial || 0;
+
+      let xpToAward = xpFinal;
+      let xpGanho = xpFinal;
+      const hasUsedArtifact = !!artifactId || (currentDelivery && currentDelivery.usedHelpers !== "");
+
+      if (xpParcial > 0) {
+        if (hasUsedArtifact) {
+          xpToAward = xpFinal;
+          xpGanho = xpParcial + xpFinal;
+        } else {
+          xpToAward = Math.max(xpFinal - xpParcial, 0);
+          xpGanho = xpFinal;
+        }
+      }
+
+      // Update the responder's QuestDelivery
+      await prisma.questDelivery.update({
+        where: { id: deliveryId },
+        data: {
+          status: 'COMPLETED',
+          isCorrect: true,
+          answeredAt: now,
+          studentAnswer: studentAnswer || null,
+          studentImage: studentImage || null,
+          xpGanho: xpGanho,
+          usedHelpers: "",
+          helpRequested: false,
+          helpResponse: null
+        }
+      });
+
+      // Award responder user XP
+      await prisma.user.update({
+        where: { id: userId },
+        data: { xp: { increment: xpToAward } }
+      });
+
+      // Distribute passive XP (25%) to other members of the party if present
+      if (activeRaidParticipant?.raid) {
+        const partyId = activeRaidParticipant.raid.id;
+        const otherMembers = activeRaidParticipant.raid.participantes.filter(p => p.userId !== userId);
+
+        for (const member of otherMembers) {
+          const targetUserId = member.userId;
+          const targetUser = member.user;
+          const targetUserName = targetUser?.nickname || targetUser?.nome || 'Membro';
+
+          await prisma.wrongAnswer.updateMany({
+            where: { userId: targetUserId, questId, resolvido: false },
+            data: { resolvido: true }
+          });
+
+          const existingDelivery = await prisma.questDelivery.findUnique({
+            where: { questId_userId: { questId, userId: targetUserId } }
+          });
+
+          if (existingDelivery) {
+            if (existingDelivery.status !== 'COMPLETED') {
               await prisma.questDelivery.update({
                 where: { id: existingDelivery.id },
                 data: {
+                  status: 'COMPLETED',
+                  answeredAt: now,
+                  isCorrect: true,
                   xpParcial: memberXp,
                   xpGanho: memberXp
                 }
@@ -821,7 +1011,6 @@ Exemplo de formato esperado:
                 data: { xp: { increment: memberXp } }
               });
 
-              // Send system message in the chat for the passive member
               await prisma.raidMessage.create({
                 data: {
                   raidId: partyId,
@@ -830,48 +1019,39 @@ Exemplo de formato esperado:
                 }
               });
             }
+          } else {
+            await prisma.questDelivery.create({
+              data: {
+                questId,
+                userId: targetUserId,
+                status: 'COMPLETED',
+                isCorrect: true,
+                scheduledAt: now,
+                deliveredAt: now,
+                answeredAt: now,
+                xpParcial: memberXp,
+                xpGanho: memberXp
+              }
+            });
+
+            await prisma.user.update({
+              where: { id: targetUserId },
+              data: { xp: { increment: memberXp } }
+            });
+
+            await prisma.raidMessage.create({
+              data: {
+                raidId: partyId,
+                userId: targetUserId,
+                content: `📢 [Mural do Sistema] ${targetUserName} recebeu +${memberXp} XP (25% compartilhado da Party)!`
+              }
+            });
           }
-        } else {
-          // Create delivery in DELIVERED status and update user XP
-          await prisma.questDelivery.create({
-            data: {
-              questId,
-              userId: targetUserId,
-              status: 'DELIVERED',
-              scheduledAt: now,
-              deliveredAt: now,
-              xpParcial: memberXp,
-              xpGanho: memberXp
-            }
-          });
-
-          await prisma.user.update({
-            where: { id: targetUserId },
-            data: { xp: { increment: memberXp } }
-          });
-
-          // Send system message in the chat for the passive member
-          await prisma.raidMessage.create({
-            data: {
-              raidId: partyId,
-              userId: targetUserId,
-              content: `📢 [Mural do Sistema] ${targetUserName} recebeu +${memberXp} XP (25% compartilhado da Party)!`
-            }
-          });
         }
       }
-
-      // Send system message in the chat for the active member
-      await prisma.raidMessage.create({
-        data: {
-          raidId: partyId,
-          userId,
-          content: `📢 [Mural do Sistema] ${userName} superou o desafio da masmorra e conquistou +${xpFinal} XP!`
-        }
-      });
     }
 
-    return { xpFinal, xpToAward, xpGanho };
+    return { xpFinal, xpToAward: xpFinal, xpGanho: xpFinal };
   };
 
   fastify.post<{ Body: { deliveryId: string; question: string; answer: string; image?: string; artifactId?: string } }>('/daily/submit', { preValidation: [fastify.authenticate] }, async (request, reply) => {
@@ -892,6 +1072,10 @@ Exemplo de formato esperado:
 
       if (!delivery || (delivery.userId !== userId && !isRaidQuest)) {
         return reply.status(404).send({ error: 'Entrega não encontrada.' });
+      }
+
+      if (isRaidQuest && isRaidQuest.currentResponderId && isRaidQuest.currentResponderId !== userId) {
+        return reply.status(403).send({ error: 'Apenas o caçador designado pode responder esta missão na Raid!' });
       }
       
       let prompt = answer === 'Cálculo na imagem'
@@ -944,16 +1128,19 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
 
       const validation = JSON.parse(responseText);
       const isCorrect = validation.status === 'success';
-
       if (isCorrect) {
         // Calcular XP com penalidade de 25% por erro acumulado (Boss e Mini Boss não sofrem penalidade)
         const isBoss = delivery.quest.nivel === 'BOSS' || delivery.quest.nivel === 'MINIBOSS';
-        const effectiveErros = artifactId === 'escudo_arcano' ? 0 : delivery.erros;
+        const usedHelpersList = delivery.usedHelpers ? delivery.usedHelpers.split(',').filter(Boolean) : [];
+        const hasEscudoArcano = artifactId === 'escudo_arcano' || artifactId === 'bracelete_cristal' || usedHelpersList.includes('escudo_arcano') || usedHelpersList.includes('bracelete_cristal');
+        const hasElixirDourado = artifactId === 'elixir_dourado' || usedHelpersList.includes('elixir_dourado');
+
+        const effectiveErros = hasEscudoArcano ? 0 : delivery.erros;
         let xpFinalBeforeBuffs = isBoss
           ? delivery.quest.xp
           : Math.max(Math.round(delivery.quest.xp * Math.pow(0.75, effectiveErros)), 25);
         
-        if (artifactId === 'elixir_dourado') {
+        if (hasElixirDourado) {
           xpFinalBeforeBuffs *= 2;
         }
 
@@ -968,24 +1155,23 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           delivery.quest.xp,
           xpFinalBeforeBuffs,
           deliveryId,
-          artifactId
+          artifactId,
+          answer,
+          image
         );
-
-        await prisma.questDelivery.update({
-          where: { id: deliveryId },
-          data: { 
-            status: 'COMPLETED', 
-            answeredAt: new Date(), 
-            isCorrect: true,
-            helpRequested: false,
-            helpResponse: null,
-            studentAnswer: answer,
-            studentImage: image,
-            xpGanho: result.xpGanho,
-            usedHelpers: ""
-          }
-        });
-        await prisma.user.update({ where: { id: userId }, data: { xp: { increment: result.xpToAward } } });
+        
+        // Se for uma quest de Raid, limpar a quest ativa da Raid pois foi concluída!
+        if (isRaidQuest) {
+          await prisma.raid.update({
+            where: { id: isRaidQuest.id },
+            data: {
+              activeQuestId: null,
+              activeQuestDeliveryId: null,
+              lastResponderId: isRaidQuest.currentResponderId || userId,
+              currentResponderId: null
+            }
+          });
+        }
         
         // --- LÓGICA DE SPAWN DO MINI BOSS ---
         let miniBossSpawned = false;
@@ -1013,8 +1199,25 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
               subjectCounts[discId] = (subjectCounts[discId] || 0) + 1;
             }
 
-            const candidateSubjects = Object.keys(subjectCounts).filter(discId => subjectCounts[discId] >= 2);
-            const targetSubjects = candidateSubjects.slice(0, 3);
+            // ── SPAWN TRIGGER RULES ──────────────────────────────────────────
+            // 3+3 rule: 2 subjects each with >= 3 correct quests today  → 2 bosses
+            // 2+2+2 rule: 3 subjects each with >= 2 correct quests today → 3 bosses
+            const subjectsWithThreePlus = Object.keys(subjectCounts).filter(id => subjectCounts[id] >= 3);
+            const subjectsWithTwoPlus   = Object.keys(subjectCounts).filter(id => subjectCounts[id] >= 2);
+
+            let targetSubjects: string[] = [];
+            if (subjectsWithTwoPlus.length >= 3) {
+              // 2+2+2: pick exactly 3 subjects (prefer those with most completions)
+              targetSubjects = subjectsWithTwoPlus
+                .sort((a, b) => subjectCounts[b] - subjectCounts[a])
+                .slice(0, 3);
+            } else if (subjectsWithThreePlus.length >= 2) {
+              // 3+3: pick exactly 2 subjects (prefer those with most completions)
+              targetSubjects = subjectsWithThreePlus
+                .sort((a, b) => subjectCounts[b] - subjectCounts[a])
+                .slice(0, 2);
+            }
+
             const numBosses = targetSubjects.length;
 
             if (numBosses >= 2) {
@@ -1033,10 +1236,19 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
                 const xpPerBoss = Math.round(600 / numBosses);
                 const sharedBatchId = crypto.randomUUID();
 
+                // 50 epic D&D monsters for boss naming
                 const dndMonsters = [
-                  'Beholder', 'Lich', 'Dragão Vermelho', 'Mind Flayer', 
-                  'Tarrasque', 'Demogorgon', 'Gorgon', 'Quimera', 
-                  'Hidra', 'Cavaleiro da Morte', 'Mímico', 'Urso-Coruja'
+                  'Beholder', 'Lich', 'Dragão Vermelho', 'Mind Flayer', 'Tarrasque',
+                  'Demogorgon', 'Gorgon', 'Quimera', 'Hidra', 'Cavaleiro da Morte',
+                  'Mímico', 'Urso-Coruja', 'Vampiro Ancião', 'Golem de Ferro', 'Troll',
+                  'Drow Arcano', 'Yuan-Ti Abominação', 'Wyvern das Sombras', 'Medusa',
+                  'Gnoll Demoniaco', 'Tiefling Caído', 'Roc', 'Aboleth', 'Dracolich',
+                  'Naga Espiritual', 'Esfinge Alada', 'Djinn Maldito', 'Chuul',
+                  'Glabrezu', 'Balor', 'Marilith', 'Nalfeshnee', 'Vrock', 'Hezrou',
+                  'Goristro', 'Pit Fiend', 'Erinyes', 'Ice Devil', 'Chain Devil',
+                  'Bone Devil', 'Barbed Devil', 'Bearded Devil', 'Horned Devil',
+                  'Night Hag', 'Rakshasa', 'Alhoon', 'Elder Brain', 'Death Knight',
+                  'Flameskull', 'Wraith'
                 ];
 
                 for (let i = 0; i < targetSubjects.length; i++) {
@@ -1149,6 +1361,7 @@ Retorne APENAS um JSON no seguinte formato:
           where: { id: deliveryId },
           data: { 
             status: 'WAITING',
+            isCorrect: false,
             waitingSince: now,
             erros: novosErros,
             studentAnswer: answer,
@@ -1163,6 +1376,74 @@ Retorne APENAS um JSON no seguinte formato:
             where: { userId_questId: { userId, questId: delivery.questId } },
             update: { tentativas: { increment: 1 } },
             create: { userId, questId: delivery.questId, tentativas: 1 }
+          });
+        }
+
+        if (isRaidQuest) {
+          // Propagar falha para os outros membros da Party
+          const otherParticipants = await prisma.raidParticipant.findMany({
+            where: { raidId: isRaidQuest.id, userId: { not: userId } }
+          });
+
+          for (const part of otherParticipants) {
+            const targetUserId = part.userId;
+            const existingDelivery = await prisma.questDelivery.findUnique({
+              where: { questId_userId: { questId: delivery.questId, userId: targetUserId } }
+            });
+            const novosErrosTarget = existingDelivery ? existingDelivery.erros + 1 : 1;
+
+            await prisma.questDelivery.upsert({
+              where: { questId_userId: { questId: delivery.questId, userId: targetUserId } },
+              update: {
+                status: 'WAITING',
+                isCorrect: false,
+                erros: novosErrosTarget,
+                studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
+                studentImage: image || null,
+                waitingSince: now
+              },
+              create: {
+                questId: delivery.questId,
+                userId: targetUserId,
+                status: 'WAITING',
+                isCorrect: false,
+                erros: novosErrosTarget,
+                studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
+                studentImage: image || null,
+                scheduledAt: now,
+                deliveredAt: now,
+                waitingSince: now
+              }
+            });
+
+            await prisma.wrongAnswer.upsert({
+              where: { userId_questId: { userId: targetUserId, questId: delivery.questId } },
+              update: { tentativas: novosErrosTarget, resolvido: false },
+              create: { userId: targetUserId, questId: delivery.questId, tentativas: novosErrosTarget, resolvido: false }
+            });
+          }
+
+          await prisma.raid.update({
+            where: { id: isRaidQuest.id },
+            data: {
+              activeQuestId: null,
+              activeQuestDeliveryId: null,
+              lastResponderId: isRaidQuest.currentResponderId || userId,
+              currentResponderId: null
+            }
+          });
+
+          const userObj = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { nickname: true, nome: true }
+          });
+          const userName = userObj?.nickname || userObj?.nome || 'Caçador';
+          await prisma.raidMessage.create({
+            data: {
+              raidId: isRaidQuest.id,
+              userId,
+              content: `❌ [Mural do Sistema] ${userName} falhou no desafio da masmorra! A missão foi removida da Raid.`
+            }
           });
         }
 
@@ -1185,7 +1466,49 @@ Retorne APENAS um JSON no seguinte formato:
     if (!deliveryId) return reply.status(400).send({ error: 'deliveryId é obrigatório.' });
     try {
       const delivery = await prisma.questDelivery.findUnique({ where: { id: deliveryId } });
-      if (!delivery || delivery.userId !== userId) return reply.status(404).send({ error: 'Entrega não encontrada.' });
+      if (!delivery) return reply.status(404).send({ error: 'Entrega não encontrada.' });
+
+      const isRaidQuest = await prisma.raid.findFirst({
+        where: {
+          activeQuestDeliveryId: deliveryId,
+          status: 'OPEN',
+          participantes: { some: { userId } }
+        }
+      });
+
+      if (delivery.userId !== userId && !isRaidQuest) {
+        return reply.status(404).send({ error: 'Entrega não encontrada.' });
+      }
+
+      // Encontra ou cria a entrega própria do usuário para esta quest
+      if (delivery.userId !== userId) {
+        let userDelivery = await prisma.questDelivery.findFirst({
+          where: { questId: delivery.questId, userId }
+        });
+        if (!userDelivery) {
+          await prisma.questDelivery.create({
+            data: {
+              questId: delivery.questId,
+              userId,
+              status: 'WAITING',
+              waitingSince: new Date(),
+              scheduledAt: new Date(),
+              deliveredAt: new Date()
+            }
+          });
+        } else {
+          await prisma.questDelivery.update({
+            where: { id: userDelivery.id },
+            data: { status: 'WAITING', waitingSince: new Date(), usedHelpers: "" }
+          });
+        }
+      } else {
+        // Se a entrega já é do próprio usuário, atualiza ela normalmente
+        await prisma.questDelivery.update({
+          where: { id: deliveryId },
+          data: { status: 'WAITING', waitingSince: new Date(), usedHelpers: "" }
+        });
+      }
 
       // Cria ou incrementa entrada no Baú sem marcar como erro
       await prisma.wrongAnswer.upsert({
@@ -1194,14 +1517,20 @@ Retorne APENAS um JSON no seguinte formato:
         create: { userId, questId: delivery.questId, tentativas: 0 }
       });
 
-      // Marca a entrega como WAITING para liberar o slot da missão diária
-      await prisma.questDelivery.update({
-        where: { id: deliveryId },
-        data: { status: 'WAITING', waitingSince: new Date(), usedHelpers: "" }
-      });
+      // Se o próprio líder guardou no baú, limpa a quest ativa da Raid
+      if (isRaidQuest && delivery.userId === userId) {
+        await prisma.raid.update({
+          where: { id: isRaidQuest.id },
+          data: {
+            activeQuestId: null,
+            activeQuestDeliveryId: null
+          }
+        });
+      }
 
       return reply.status(200).send({ message: 'Missão guardada no Baú com sucesso!' });
     } catch (error: any) {
+      console.error('Erro ao guardar no baú:', error);
       return reply.status(500).send({ error: 'Erro ao guardar no baú.' });
     }
   });
@@ -1256,6 +1585,19 @@ Retorne APENAS um JSON no seguinte formato:
       const delivery = await prisma.questDelivery.findFirst({
         where: { userId, questId: wrongAnswer.questId }
       });
+
+      // Se for uma quest de Raid, verificar se o usuário é o responder designado
+      const isRaidQuestCheck = await prisma.raid.findFirst({
+        where: {
+          activeQuestId: wrongAnswer.questId,
+          status: 'OPEN',
+          participantes: { some: { userId } }
+        }
+      });
+
+      if (isRaidQuestCheck && isRaidQuestCheck.currentResponderId && isRaidQuestCheck.currentResponderId !== userId) {
+        return reply.status(403).send({ error: 'Apenas o caçador designado pode responder esta missão na Raid!' });
+      }
 
       let prompt = answer === 'Cálculo na imagem'
         ? `Você é um tutor educacional rigoroso.
@@ -1314,16 +1656,19 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           where: { id },
           data: { resolvido: true }
         });
+        const usedHelpersList = delivery?.usedHelpers ? delivery.usedHelpers.split(',').filter(Boolean) : [];
+        const hasEscudoArcano = artifactId === 'escudo_arcano' || artifactId === 'bracelete_cristal' || usedHelpersList.includes('escudo_arcano') || usedHelpersList.includes('bracelete_cristal');
+        const hasElixirDourado = artifactId === 'elixir_dourado' || usedHelpersList.includes('elixir_dourado');
 
         const questXp = wrongAnswer.quest.xp;
-        const effectiveErros = artifactId === 'escudo_arcano' ? 0 : wrongAnswer.tentativas;
+        const effectiveErros = hasEscudoArcano ? 0 : wrongAnswer.tentativas;
         const isBoss = wrongAnswer.quest.nivel === 'BOSS' || wrongAnswer.quest.nivel === 'MINIBOSS';
 
         let xpFinalBeforeBuffs = isBoss 
           ? questXp 
           : Math.max(Math.round(questXp * Math.pow(0.75, effectiveErros)), 25);
 
-        if (artifactId === 'elixir_dourado') {
+        if (hasElixirDourado) {
           xpFinalBeforeBuffs *= 2; // Duplica o XP
         }
 
@@ -1338,33 +1683,28 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           questXp,
           xpFinalBeforeBuffs,
           delivery ? delivery.id : '',
-          artifactId
+          artifactId,
+          answer,
+          image
         );
 
-        // Atualizar a entrega original para COMPLETED e isCorrect: true
-        if (delivery) {
-          await prisma.questDelivery.update({
-            where: { id: delivery.id },
+        // Se for uma quest de Raid, limpar a quest ativa da Raid pois foi concluída!
+        const isRaidQuest = await prisma.raid.findFirst({
+          where: {
+            activeQuestId: wrongAnswer.questId,
+            status: 'OPEN',
+            participantes: { some: { userId } }
+          }
+        });
+        if (isRaidQuest) {
+          await prisma.raid.update({
+            where: { id: isRaidQuest.id },
             data: {
-              status: 'COMPLETED',
-              isCorrect: true,
-              answeredAt: new Date(),
-              helpRequested: false,
-              helpResponse: null,
-              studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
-              studentImage: image || null,
-              xpGanho: result.xpGanho,
-              usedHelpers: ""
+              activeQuestId: null,
+              activeQuestDeliveryId: null
             }
-          }).catch(err => {
-            console.error('[QuestDelivery Update Error in Baú Retry]', err);
           });
         }
-
-        await prisma.user.update({
-          where: { id: userId },
-          data: { xp: { increment: result.xpToAward } }
-        });
 
         // Se acertou usando escudo arcano, remove a penalidade do QuestDelivery no BD resetando erros para 0!
         if (artifactId === 'escudo_arcano') {
@@ -1388,6 +1728,8 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           await prisma.questDelivery.updateMany({
             where: { userId, questId: wrongAnswer.questId },
             data: {
+              status: 'WAITING',
+              isCorrect: false,
               helpRequested: false,
               helpResponse: null,
               studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
@@ -1397,10 +1739,12 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
             }
           }).catch(console.error);
         } else {
-          // Salva a tentativa errada para auditoria mesmo sem mudar status
+          // Salva a tentativa errada para auditoria
           await prisma.questDelivery.updateMany({
             where: { userId, questId: wrongAnswer.questId },
             data: {
+              status: 'WAITING',
+              isCorrect: false,
               studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
               studentImage: image || null,
               erros: novasTentativas,
@@ -1414,6 +1758,82 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
             where: { userId, questId: wrongAnswer.questId },
             data: { erros: 0 }
           }).catch(console.error);
+        }
+
+        // Se for uma quest de Raid, propagar falha para os outros membros da Party
+        const isRaidQuest = await prisma.raid.findFirst({
+          where: {
+            activeQuestDeliveryId: delivery ? delivery.id : '',
+            status: 'OPEN',
+            participantes: { some: { userId } }
+          }
+        });
+
+        if (isRaidQuest) {
+          const otherParticipants = await prisma.raidParticipant.findMany({
+            where: { raidId: isRaidQuest.id, userId: { not: userId } }
+          });
+
+          for (const part of otherParticipants) {
+            const targetUserId = part.userId;
+            const existingDelivery = await prisma.questDelivery.findUnique({
+              where: { questId_userId: { questId: wrongAnswer.questId, userId: targetUserId } }
+            });
+            const novosErrosTarget = existingDelivery ? existingDelivery.erros + 1 : 1;
+
+            await prisma.questDelivery.upsert({
+              where: { questId_userId: { questId: wrongAnswer.questId, userId: targetUserId } },
+              update: {
+                status: 'WAITING',
+                isCorrect: false,
+                erros: novosErrosTarget,
+                studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
+                studentImage: image || null,
+                waitingSince: new Date()
+              },
+              create: {
+                questId: wrongAnswer.questId,
+                userId: targetUserId,
+                status: 'WAITING',
+                isCorrect: false,
+                erros: novosErrosTarget,
+                studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
+                studentImage: image || null,
+                scheduledAt: new Date(),
+                deliveredAt: new Date(),
+                waitingSince: new Date()
+              }
+            });
+
+            await prisma.wrongAnswer.upsert({
+              where: { userId_questId: { userId: targetUserId, questId: wrongAnswer.questId } },
+              update: { tentativas: novosErrosTarget, resolvido: false },
+              create: { userId: targetUserId, questId: wrongAnswer.questId, tentativas: novosErrosTarget, resolvido: false }
+            });
+          }
+
+          await prisma.raid.update({
+            where: { id: isRaidQuest.id },
+            data: {
+              activeQuestId: null,
+              activeQuestDeliveryId: null,
+              lastResponderId: isRaidQuest.currentResponderId || userId,
+              currentResponderId: null
+            }
+          });
+
+          const userObj = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { nickname: true, nome: true }
+          });
+          const userName = userObj?.nickname || userObj?.nome || 'Caçador';
+          await prisma.raidMessage.create({
+            data: {
+              raidId: isRaidQuest.id,
+              userId,
+              content: `❌ [Mural do Sistema] ${userName} falhou no desafio da masmorra! A missão foi removida da Raid.`
+            }
+          });
         }
 
         const isBoss = wrongAnswer.quest.nivel === 'BOSS' || wrongAnswer.quest.nivel === 'MINIBOSS';
@@ -1492,7 +1912,15 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
               participantes: {
                 include: {
                   user: {
-                    select: { nome: true, nickname: true, xp: true, lastActiveAt: true }
+                    select: {
+                      id: true,
+                      nome: true,
+                      nickname: true,
+                      xp: true,
+                      lastActiveAt: true,
+                      anelSerpenteExpires: true,
+                      bolsaSorteExpires: true
+                    }
                   }
                 }
               }
@@ -1538,7 +1966,15 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           participantes: {
             include: {
               user: {
-                select: { nome: true, nickname: true, xp: true, lastActiveAt: true }
+                select: {
+                  id: true,
+                  nome: true,
+                  nickname: true,
+                  xp: true,
+                  lastActiveAt: true,
+                  anelSerpenteExpires: true,
+                  bolsaSorteExpires: true
+                }
               }
             }
           }
@@ -1617,7 +2053,15 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           participantes: {
             include: {
               user: {
-                select: { nome: true, nickname: true, xp: true, lastActiveAt: true }
+                select: {
+                  id: true,
+                  nome: true,
+                  nickname: true,
+                  xp: true,
+                  lastActiveAt: true,
+                  anelSerpenteExpires: true,
+                  bolsaSorteExpires: true
+                }
               }
             }
           }
@@ -1704,7 +2148,15 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           participantes: {
             include: {
               user: {
-                select: { nome: true, nickname: true, xp: true, lastActiveAt: true }
+                select: {
+                  id: true,
+                  nome: true,
+                  nickname: true,
+                  xp: true,
+                  lastActiveAt: true,
+                  anelSerpenteExpires: true,
+                  bolsaSorteExpires: true
+                }
               }
             }
           }
@@ -1757,25 +2209,72 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         return reply.status(400).send({ error: 'Ative o modo Raid na sua Party primeiro!' });
       }
 
-      const delivery = await prisma.questDelivery.findUnique({
+      let finalDeliveryId = deliveryId;
+      let delivery = await prisma.questDelivery.findUnique({
         where: { id: deliveryId }
       });
+
+      if (!delivery) {
+        // Se não encontrou no QuestDelivery, pode ser uma quest do Baú (WrongAnswer)
+        const wrongAnswer = await prisma.wrongAnswer.findUnique({
+          where: { id: deliveryId }
+        });
+        if (wrongAnswer) {
+          const originalDelivery = await prisma.questDelivery.findUnique({
+            where: {
+              questId_userId: {
+                questId: wrongAnswer.questId,
+                userId
+              }
+            }
+          });
+          if (originalDelivery) {
+            delivery = originalDelivery;
+            finalDeliveryId = originalDelivery.id;
+          }
+        }
+      }
 
       if (!delivery || delivery.userId !== userId) {
         return reply.status(404).send({ error: 'Missão ativa não encontrada ou você não é o dono.' });
       }
 
+      const participantes = activeParticipant.raid.participantes;
+      let eligibleParticipants = participantes.filter(p => p.userId !== activeParticipant.raid.lastResponderId);
+      if (eligibleParticipants.length === 0) {
+        eligibleParticipants = participantes;
+      }
+
+      const randomIndex = Math.floor(Math.random() * eligibleParticipants.length);
+      const selectedParticipant = eligibleParticipants[randomIndex];
+      const selectedResponderId = selectedParticipant.userId;
+
+      const responderUser = await prisma.user.findUnique({
+        where: { id: selectedResponderId },
+        select: { nickname: true, nome: true }
+      });
+      const responderName = responderUser?.nickname || responderUser?.nome || 'Caçador';
+
       const updated = await prisma.raid.update({
         where: { id: activeParticipant.raidId },
         data: {
           activeQuestId: delivery.questId,
-          activeQuestDeliveryId: deliveryId
+          activeQuestDeliveryId: finalDeliveryId,
+          currentResponderId: selectedResponderId
         },
         include: {
           participantes: {
             include: {
               user: {
-                select: { nome: true, nickname: true, xp: true, lastActiveAt: true }
+                select: {
+                  id: true,
+                  nome: true,
+                  nickname: true,
+                  xp: true,
+                  lastActiveAt: true,
+                  anelSerpenteExpires: true,
+                  bolsaSorteExpires: true
+                }
               }
             }
           }
@@ -1787,7 +2286,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         data: {
           raidId: activeParticipant.raidId,
           userId,
-          content: `⚔️ [Alerta de Masmorra] O líder compartilhou a missão na Raid! Todos os caçadores podem entrar na batalha e usar seus artefatos compartilhados!`
+          content: `⚔️ [Alerta de Masmorra] O líder compartilhou a missão na Raid! O caçador @${responderName} foi escolhido para responder esta missão! Todos os caçadores podem entrar na batalha e usar seus artefatos compartilhados!`
         }
       });
 
@@ -3318,7 +3817,8 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       const filteredDisciplinas = allDisciplinas.filter(d => {
         const clean = cleanNormalize(d.nome);
         if (turmaNivel === 'FUNDAMENTAL') {
-          const isHighSchoolOnly = clean.includes('quimica') || clean.includes('biologia') || (clean.includes('fisica') && !clean.includes('educacao fisica'));
+          const isPhysicalEd = /(educacao|educ|ed)\.?\s*fisica|e\.?\s*f\.?|^ef$/i.test(clean);
+          const isHighSchoolOnly = clean.includes('quimica') || clean.includes('biologia') || (clean.includes('fisica') && !isPhysicalEd);
           return !isHighSchoolOnly;
         } else {
           return !clean.includes('ciencia');
@@ -3559,7 +4059,8 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         const filteredDisciplinas = allDisciplinas.filter(d => {
           const clean = cleanNormalize(d.nome);
           if (turmaNivel === 'FUNDAMENTAL') {
-            const isHighSchoolOnly = clean.includes('quimica') || clean.includes('biologia') || (clean.includes('fisica') && !clean.includes('educacao fisica'));
+            const isPhysicalEd = /(educacao|educ|ed)\.?\s*fisica|e\.?\s*f\.?|^ef$/i.test(clean);
+            const isHighSchoolOnly = clean.includes('quimica') || clean.includes('biologia') || (clean.includes('fisica') && !isPhysicalEd);
             return !isHighSchoolOnly;
           } else {
             return !clean.includes('ciencia');
@@ -3974,20 +4475,66 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           return reply.status(404).send({ error: 'Entrega de quest não encontrada.' });
         }
 
+        const validHelpers = [
+          'sussurros_sabios',
+          'martelo_magico',
+          'poeira_estelar',
+          'pergaminho_oraculo',
+          'pena_escriba',
+          'sapatilhas_veloz',
+          'relogio_tempo',
+          'varinha_pinheiro',
+          'elixir_dourado',
+          'escudo_arcano',
+          'bracelete_cristal'
+        ];
+        if (!validHelpers.includes(artifactId)) {
+          return reply.status(400).send({ error: 'Artefato utilitário inválido ou não suportado para esta rota.' });
+        }
+
         // Verificar se este artefato já foi usado nesta missão
         // Para retentativas do Baú, ignoramos as restrições e registros do histórico da missão diária original
-        const usedList = (delivery.usedHelpers && !isBaú) ? delivery.usedHelpers.split(',') : [];
+        const usedList = delivery.usedHelpers ? delivery.usedHelpers.split(',') : [];
         if (usedList.includes(artifactId)) {
           return reply.status(400).send({ error: 'Este artefato já foi utilizado nesta missão.' });
         }
 
-        // Registrar o uso do artefato
-        if (!isBaú) {
-          usedList.push(artifactId);
+        // Adiciona localmente na lista para salvar após o processamento correto de cada artefato
+        usedList.push(artifactId);
+
+        if (artifactId === 'elixir_dourado' || artifactId === 'escudo_arcano' || artifactId === 'bracelete_cristal') {
           await prisma.questDelivery.update({
             where: { id: delivery.id },
-            data: { usedHelpers: usedList.filter(Boolean).join(',') }
+            data: { 
+              usedHelpers: usedList.filter(Boolean).join(',')
+            }
           });
+
+          if (isRaidQuest) {
+            const user = await prisma.user.findUnique({
+              where: { id: userId },
+              select: { nome: true, nickname: true }
+            });
+            const displayName = user?.nickname ? `@${user.nickname}` : user?.nome || 'Jogador';
+            const artName = artifactId === 'elixir_dourado'
+              ? 'Elixir Dourado'
+              : artifactId === 'escudo_arcano'
+                ? 'Escudo Arcano'
+                : 'Bracelete de Cristal';
+            await prisma.raidMessage.create({
+              data: {
+                raidId: isRaidQuest.id,
+                userId,
+                content: `🔮 ${displayName} usou o artefato ${artName} nesta missão!`
+              }
+            });
+          }
+
+          const message = artifactId === 'elixir_dourado'
+            ? 'Elixir Dourado consumido! O XP desta missão foi duplicado!'
+            : 'Absorção ativa! Penalidades por erros anuladas nesta missão!';
+
+          return reply.send({ success: true, message });
         }
 
         const enunciado = delivery.quest.enunciado;
@@ -3998,7 +4545,8 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
             data: { 
               helpRequested: true, 
               helpResponse: null,
-              studentDoubt: studentDoubt || null
+              studentDoubt: studentDoubt || null,
+              usedHelpers: isBaú ? undefined : usedList.filter(Boolean).join(',')
             }
           });
 
@@ -4067,7 +4615,15 @@ Retorne APENAS o JSON.`;
             raw = raw.substring(firstBrace, lastBrace + 1);
           }
           const parsed = JSON.parse(raw);
-          return reply.send({ steps: parsed.steps || [] });
+          const steps = parsed.steps || [];
+          await prisma.questDelivery.update({
+            where: { id: delivery.id },
+            data: { 
+              hammerStepsRaw: JSON.stringify(steps),
+              usedHelpers: isBaú ? undefined : usedList.filter(Boolean).join(',')
+            }
+          });
+          return reply.send({ steps });
         }
 
         if (artifactId === 'poeira_estelar') {
@@ -4092,7 +4648,15 @@ Retorne APENAS o JSON.`;
             raw = raw.substring(firstBrace, lastBrace + 1);
           }
           const parsed = JSON.parse(raw);
-          return reply.send({ eliminate: String(parsed.eliminate || 'C').toUpperCase() });
+          const eliminate = String(parsed.eliminate || 'C').toUpperCase();
+          await prisma.questDelivery.update({
+            where: { id: delivery.id },
+            data: { 
+              eliminatedOption: eliminate,
+              usedHelpers: isBaú ? undefined : usedList.filter(Boolean).join(',')
+            }
+          });
+          return reply.send({ eliminate });
         }
 
         if (artifactId === 'pergaminho_oraculo') {
@@ -4115,7 +4679,15 @@ Retorne APENAS um JSON no formato:
             raw = raw.substring(firstBrace, lastBrace + 1);
           }
           const parsed = JSON.parse(raw);
-          return reply.send({ hint: parsed.hint || 'Pense com atenção!' });
+          const hint = parsed.hint || 'Pense com atenção!';
+          await prisma.questDelivery.update({
+            where: { id: delivery.id },
+            data: { 
+              oracleHint: hint,
+              usedHelpers: isBaú ? undefined : usedList.filter(Boolean).join(',')
+            }
+          });
+          return reply.send({ hint });
         }
 
         if (artifactId === 'pena_escriba') {
@@ -4138,7 +4710,15 @@ Retorne APENAS o JSON.`;
             raw = raw.substring(firstBrace, lastBrace + 1);
           }
           const parsed = JSON.parse(raw);
-          return reply.send({ keywords: parsed.keywords || ["Relevante", "Conceitual", "Tema"] });
+          const keywords = parsed.keywords || ["Relevante", "Conceitual", "Tema"];
+          await prisma.questDelivery.update({
+            where: { id: delivery.id },
+            data: { 
+              scribeKeywordsRaw: JSON.stringify(keywords),
+              usedHelpers: isBaú ? undefined : usedList.filter(Boolean).join(',')
+            }
+          });
+          return reply.send({ keywords });
         }
 
         if (artifactId === 'sapatilhas_veloz') {
@@ -4179,6 +4759,11 @@ Retorne APENAS um JSON no formato:
               }
             });
 
+            await prisma.questDelivery.update({
+              where: { id: delivery.id },
+              data: { usedHelpers: isBaú ? undefined : usedList.filter(Boolean).join(',') }
+            });
+
             return reply.send({
               nivel: novoNivel,
               enunciado: updatedQuest.enunciado,
@@ -4196,7 +4781,10 @@ Retorne APENAS um JSON no formato:
 
           await prisma.questDelivery.update({
             where: { id: delivery.id },
-            data: { expiresAt: novaExpiracao }
+            data: { 
+              expiresAt: novaExpiracao,
+              usedHelpers: isBaú ? undefined : usedList.filter(Boolean).join(',')
+            }
           });
 
           return reply.send({
@@ -4250,6 +4838,11 @@ Retorne APENAS um JSON no formato:
               }
             });
 
+            await prisma.questDelivery.update({
+              where: { id: delivery.id },
+              data: { usedHelpers: isBaú ? undefined : usedList.filter(Boolean).join(',') }
+            });
+
             return reply.send({
               success: true,
               enunciado: updatedQuest.enunciado,
@@ -4269,7 +4862,6 @@ Retorne APENAS um JSON no formato:
     }
   );
 
-  // ─── POÇÃO DE CURA ROUTE (HEAL CURSE) ──────────────────────────────────────
   fastify.post<{ Params: { id: string } }>(
     '/wrong-answers/:id/heal',
     { preValidation: [fastify.authenticate] },
@@ -4278,26 +4870,71 @@ Retorne APENAS um JSON no formato:
         const { id } = request.params;
         const userId = request.user.id;
 
-        const wrongAnswer = await prisma.wrongAnswer.findUnique({
+        let wrongAnswer = await prisma.wrongAnswer.findUnique({
           where: { id },
           include: { quest: true }
         });
 
-        if (!wrongAnswer || wrongAnswer.userId !== userId) {
-          return reply.status(404).send({ error: 'Registro do Baú não encontrado.' });
+        let questId = wrongAnswer?.questId;
+
+        if (!wrongAnswer) {
+          // Se não encontrou no WrongAnswer, pode ser o ID de um QuestDelivery diretamente
+          const delivery = await prisma.questDelivery.findUnique({
+            where: { id },
+            include: { quest: true }
+          });
+          
+          const isRaidQuest = await prisma.raid.findFirst({
+            where: {
+              activeQuestDeliveryId: id,
+              status: 'OPEN',
+              participantes: { some: { userId } }
+            }
+          });
+
+          if (delivery && (delivery.userId === userId || isRaidQuest)) {
+            questId = delivery.questId;
+            // Garante que existe a WrongAnswer correspondente para este usuário
+            wrongAnswer = await prisma.wrongAnswer.upsert({
+              where: { userId_questId: { userId, questId } },
+              update: { tentativas: 0 },
+              create: { userId, questId, tentativas: 0 },
+              include: { quest: true }
+            });
+          }
+        }
+
+        if (!wrongAnswer || !questId || wrongAnswer.userId !== userId) {
+          return reply.status(404).send({ error: 'Registro não encontrado.' });
         }
 
         // Restaura tentativas para 0
         await prisma.wrongAnswer.update({
-          where: { id },
+          where: { id: wrongAnswer.id },
           data: { tentativas: 0 }
         });
 
-        // Restaura erros no QuestDelivery correspondente para 0
+        // Restaura erros no QuestDelivery do próprio usuário para 0
         await prisma.questDelivery.updateMany({
-          where: { userId, questId: wrongAnswer.questId },
+          where: { userId, questId },
           data: { erros: 0 }
         });
+
+        // Se o usuário estiver em uma Raid ativa com essa missão compartilhada, restaura erros no delivery compartilhado da Raid!
+        const activeRaid = await prisma.raid.findFirst({
+          where: {
+            activeQuestId: questId,
+            status: 'OPEN',
+            participantes: { some: { userId } }
+          }
+        });
+
+        if (activeRaid && activeRaid.activeQuestDeliveryId) {
+          await prisma.questDelivery.update({
+            where: { id: activeRaid.activeQuestDeliveryId },
+            data: { erros: 0 }
+          });
+        }
 
         return reply.send({ success: true, message: 'Penalidade expurgada! XP da quest restaurado para 100%.' });
       } catch (error: any) {
@@ -4779,9 +5416,23 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
           return reply.status(404).send({ error: 'Entrega não encontrada.' });
         }
 
+        let activeRaid = isRaidQuest;
+        if (!activeRaid) {
+          activeRaid = await prisma.raid.findFirst({
+            where: {
+              activeQuestId: delivery.questId,
+              status: 'OPEN',
+              participantes: { some: { userId } }
+            }
+          });
+        }
+
         return reply.send({
           id: delivery.id,
           deliveryId: delivery.id,
+          status: delivery.status,
+          isRaidQuest: !!activeRaid,
+          currentResponderId: activeRaid ? activeRaid.currentResponderId : null,
           question: delivery.quest.enunciado,
           tags: delivery.quest.tags,
           nivel: delivery.quest.nivel,
@@ -4791,7 +5442,11 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
           usedHelpers: delivery.usedHelpers ? delivery.usedHelpers.split(',').filter(Boolean) : [],
           helpRequested: delivery.helpRequested,
           helpResponse: delivery.helpResponse,
-          studentDoubt: delivery.studentDoubt
+          studentDoubt: delivery.studentDoubt,
+          hammerSteps: delivery.hammerStepsRaw ? JSON.parse(delivery.hammerStepsRaw) : null,
+          oracleHint: delivery.oracleHint,
+          scribeKeywords: delivery.scribeKeywordsRaw ? JSON.parse(delivery.scribeKeywordsRaw) : [],
+          eliminatedOption: delivery.eliminatedOption
         });
       } catch (error: any) {
         request.log.error(error);

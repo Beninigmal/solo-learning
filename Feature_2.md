@@ -59,11 +59,15 @@ As missões não são estáticas; elas seguem uma fila de prioridade.
 ## 3. Sistema de RAID e BOSS (Party de Estudo)
 - **Party System:** Alunos podem formar grupos (Party) de no máximo 3 membros da mesma turma para resolver missões em conjunto e cooperar.
 - **Mini Boss:**
-  - **Invocação:** Invocado ao completar exatamente 6 missões (de forma solo ou em grupo). As 6 missões podem ser combinadas como:
-    - 3 missões de uma matéria (máximo diário gerado na forja por matéria) + 3 missões de outra matéria;
-    - Ou 2 + 2 + 2 missões de três matérias diferentes.
+  - **Invocação (Trigger):** Invocado ao completar missões diárias em múltiplas matérias, respeitando uma das duas regras de combinação:
+    - **Regra 3+3:** ≥ 3 missões corretas em 2 matérias diferentes hoje → **2 Mini Bosses gerados** (300 XP cada).
+    - **Regra 2+2+2:** ≥ 2 missões corretas em 3 matérias diferentes hoje → **3 Mini Bosses gerados** (200 XP cada).
+  - **Fórmula de XP:** `600 / quantidade_de_bosses`. Nunca se repete no mesmo dia.
+  - **Nomenclatura:** Cada boss recebe o nome de um monstro do universo D&D sorteado aleatoriamente de uma pool de 50 criaturas épicas (Beholder, Lich, Tarrasque, Balor, Pit Fiend, Elder Brain, etc.).
+  - **Pergunta:** Gerada via Gemini com prompt específico de nível "MINIBOSS" para a matéria do boss. Se a chamada Gemini falhar, usa uma pergunta de fallback estática por matéria.
+  - **Seleção Visual (UI):** Ao abrir o modal de missões (`QuestWindowModal`), o jogador vê uma **tela de seleção** com um card por boss. Cada card exibe: nome do monstro 🔥, matéria do desafio, XP disponível, e um preview da pergunta. O jogador escolhe qual enfrentar primeiro; os demais ficam disponíveis para a próxima abertura.
+  - **Combate:** A batalha ocorre no mesmo `QuestWindowModal` com tema laranja (`border-[#ff9f00]`, glow laranja). O jogador responde normalmente como em uma missão diária.
   - **Enfrentamento:** O combate é feito pela Party de no máximo 3 jogadores.
-  - **Dificuldade:** A pergunta do Mini Boss é de nível moderado.
   - **Recompensa:** Concede XP compartilhado e chance (RNG) de dropar artefatos raros diretamente para o inventário.
 - **Boss (General):**
   - **Invocação:** Invocado manualmente pelo Mestre através de um evento global na forja.

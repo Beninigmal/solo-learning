@@ -1,22 +1,9 @@
 import { prisma } from '../src/prisma';
 
 async function main() {
-  const user = await prisma.user.findFirst({
-    where: { nickname: 'Val' }
-  });
-
-  if (!user) {
-    console.log('User Val not found');
-    return;
-  }
-
-  console.log('=== USER ===');
-  console.log(user);
-
   console.log('=== RUNNING WRONG ANSWERS QUERY ===');
   const wrongAnswers = await prisma.wrongAnswer.findMany({
-    where: { userId: user.id, resolvido: false },
-    include: { quest: true }
+    include: { quest: true, user: { select: { id: true, nickname: true, nome: true } } }
   });
 
   console.log(`Found ${wrongAnswers.length} wrong answers.`);

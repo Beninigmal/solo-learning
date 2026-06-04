@@ -167,21 +167,28 @@ model QuestDelivery {
 
   usedHelpers   String    @default("")
 
+  hammerStepsRaw    String?
+  oracleHint        String?
+  scribeKeywordsRaw String?
+  eliminatedOption  String?
+
   @@unique([questId, userId]) // 1 entrega por quest por aluno
 }
 
 model Raid {
-  id           String            @id @default(uuid())
-  codigo       String            @unique // Código para entrar
-  xpBonus      Int               @default(500)
-  status       String            @default("OPEN") // OPEN, CLEARED, FAILED
-  participantes RaidParticipant[]
-  messages     RaidMessage[]
-  bandeiraGuerraActive  Boolean   @default(false)
+  id                    String            @id @default(uuid())
+  codigo                String            @unique // Código para entrar
+  xpBonus               Int               @default(500)
+  status                String            @default("OPEN") // OPEN, CLEARED, FAILED
+  participantes         RaidParticipant[]
+  messages              RaidMessage[]
+  bandeiraGuerraActive  Boolean           @default(false)
   bandeiraGuerraExpires DateTime?
-  raidModeActive         Boolean   @default(false)
-  activeQuestId          String?
-  activeQuestDeliveryId  String?
+  raidModeActive        Boolean           @default(false)
+  activeQuestId         String?
+  activeQuestDeliveryId String?
+  currentResponderId    String?
+  lastResponderId       String?
 }
 
 model RaidMessage {

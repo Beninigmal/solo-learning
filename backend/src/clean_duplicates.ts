@@ -8,12 +8,17 @@ async function run() {
 
   // Agrupar por nome normalizado
   const normalize = (name: string): string => {
-    return name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const clean = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    if (/(educacao|educ|ed)\.?\s*fisica|e\.?\s*f\.?|^ef$/i.test(clean)) {
+      return "educacao fisica";
+    }
+    return clean;
   };
 
   const groups: { [key: string]: typeof discs } = {};
   for (const d of discs) {
-    const key = normalize(d.nome);
+    const instKey = d.instituicao ? d.instituicao.toLowerCase().trim() : 'global';
+    const key = `${instKey}_${normalize(d.nome)}`;
     if (!groups[key]) groups[key] = [];
     groups[key].push(d);
   }
@@ -28,6 +33,15 @@ async function run() {
     // O primeiro será a nossa disciplina primária/mestre
     const primary = list[0];
     const duplicates = list.slice(1);
+
+    if (key.endsWith('_educacao fisica')) {
+      console.log(`-> Padronizando nome da disciplina principal ID ${primary.id} para "Educação Física"`);
+      await prisma.disciplina.update({
+        where: { id: primary.id },
+        data: { nome: 'Educação Física' }
+      });
+      primary.nome = 'Educação Física';
+    }
 
     console.log(`-> Mantendo como principal: ID ${primary.id} ("${primary.nome}")`);
 
