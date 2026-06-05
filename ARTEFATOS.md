@@ -5,13 +5,27 @@ Este documento centraliza todas as regras de negócios, mecânicas, raridades e 
 ---
 
 ## 🏛️ Raridades e Drop Rates
-Os artefatos são obtidos ao derrotar **Mini Bosses** em grupo (Party/Raid) ou em eventos globais convocados pelo Mestre.
 
-| Raridade | Cor Visual | Descrição Geral | Taxa de Drop Base (Mini Boss) |
-| :--- | :--- | :--- | :--- |
-| **Lendário** | Dourado (`#ffca28`) | Itens únicos com impacto direto na mecânica e contato direto Mestre-Player. | **~1.5%** |
-| **Épico** | Roxo (`#a349ff`) | Multiplicadores fortes de progresso, imunidades a prazos e buffs de Party. | **~8.5%** |
-| **Mágico** | Azul (`#3b82f6`) | Facilitadores de resolução diária e limpadores de penalidades do Baú. | **~25.0%** |
+Os artefatos são obtidos ao derrotar **Mini Bosses** em grupo (Party/Raid) ou individualmente, ao subir de nível (Rank Up) e ao concluir **Missões Diárias Normais**.
+
+### 🌟 Drop Rates em Combates (Mini Bosses & Bosses)
+- **Lendários (0.5% cada):** Sussurros Sábios, Becker do Alquimista, Olhar do Monarca. Ganhos também ao subir de nível (Ranks B, A, S).
+- **Épicos (5% cada):** Elixir Dourado, Poção de Cura, Relógio Ganha Tempo, Anel da Serpente, Lágrima da Fênix, Bandeira de Guerra, Orbe de Perspicácia, Chave Mestra, Cetro do Exílio.
+- **Mágicos (0%):** Não dropam em Mini Bosses (exclusivos de missões comuns).
+
+### 📖 Drop Rates em Missões Diárias Normais
+- **Mágicos (37% total de chance de obter um artefato mágico):**
+  - Sapatilhas do Mundo Lento: **5%**
+  - Martelo Mágico: **5%**
+  - Poeira Estelar: **5%**
+  - Pergaminho do Oráculo: **5%**
+  - Bracelete de Cristal: **5%**
+  - Escudo Arcano: **5%**
+  - Bolsa da Sorte: **2%**
+  - Mão de Midas: **2%**
+  - Pena do Escriba: **1%**
+  - Varinha de Pinheiro: **2%**
+- **Épicos / Lendários (0%):** Não dropam em missões comuns.
 
 ---
 
@@ -73,6 +87,10 @@ Os artefatos são obtidos ao derrotar **Mini Bosses** em grupo (Party/Raid) ou e
 - **Efeito:** Permite abrir **qualquer party ativa da sua própria Turma** e entrar nela como invasor, mesmo a contragosto do líder e mesmo que o limite de membros já tenha sido atingido (ex: entrará como quarto membro), além de que integrantes da party não possa sair dela, a não ser com um outro artefato específico para isso. Uma animação na borda e um timer de 48 será adicionado a party indicando o tempo de corrupção que o invasor trouxe.
 - **Restrição:** Bloqueado o uso para invadir parties de outras turmas.
 
+### 9. 🚩 Cetro do Exílio
+- **Descrição:** Um cetro de ouro e rubi que brilha com poder de banimento.
+- **Efeito:** Expulsa um invasor indesejado de uma masmorra/party ativa, revertendo o XP roubado e limpando a corrupção da party.
+
 ## 🔵 Artefatos Mágicos (Azuis)
 
 ### 1. 👟 Sapatilhas do Mundo Lento
@@ -114,10 +132,12 @@ Os artefatos são obtidos ao derrotar **Mini Bosses** em grupo (Party/Raid) ou e
 - **Descrição:** Uma pena que flutua suavemente sobre o papel de resposta.
 - **Efeito:** Em perguntas teóricas dissertativas, revela as **3 principais palavras-chave conceituais** que o validador da IA espera encontrar para aprovar a resposta. Exibido na tela da missão através de tags azuis dinâmicas.
 
----
+### 9. 🛡️ Escudo Arcano
+- **Descrição:** Um escudo mágico translúcido que absorve falhas.
+- **Efeito:** Cancela a penalidade de 25% de XP na próxima tentativa incorreta de uma missão ativa diária ou do Baú.
 
-## 🚀 Próximas Tasks na Fila de Desenvolvimento (V3)
-Com base nas discussões de refinamento dos artefatos:
-1.  **[x] Módulo de Múltipla Escolha (UI/UX):** Implementar suporte nativo a questões do tipo múltipla escolha com interface em *Radio Buttons* (alternativa ao botão padrão de envio de texto/imagem).
-2.  **[x] Integração de Efeitos no Backend:** Desenvolver as rotas de consumo de itens associando seus buffs dinâmicos no cálculo final de XP e dificuldade de quests no `/daily/submit`.
-3.  **[x] Painel do Mestre - Aba de Ajuda:** Criar a interface para recebimento das "Perguntas Douradas" geradas pela carta *Sussurros Sábios*, com opção de aprovação de rascunhos pedagógicos da IA.
+### 10. 🪄 Varinha de Pinheiro
+- **Descrição:** Uma varinha de madeira antiga e rúnica.
+- **Efeito:** Transforma uma missão de cálculo discursiva (que exigiria tirar foto da resolução) em uma questão de múltipla escolha com alternativas geradas pela IA.
+
+---

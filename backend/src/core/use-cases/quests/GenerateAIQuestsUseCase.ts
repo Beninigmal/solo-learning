@@ -71,17 +71,26 @@ Nível de ensino/Complexidade alvo: ${complexidade} (FUNDAMENTAL, MEDIO ou LIVRE
 
 REGRAS IMPORTANTES:
 - Linguagem simples e direta.
-- As respostas podem ser numéricas ou em texto (uma palavra ou frase curta), dependendo do que for mais adequado para a pergunta.
-- Não dê a resposta.
+- As respostas devem ser curtas (uma palavra, número ou frase bem curta), dependendo do que for mais adequado para a pergunta.
+- Não dê a resposta no enunciado.
 - Progressão de dificuldade de 1 a 3.
 - Adeque a complexidade das perguntas ao nível "${complexidade}".
 ${tipoRule}
 - Retorne APENAS um JSON no formato especificado abaixo. Não inclua texto explicativo adicional.
 Exemplo de formato esperado:
 {
-  "q1": "Escreva a lei da função que representa o valor...",
-  "q2": "Dada a função f(x) = 3x - 9, determine...",
-  "q3": "Um reservatório com 500 litros de água apresenta..."
+  "q1": {
+    "enunciado": "Qual a capital do Brasil?\\n\\nA) Rio de Janeiro\\nB) Brasília\\nC) São Paulo\\nD) Belo Horizonte\\nE) Salvador",
+    "gabarito": "B"
+  },
+  "q2": {
+    "enunciado": "Dada a função f(x) = 3x - 9, determine f(4).",
+    "gabarito": "3"
+  },
+  "q3": {
+    "enunciado": "Um reservatório com 500 litros de água apresenta...",
+    "gabarito": "250"
+  }
 }
 `;
 
@@ -108,10 +117,24 @@ Exemplo de formato esperado:
 
     for (let i = 1; i <= 3; i++) {
       const key = `q${i}`;
-      const enunciado = questions[key] || questions[key.toUpperCase()];
+      const questData = questions[key] || questions[key.toUpperCase()];
       
-      if (!enunciado) {
+      if (!questData) {
         throw new Error(`Formato de resposta da IA inválido. Esperado chave ${key}.`);
+      }
+
+      let enunciado = '';
+      let gabarito = '';
+
+      if (typeof questData === 'string') {
+        enunciado = questData;
+      } else if (typeof questData === 'object') {
+        enunciado = questData.enunciado || '';
+        gabarito = questData.gabarito || '';
+      }
+
+      if (!enunciado) {
+        throw new Error(`Formato de resposta da IA inválido para a chave ${key}: enunciado vazio.`);
       }
 
       const config = questConfig[i - 1];
@@ -119,6 +142,7 @@ Exemplo de formato esperado:
       await this.questRepository.createQuest({
         disciplinaId: disciplina.id,
         enunciado,
+        gabarito: gabarito ? String(gabarito).trim() : null,
         tags: exigeCalculo ? ['CALCULO'] : [],
         xp: config.xp,
         nivel: config.level,
