@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -96,9 +96,33 @@ export const getPlayerRankInfo = (xp: number) => {
   };
 };
 
+const DICIONARIO_TERMOS = [
+  { term: 'RPG', definition: 'Role-Playing Game (Jogo de interpretação de papéis). O participante assume o papel de um caçador que evolui com o tempo.' },
+  { term: 'Quest', definition: 'Missão ou objetivo pedagógico a ser concluído. Resolver tarefas/exercícios é como completar uma quest.' },
+  { term: 'XP', definition: 'Pontos de Experiência. Pontuação ganha ao acertar missões. Serve para subir seu Nível acadêmico.' },
+  { term: 'Level Up', definition: 'Subir de Nível. Acontece quando você acumula XP suficiente, indicando seu progresso global.' },
+  { term: 'Rank', definition: 'Classificação acadêmica do caçador, variando de Rank E (iniciante) a Rank S (mestre do assunto).' },
+  { term: 'Status Window', definition: 'Janela de Status. Painel que exibe seus dados, nível, XP e atributos pedagógicos.' },
+  { term: 'Party', definition: 'Grupo de até 3 alunos que se unem para realizar missões cooperativas.' },
+  { term: 'Raid', definition: 'Invasão / Masmorra de Grupo. Missões de grupo jogadas em turnos com chat em tempo real.' },
+  { term: 'Boss / Mini Boss', definition: 'Chefe / Mini-Chefe. Missões de maior dificuldade (simulados/provas) que exigem mais estudo e dão mais XP.' },
+  { term: 'Drop / Dropar', definition: 'Ato de ganhar uma recompensa aleatória (como itens ou artefatos mágicos) ao completar missões.' },
+  { term: 'Bag', definition: 'Bolsa / Inventário onde você guarda seus artefatos e itens mágicos coletados.' },
+  { term: 'Buff', definition: 'Efeito positivo temporário (ex: aumentar taxa de drop ou ganhar mais XP por 24 horas).' },
+  { term: 'Debuff', definition: 'Penalidade / Maldição temporária (ex: perder 25% de XP base por errar missões salvas no Baú).' },
+  { term: 'Invasor', definition: 'Jogador externo que invade a sua party para disputar o XP de uma Raid.' }
+];
+
 export default function StatusScreen() {
   const sounds = useSolenSounds();
   const state = usePlayerState();
+  const [showDicionario, setShowDicionario] = useState(false);
+  const [dicionarioSearch, setDicionarioSearch] = useState('');
+
+  const filteredTermos = DICIONARIO_TERMOS.filter(item => 
+    item.term.toLowerCase().includes(dicionarioSearch.toLowerCase()) ||
+    item.definition.toLowerCase().includes(dicionarioSearch.toLowerCase())
+  );
 
   const rankInfo = getPlayerRankInfo(state.user?.xp || 0);
 
@@ -243,7 +267,17 @@ export default function StatusScreen() {
             </View>
           </ScrollView>
           <TouchableOpacity
-            className="ml-2.5 p-2.5 bg-neonBlue/10 border border-neonBlue/40 rounded-full"
+            className="ml-2 p-2.5 bg-neonBlue/10 border border-neonBlue/40 rounded-full"
+            onPress={() => {
+              sounds.playSelect();
+              setDicionarioSearch('');
+              setShowDicionario(true);
+            }}
+          >
+            <Feather name="book-open" size={16} color="#00f3ff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="ml-2 p-2.5 bg-neonBlue/10 border border-neonBlue/40 rounded-full"
             onPress={() => {
               sounds.playSelect();
               const txt =
@@ -898,6 +932,83 @@ export default function StatusScreen() {
         onCancel={state.handleLogout}
         loading={state.termsLoading}
       />
+
+      {/* 📖 DICIONÁRIO DO CAÇADOR MODAL */}
+      <Modal
+        visible={showDicionario}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowDicionario(false)}
+      >
+        <View className="flex-1 bg-black/80 items-center justify-center p-4">
+          <View 
+            className="w-full max-w-[500px] h-[80%] bg-[#080d1a] border-2 border-neonBlue p-5 rounded-sm shadow-2xl relative"
+            style={{
+              shadowColor: "#00f3ff",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.5,
+              shadowRadius: 15,
+              elevation: 20,
+            }}
+          >
+            {/* Header */}
+            <View className="flex-row justify-between items-center border-b border-neonBlue/30 pb-3 mb-4">
+              <View className="flex-row items-center gap-2">
+                <Feather name="book-open" size={18} color="#00f3ff" />
+                <Text className="text-neonBlue text-sm font-extrabold uppercase tracking-widest font-mono">
+                  Dicionário do Caçador
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => { sounds.playSelect(); setShowDicionario(false); }}>
+                <Feather name="x" size={18} color="#00f3ff" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Input */}
+            <TextInput
+              className="w-full bg-black/60 border border-neonBlue/40 text-white p-3 rounded-sm text-xs mb-4 font-mono"
+              placeholder="Pesquisar termo (ex: dropar, XP...)"
+              placeholderTextColor="#00f3ff30"
+              value={dicionarioSearch}
+              onChangeText={setDicionarioSearch}
+              clearButtonMode="always"
+            />
+
+            {/* List */}
+            <ScrollView className="flex-1 mb-4" showsVerticalScrollIndicator={false}>
+              {filteredTermos.length === 0 ? (
+                <View className="py-8 items-center">
+                  <Text className="text-white/40 text-xs italic font-mono">Nenhum termo encontrado.</Text>
+                </View>
+              ) : (
+                filteredTermos.map((item, index) => (
+                  <View 
+                    key={index} 
+                    className="mb-4 pb-3 border-b border-white/5 last:border-b-0"
+                  >
+                    <Text className="text-neonBlue text-[11px] font-bold uppercase tracking-wider font-mono">
+                      {item.term}
+                    </Text>
+                    <Text className="text-white/80 text-xs mt-1 leading-relaxed">
+                      {item.definition}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            {/* Close Button */}
+            <TouchableOpacity
+              className="w-full bg-neonBlue/20 border border-neonBlue/60 py-3 rounded-sm items-center"
+              onPress={() => { sounds.playSelect(); setShowDicionario(false); }}
+            >
+              <Text className="text-neonBlue font-extrabold uppercase tracking-widest text-[9px] font-mono">
+                Fechar Dicionário
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Botão Flutuante e Caixa de Chat da Missão */}
       {state.activeParty && !state.showWindow && (
