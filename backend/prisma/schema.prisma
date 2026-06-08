@@ -1,0 +1,373 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String   @id @default(uuid())
+  nome          String
+  nickname      String?
+  matricula     String   @unique
+  password      String
+  isFirstAccess Boolean  @default(true)
+  role          String   @default("ALUNO") // ADMIN, PROFESSOR, ALUNO
+  turno         String?  // MATUTINO, VESPERTINO, NOTURNO (Para os alunos)
+  instituicao   String?  // Instituição de ensino
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+  acceptedTermsAt DateTime?
+  parentConsentName String?
+  xp            Int      @default(0)
+  level         Int      @default(1)
+  blocked       Boolean  @default(false)
+  
+  turmaId   String?
+  turma     Turma?   @relation("TurmaAlunos", fields: [turmaId], references: [id])
+
+  turmaDisciplinas TurmaDisciplina[]
+
+  /// Token Expo para envio de push notifications
+  expoPushToken String?
+
+  disciplinas DisciplinaProfessor[] // Relacionamento apenas para Professores
+  
+  raids           RaidParticipant[]
+  questDeliveries QuestDelivery[]
+  wrongAnswers    WrongAnswer[]
+  goldenAnswers   GoldenAnswer[]
+  goldenQuestionsCreated GoldenQuestion[]  @relation("UserGoldenQuestions")
+  calendarEventsCreated  CalendarEvent[]   @relation("UserCalendarEvents")
+  raidMessages    RaidMessage[]
+  giftedArtifacts GiftedArtifact[]
+  giftsGiven    GiftedArtifactHistory[] @relation("MestreGifts")
+  giftsReceived GiftedArtifactHistory[] @relation("StudentGifts")
+  anelSerpenteExpires DateTime?
+  bolsaSorteExpires   DateTime?
+
+  lastActiveAt DateTime @default(now())
+  restrictions ProfessorRestriction[]
+  /// Limite semanal de aulas em regência (2/3 da carga). Default: 16 (contrato 20h).
+  /// Para contrato 40h configure como 32. Usado pelo Monarch Engine para controle cross-turma.
+  maxAulasSemanais Int? // null = usar default 16
+  categoria        String?  @default("CONCURSADO") // CONCURSADO, REDA
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Turma {
+  id              String   @id @default(uuid())
+  nome            String   // ex: "3º Ano A"
+  ano             String?
+  instituicao     String?
+  institutionId   String?
+  institution     Institution? @relation(fields: [institutionId], references: [id])
+  codigoInvocacao String?  @default("1234")
+  nivel           String   @default("FUNDAMENTAL") // FUNDAMENTAL, MEDIO, MEDIO_TECNICO, OUTROS
+  
+  turmaDisciplinas TurmaDisciplina[]
+  unidade         Int              @default(1) // Valores: 1, 2, 3
+  timetableSlots  TimetableSlot[]
+  calendarEvents  CalendarEvent[]  @relation("TurmaCalendarEvents")
+
+  users           User[]   @relation("TurmaAlunos")
+  quests          Quest[]  @relation("TurmaQuests")
+  goldenQuestions GoldenQuestion[]
+}
+
+model Disciplina {
+  id            String   @id @default(uuid())
+  nome          String   // ex: "Matemática", "Física"
+  instituicao   String?
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id])
+  professores   DisciplinaProfessor[]
+  quests      Quest[]
+  turmaDisciplinas TurmaDisciplina[]
+  timetableSlots  TimetableSlot[]
+}
+
+model DisciplinaProfessor {
+  professorId   String
+  disciplinaId  String
+  temp          Boolean    @default(false)
+  professor     User       @relation(fields: [professorId], references: [id])
+  disciplina    Disciplina @relation(fields: [disciplinaId], references: [id])
+
+  @@id([professorId, disciplinaId])
+}
+
+model Quest {
+  id           String     @id @default(uuid())
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id])
+  
+  enunciado    String
+  gabarito     String?
+  xp           Int        @default(200)
+  nivel        String     @default("FACIL") // FACIL, MEDIO, DIFICIL
+
+  /// Identifica o lote de 3 quests geradas juntas pelo professor
+  batchId      String?
+  /// Ordem de entrega dentro do lote (1 = fácil, 2 = médio, 3 = difícil)
+  ordem        Int        @default(1)
+
+  turmaAlvoId  String?    // Se a quest for específica para uma turma
+  turmaAlvo    Turma?     @relation("TurmaQuests", fields: [turmaAlvoId], references: [id])
+
+  status       String     @default("ATIVA") // ATIVA, EXPIRADA
+
+  semana       String?
+  tema         String?
+  tags         String[]
+
+  /// Data de expiração da Quest (7 dias após criação)
+  expiresAt    DateTime?
+
+  /// Janela de entrega legada (mantida para compatibilidade)
+  windowEnd    DateTime?
+
+  deliveries   QuestDelivery[]
+  wrongAnswers WrongAnswer[]
+
+  createdAt    DateTime   @default(now())
+}
+
+/// Rastreia o estado individual de cada entrega de quest para um aluno
+model QuestDelivery {
+  id          String   @id @default(uuid())
+  questId     String
+  quest       Quest    @relation(fields: [questId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  /// SCHEDULED → ainda não disparou | DELIVERED → apareceu na tela
+  /// WAITING → aluno clicou Aguardar | COMPLETED → respondida | EXPIRED → TTL estourou
+  status      String   @default("SCHEDULED")
+
+  scheduledAt  DateTime  // quando deve ser disparada ao aluno
+  deliveredAt  DateTime?
+  waitingSince DateTime?
+  expiresAt    DateTime? // = waitingSince + 40 min (TTL da fila de espera)
+  answeredAt   DateTime?
+  isCorrect    Boolean?
+  erros        Int       @default(0) // Contador de erros para cálculo da penalidade 25%
+
+  createdAt   DateTime @default(now())
+
+  helpRequested Boolean   @default(false)
+  helpResponse  String?
+  studentDoubt  String?
+  studentAnswer String?
+  studentImage  String?
+
+  xpParcial     Int       @default(0)
+  xpGanho       Int       @default(0)
+
+  usedHelpers   String    @default("")
+
+  hammerStepsRaw    String?
+  oracleHint        String?
+  scribeKeywordsRaw String?
+  eliminatedOption  String?
+
+  @@unique([questId, userId]) // 1 entrega por quest por aluno
+}
+
+model Raid {
+  id                    String            @id @default(uuid())
+  codigo                String            @unique // Código para entrar
+  xpBonus               Int               @default(500)
+  status                String            @default("OPEN") // OPEN, CLEARED, FAILED
+  participantes         RaidParticipant[]
+  messages              RaidMessage[]
+  bandeiraGuerraActive  Boolean           @default(false)
+  bandeiraGuerraExpires DateTime?
+  raidModeActive        Boolean           @default(false)
+  activeQuestId         String?
+  activeQuestDeliveryId String?
+  currentResponderId    String?
+  lastResponderId       String?
+}
+
+model RaidMessage {
+  id        String   @id @default(uuid())
+  raidId    String
+  raid      Raid     @relation(fields: [raidId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model RaidParticipant {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  raidId    String
+  raid      Raid     @relation(fields: [raidId], references: [id])
+  acertos   Int      @default(0) // Checkpoint individual
+  isInvasor Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+  
+  @@unique([userId, raidId])
+}
+
+model WrongAnswer {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  questId   String
+  quest     Quest    @relation(fields: [questId], references: [id])
+  tentativas Int      @default(0)
+  resolvido Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, questId])
+}
+
+model TurmaDisciplina {
+  id            String     @id @default(uuid())
+  turmaId       String
+  professorId   String
+  disciplinaId  String
+
+  /// Quantidade de aulas semanais alvo para esta disciplina nesta turma.
+  /// 0 = usar distribuição automática da Matriz Curricular
+  aulasSemanais Int        @default(0)
+
+  /// Quando true, o Monarch Engine tenta sempre alocar as aulas desta
+  /// disciplina em pares consecutivos (geminadas) no mesmo dia.
+  geminada      Boolean    @default(false)
+
+  turma         Turma      @relation(fields: [turmaId], references: [id])
+  professor     User       @relation(fields: [professorId], references: [id])
+  disciplina    Disciplina @relation(fields: [disciplinaId], references: [id])
+
+  createdAt     DateTime   @default(now())
+
+  @@unique([turmaId, disciplinaId])
+}
+
+model GoldenQuestion {
+  id        String   @id @default(uuid())
+  enunciado String
+  turmaId   String
+  turma     Turma    @relation(fields: [turmaId], references: [id])
+  criadorId String?
+  criador   User?    @relation("UserGoldenQuestions", fields: [criadorId], references: [id])
+  createdAt DateTime @default(now())
+
+  respostas GoldenAnswer[]
+}
+
+model TimetableSlot {
+  id           String     @id @default(uuid())
+  turmaId      String
+  turma        Turma      @relation(fields: [turmaId], references: [id])
+  diaSemana    String     // SEGUNDA, TERCA, QUARTA, QUINTA, SEXTA
+  posicao      Int        // 1, 2, 3, 4, 5
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id])
+  createdAt    DateTime   @default(now())
+
+  @@unique([turmaId, diaSemana, posicao])
+}
+
+model CalendarEvent {
+  id          String   @id @default(uuid())
+  professorId String
+  professor   User     @relation("UserCalendarEvents", fields: [professorId], references: [id])
+  turmaId     String
+  turma       Turma    @relation("TurmaCalendarEvents", fields: [turmaId], references: [id])
+  titulo      String
+  descricao   String?
+  data        DateTime
+  tipo        String   // PROVA, TRABALHO, TAREFA, EVENTO
+  createdAt   DateTime @default(now())
+}
+
+model GoldenAnswer {
+  id               String         @id @default(uuid())
+  goldenQuestionId String
+  goldenQuestion   GoldenQuestion @relation(fields: [goldenQuestionId], references: [id])
+  userId           String
+  user             User           @relation(fields: [userId], references: [id])
+  resposta         String
+  createdAt        DateTime       @default(now())
+
+  @@unique([goldenQuestionId, userId])
+}
+
+model Institution {
+  id            String       @id @default(uuid())
+  nome          String       @unique
+  codigo        String?      @unique
+  tipo          String       @default("MUNICIPAL") // MUNICIPAL, ESTADUAL, PRIVADO_FUNDAMENTAL, PRIVADO_MEDIO, PRIVADO_LIVRE
+  createdAt     DateTime     @default(now())
+  users         User[]
+  turmas        Turma[]
+  disciplinas   Disciplina[]
+  shiftSettings InstitutionShiftSetting[]
+  ensinoBase    Boolean      @default(true)
+}
+
+model InstitutionShiftSetting {
+  id                 String      @id @default(uuid())
+  institutionId      String
+  institution        Institution @relation(fields: [institutionId], references: [id])
+  shift              String      // MATUTINO, VESPERTINO, NOTURNO
+  slotsCount         Int         @default(5)
+  intervalAfterSlot  Int         @default(3) // Intervalo após este slot
+  createdAt          DateTime    @default(now())
+
+  @@unique([institutionId, shift])
+}
+
+model ProfessorRestriction {
+  id          String   @id @default(uuid())
+  professorId String
+  professor   User     @relation(fields: [professorId], references: [id])
+  diaSemana   String   // SEGUNDA, TERCA, QUARTA, QUINTA, SEXTA
+  shift       String   // MATUTINO, VESPERTINO, NOTURNO
+  posicao     Int?     // Opcional - Slot de horário específico se aplicável
+  createdAt   DateTime @default(now())
+
+  @@unique([professorId, diaSemana, shift, posicao])
+}
+
+model GiftedArtifact {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artifactId String
+  createdAt  DateTime @default(now())
+}
+
+model DeleteAccountRequest {
+  id          String   @id @default(uuid())
+  userId      String
+  nome        String
+  matricula   String
+  role        String
+  motivo      String
+  email       String
+  instituicao String
+  createdAt   DateTime @default(now())
+}
+
+model GiftedArtifactHistory {
+  id         String   @id @default(uuid())
+  mestreId   String
+  studentId  String
+  artifactId String
+  quantidade Int      @default(1)
+  createdAt  DateTime @default(now())
+
+  mestre  User @relation("MestreGifts", fields: [mestreId], references: [id], onDelete: Cascade)
+  student User @relation("StudentGifts", fields: [studentId], references: [id], onDelete: Cascade)
+}
+

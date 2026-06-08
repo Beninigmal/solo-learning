@@ -1,0 +1,7 @@
+{
+  "semana": "1",
+  "turmaId": "8a7dd549-85c6-49e8-a954-93f3f306684c",
+  "tema": "Dota 2",
+  "complexidade": "MEDIO",
+  "exigeCalculo": false
+}
