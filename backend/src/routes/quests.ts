@@ -542,13 +542,21 @@ Regras:
         disciplina = await prisma.disciplina.create({ data: { nome: 'Missões Gerais', instituicao: request.user.instituicao || null } });
       }
 
+      const gradeDesc = getTurmaGradeDescription(turma);
+      const gradePrompt = getGradeDifficultyPrompt(turma);
+
       const prompt = `Você é um assistente educacional para alunos de escola pública brasileira.
-Crie uma pergunta épica e desafiadora de nível "BOSS" sobre o tema "${tema}".
-Esta pergunta deve ser complexa e exigir que o aluno demonstre domínio sobre o assunto.
+Crie uma pergunta épica e extremamente desafiadora de nível "BOSS" (chefe final) sobre o tema "${tema}".
+
+REGRAS DE DIFICULDADE DE GENERAL BOSS:
+- A pergunta deve ser o desafio máximo sobre o tema "${tema}". Deve exigir alta capacidade de interpretação, raciocínio complexo ou múltiplos passos de resolução.
+- Ela deve ser muito mais difícil do que as questões difíceis normais, mas DEVE estar contida e ser resolúvel dentro dos limites curriculares da série do aluno (${gradeDesc}).
+${gradePrompt}
+
 Retorne APENAS um JSON no formato especificado abaixo. Não inclua texto explicativo adicional.
 Exemplo de formato esperado:
 {
-  "pergunta": "Um foguete de testes é lançado de uma base militar..."
+  "pergunta": "Texto da pergunta de boss final..."
 }`;
 
       let raw = await callGemini(prompt);
@@ -852,6 +860,92 @@ function rollArtifactDrop(questNivel: string): string | null {
 
     return null;
   }
+}
+
+function isShieldActive(currentUsedHelpers: string, artifactId?: string): boolean {
+  const helpers = currentUsedHelpers ? currentUsedHelpers.split(',').filter(Boolean) : [];
+  const hasInList = helpers.some(h => h.startsWith('escudo_arcano') || h.startsWith('bracelete_cristal'));
+  const isIncoming = artifactId === 'escudo_arcano' || artifactId === 'bracelete_cristal';
+  return hasInList || isIncoming;
+}
+
+function processShieldCharges(
+  currentUsedHelpers: string,
+  artifactId?: string
+): { hasShield: boolean; updatedHelpers: string } {
+  const helpers = currentUsedHelpers ? currentUsedHelpers.split(',').filter(Boolean) : [];
+  
+  let shieldId: string | null = null;
+  let charges = 2;
+  
+  const activeShieldIndex = helpers.findIndex(h => h.startsWith('escudo_arcano') || h.startsWith('bracelete_cristal'));
+  if (activeShieldIndex !== -1) {
+    const activeShield = helpers[activeShieldIndex];
+    const parts = activeShield.split(':');
+    shieldId = parts[0];
+    charges = parts[1] ? parseInt(parts[1], 10) : 2;
+    if (isNaN(charges) || charges < 1) charges = 2;
+  } else if (artifactId && (artifactId === 'escudo_arcano' || artifactId === 'bracelete_cristal')) {
+    shieldId = artifactId;
+    charges = 2;
+  }
+
+  if (shieldId) {
+    charges--;
+    if (charges > 0) {
+      return {
+        hasShield: true,
+        updatedHelpers: `${shieldId}:${charges}`
+      };
+    } else {
+      return {
+        hasShield: true,
+        updatedHelpers: ""
+      };
+    }
+  }
+
+  return {
+    hasShield: false,
+    updatedHelpers: ""
+  };
+}
+
+function getGradeFromNome(nome: string): string {
+  const match = nome.match(/(\d+)\s*(?:º|ª|o|a)/i);
+  if (match) {
+    const num = match[1];
+    if (nome.toLowerCase().includes('médio') || nome.toLowerCase().includes('medio')) {
+      return `${num}º ano do Ensino Médio`;
+    }
+    return `${num}º ano do Ensino Fundamental`;
+  }
+  return '';
+}
+
+function getTurmaGradeDescription(turma?: { nome: string; ano?: string | null } | null): string {
+  if (!turma) return '';
+  if (turma.ano) return turma.ano;
+  return getGradeFromNome(turma.nome);
+}
+
+function getGradeDifficultyPrompt(turma?: { nome: string; ano?: string | null; nivel: string } | null): string {
+  if (!turma) return '';
+  const grade = getTurmaGradeDescription(turma);
+  const nivel = turma.nivel || 'FUNDAMENTAL';
+
+  let prompt = ``;
+  if (grade) {
+    prompt += `\n- SÉRIE/ANO DO ALUNO: A turma pertence ao "${grade}".
+- REGRA CRÍTICA DE COMPLEXIDADE POR SÉRIE: Você DEVE adequar estritamente a complexidade das perguntas ao currículo escolar e capacidade intelectual típica de alunos do "${grade}".
+- Não crie perguntas de séries avançadas. Há um gap intelectual importante entre cada série do Ensino Fundamental (5º, 6º, 7º, 8º, 9º ano) e do Ensino Médio (1º, 2º, 3º ano) que deve ser respeitado:
+  - Exemplo (Matemática): Se o tema for "Regra de Três", para o 5º ou 6º ano do Ensino Fundamental crie apenas problemas simples de regra de três direta. Para o 7º ou 8º ano use regra de três simples inversa. Apenas para o 9º ano ou Ensino Médio utilize regra de três composta.
+  - Exemplo (Português): Para o 5º ano, foque em concordância verbal/nominal simples ou identificação de classes gramaticais básicas. Para o 9º ano ou Ensino Médio, aborde orações coordenadas/subordinadas, figuras de linguagem complexas ou regência verbal avançada.
+  - Exemplo (Ciências/Física): Para o 6º ano, foque em conceitos macroscópicos simples de misturas e materiais. Para o 9º ano ou Ensino Médio, use equações físicas completas (como Leis de Newton, velocidade média com contas completas, etc.).\n`;
+  } else {
+    prompt += `\n- NÍVEL DE ENSINO: A turma é do nível "${nivel}". Adeque as perguntas a este nível de ensino.\n`;
+  }
+  return prompt;
 }
 
   // Helper to handle Party XP distribution, dynamic XP adjustment, War Banner buff, and Chat messages
@@ -1235,7 +1329,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         // Calcular XP com penalidade de 25% por erro acumulado (Boss e Mini Boss não sofrem penalidade)
         const isBoss = delivery.quest.nivel === 'BOSS' || delivery.quest.nivel === 'MINIBOSS';
         const usedHelpersList = delivery.usedHelpers ? delivery.usedHelpers.split(',').filter(Boolean) : [];
-        const hasEscudoArcano = artifactId === 'escudo_arcano' || artifactId === 'bracelete_cristal' || usedHelpersList.includes('escudo_arcano') || usedHelpersList.includes('bracelete_cristal');
+        const hasEscudoArcano = isShieldActive(delivery.usedHelpers || "", artifactId);
         const hasElixirDourado = artifactId === 'elixir_dourado' || usedHelpersList.includes('elixir_dourado');
 
         const effectiveErros = hasEscudoArcano ? 0 : delivery.erros;
@@ -1279,7 +1373,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         // --- LÓGICA DE SPAWN DO MINI BOSS ---
         let miniBossSpawned = false;
         try {
-          const user = await prisma.user.findUnique({ where: { id: userId } });
+          const user = await prisma.user.findUnique({ where: { id: userId }, include: { turma: true } });
           if (user && user.turmaId) {
             const startOfDay = new Date();
             startOfDay.setHours(0, 0, 0, 0);
@@ -1362,12 +1456,27 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
                   const monsterIndex = Math.floor(Math.random() * dndMonsters.length);
                   const monsterName = dndMonsters.splice(monsterIndex, 1)[0];
 
+                  const completedQuestsForSubject = todayCompleted.filter(d => d.quest.disciplinaId === chosenSubjectId);
+                  const themes = completedQuestsForSubject
+                    .map(d => d.quest.tema)
+                    .filter((t): t is string => !!t && t.trim().length > 0);
+                  const chosenTheme = themes.length > 0 ? themes[0] : 'Assunto Geral';
+
+                  const gradeDesc = getTurmaGradeDescription(user?.turma);
+                  const gradePrompt = getGradeDifficultyPrompt(user?.turma);
+
                   const miniBossPrompt = `Você é um assistente educacional para alunos de escola pública brasileira.
-Crie uma pergunta desafiadora de nível "MINIBOSS" sobre o assunto "${subjectName}".
-Esta pergunta deve ser um pouco mais difícil que as normais para testar o conhecimento do aluno, mas ela deve ser respondível e não insana (ou seja, de nível adequado para alunos do ensino médio/fundamental).
+Crie uma pergunta desafiadora de nível "MINIBOSS" (mini chefe) sobre o assunto/disciplina "${subjectName}" e especificamente focada no tema "${chosenTheme}".
+
+REGRAS DE DIFICULDADE DE MINI BOSS:
+- A pergunta deve ser significativamente mais difícil e desafiadora do que uma questão de nível "difícil" comum para a série do aluno.
+- Ela deve exigir mais raciocínio lógico, interpretação de texto e aplicação profunda do tema.
+- Ela DEVE ser respondível e condizente com a idade e ano escolar do aluno (${gradeDesc}). Não crie algo fora da realidade deles.
+${gradePrompt}
+
 Retorne APENAS um JSON no seguinte formato:
 {
-  "pergunta": "Texto da pergunta aqui..."
+  "pergunta": "Texto da pergunta desafiadora de mini boss..."
 }`;
 
                   let rawQuestionText = '';
@@ -1458,7 +1567,9 @@ Retorne APENAS um JSON no seguinte formato:
         return reply.send({ ...validation, isCorrect: true, xpGanho: result.xpToAward, miniBossSpawned });
       } else {
         const hasExtraAttempt = delivery.helpRequested && delivery.helpResponse !== null;
-        const novosErros = (artifactId === 'escudo_arcano' || hasExtraAttempt) ? delivery.erros : delivery.erros + 1;
+        const shieldResult = processShieldCharges(delivery.usedHelpers || "", artifactId);
+        
+        const novosErros = (shieldResult.hasShield || hasExtraAttempt) ? delivery.erros : delivery.erros + 1;
         
         await prisma.questDelivery.update({
           where: { id: deliveryId },
@@ -1469,12 +1580,12 @@ Retorne APENAS um JSON no seguinte formato:
             erros: novosErros,
             studentAnswer: answer,
             studentImage: image,
-            usedHelpers: "",
+            usedHelpers: shieldResult.updatedHelpers,
             ...(hasExtraAttempt ? { helpRequested: false, helpResponse: null } : {})
           }
         });
 
-        if (artifactId !== 'escudo_arcano' && !hasExtraAttempt) {
+        if (!shieldResult.hasShield && !hasExtraAttempt) {
           await prisma.wrongAnswer.upsert({
             where: { userId_questId: { userId, questId: delivery.questId } },
             update: { tentativas: { increment: 1 } },
@@ -1760,7 +1871,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           data: { resolvido: true }
         });
         const usedHelpersList = delivery?.usedHelpers ? delivery.usedHelpers.split(',').filter(Boolean) : [];
-        const hasEscudoArcano = artifactId === 'escudo_arcano' || artifactId === 'bracelete_cristal' || usedHelpersList.includes('escudo_arcano') || usedHelpersList.includes('bracelete_cristal');
+        const hasEscudoArcano = isShieldActive(delivery?.usedHelpers || "", artifactId);
         const hasElixirDourado = artifactId === 'elixir_dourado' || usedHelpersList.includes('elixir_dourado');
 
         const questXp = wrongAnswer.quest.xp;
@@ -1810,7 +1921,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         }
 
         // Se acertou usando escudo arcano, remove a penalidade do QuestDelivery no BD resetando erros para 0!
-        if (artifactId === 'escudo_arcano') {
+        if (hasEscudoArcano) {
           await prisma.questDelivery.updateMany({
             where: { userId, questId: wrongAnswer.questId },
             data: { erros: 0 }
@@ -1820,48 +1931,27 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         return reply.send({ ...validation, isCorrect: true, xpGanho: result.xpToAward });
       } else {
         const hasExtraAttempt = delivery?.helpRequested && delivery?.helpResponse !== null;
-        const novasTentativas = (artifactId === 'escudo_arcano' || hasExtraAttempt) ? wrongAnswer.tentativas : wrongAnswer.tentativas + 1;
+        const shieldResult = processShieldCharges(delivery?.usedHelpers || "", artifactId);
+        
+        const novasTentativas = (shieldResult.hasShield || hasExtraAttempt) ? wrongAnswer.tentativas : wrongAnswer.tentativas + 1;
         
         await prisma.wrongAnswer.update({
           where: { id },
           data: { tentativas: novasTentativas }
         });
 
-        if (hasExtraAttempt) {
-          await prisma.questDelivery.updateMany({
-            where: { userId, questId: wrongAnswer.questId },
-            data: {
-              status: 'WAITING',
-              isCorrect: false,
-              helpRequested: false,
-              helpResponse: null,
-              studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
-              studentImage: image || null,
-              erros: novasTentativas,
-              usedHelpers: ""
-            }
-          }).catch(console.error);
-        } else {
-          // Salva a tentativa errada para auditoria
-          await prisma.questDelivery.updateMany({
-            where: { userId, questId: wrongAnswer.questId },
-            data: {
-              status: 'WAITING',
-              isCorrect: false,
-              studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
-              studentImage: image || null,
-              erros: novasTentativas,
-              usedHelpers: ""
-            }
-          }).catch(console.error);
-        }
-
-        if (artifactId === 'escudo_arcano') {
-          await prisma.questDelivery.updateMany({
-            where: { userId, questId: wrongAnswer.questId },
-            data: { erros: 0 }
-          }).catch(console.error);
-        }
+        await prisma.questDelivery.updateMany({
+          where: { userId, questId: wrongAnswer.questId },
+          data: {
+            status: 'WAITING',
+            isCorrect: false,
+            studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
+            studentImage: image || null,
+            erros: novasTentativas,
+            usedHelpers: shieldResult.updatedHelpers,
+            ...(hasExtraAttempt ? { helpRequested: false, helpResponse: null } : {})
+          }
+        }).catch(console.error);
 
         // Se for uma quest de Raid, propagar falha para os outros membros da Party
         const isRaidQuest = await prisma.raid.findFirst({
@@ -4589,7 +4679,8 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           'varinha_pinheiro',
           'elixir_dourado',
           'escudo_arcano',
-          'bracelete_cristal'
+          'bracelete_cristal',
+          'lagrima_fenix'
         ];
         if (!validHelpers.includes(artifactId)) {
           return reply.status(400).send({ error: 'Artefato utilitário inválido ou não suportado para esta rota.' });
@@ -4597,13 +4688,19 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
 
         // Verificar se este artefato já foi usado nesta missão
         // Para retentativas do Baú, ignoramos as restrições e registros do histórico da missão diária original
-        const usedList = delivery.usedHelpers ? delivery.usedHelpers.split(',') : [];
-        if (usedList.includes(artifactId)) {
-          return reply.status(400).send({ error: 'Este artefato já foi utilizado nesta missão.' });
+        const usedList = delivery.usedHelpers ? delivery.usedHelpers.split(',').filter(Boolean) : [];
+        const hasShieldAlready = usedList.some(h => h.startsWith('escudo_arcano') || h.startsWith('bracelete_cristal'));
+        if (artifactId === 'escudo_arcano' || artifactId === 'bracelete_cristal') {
+          if (hasShieldAlready) {
+            return reply.status(400).send({ error: 'Você já tem um escudo ativo nesta missão.' });
+          }
+          usedList.push(`${artifactId}:2`);
+        } else {
+          if (usedList.includes(artifactId)) {
+            return reply.status(400).send({ error: 'Este artefato já foi utilizado nesta missão.' });
+          }
+          usedList.push(artifactId);
         }
-
-        // Adiciona localmente na lista para salvar após o processamento correto de cada artefato
-        usedList.push(artifactId);
 
         if (artifactId === 'elixir_dourado' || artifactId === 'escudo_arcano' || artifactId === 'bracelete_cristal') {
           await prisma.questDelivery.update({
@@ -4884,7 +4981,8 @@ Retorne APENAS um JSON no formato:
 
         if (artifactId === 'relogio_tempo') {
           const currentExpiration = delivery.expiresAt || delivery.quest.expiresAt || new Date();
-          const novaExpiracao = new Date(currentExpiration.getTime() + 24 * 60 * 60 * 1000);
+          const baseTime = currentExpiration.getTime() > Date.now() ? currentExpiration : new Date();
+          const novaExpiracao = new Date(baseTime.getTime() + 24 * 60 * 60 * 1000);
 
           await prisma.questDelivery.update({
             where: { id: delivery.id },
@@ -4898,6 +4996,36 @@ Retorne APENAS um JSON no formato:
             success: true,
             expiresAt: novaExpiracao,
             message: 'O tempo foi distorcido! Você ganhou mais 24 horas de prazo para concluir esta missão!'
+          });
+        }
+
+        if (artifactId === 'lagrima_fenix') {
+          const wrongAnswer = await prisma.wrongAnswer.findFirst({
+            where: { questId: delivery.questId, userId }
+          });
+          
+          if (wrongAnswer) {
+            await prisma.wrongAnswer.update({
+              where: { id: wrongAnswer.id },
+              data: { tentativas: 0 }
+            });
+          }
+
+          const novaExpiracao = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+          await prisma.questDelivery.updateMany({
+            where: { userId, questId: delivery.questId },
+            data: {
+              expiresAt: novaExpiracao,
+              erros: 0,
+              usedHelpers: isBaú ? undefined : usedList.filter(Boolean).join(',')
+            }
+          });
+
+          return reply.send({
+            success: true,
+            expiresAt: novaExpiracao,
+            message: 'A Lágrima da Fênix purificou a missão! Tentativas resetadas e prazo estendido por mais 24 horas!'
           });
         }
 

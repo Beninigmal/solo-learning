@@ -76,6 +76,7 @@ REGRAS IMPORTANTES:
 - Progressão de dificuldade de 1 a 3.
 - Adeque a complexidade das perguntas ao nível "${complexidade}".
 ${tipoRule}
+${getGradeDifficultyPrompt(turma)}
 - Retorne APENAS um JSON no formato especificado abaixo. Não inclua texto explicativo adicional.
 Exemplo de formato esperado:
 {
@@ -158,4 +159,41 @@ Exemplo de formato esperado:
 
     return { batch: batchId, count: 3 };
   }
+}
+
+function getGradeFromNome(nome: string): string {
+  const match = nome.match(/(\d+)\s*(?:º|ª|o|a)/i);
+  if (match) {
+    const num = match[1];
+    if (nome.toLowerCase().includes('médio') || nome.toLowerCase().includes('medio')) {
+      return `${num}º ano do Ensino Médio`;
+    }
+    return `${num}º ano do Ensino Fundamental`;
+  }
+  return '';
+}
+
+function getTurmaGradeDescription(turma?: { nome: string; ano?: string | null } | null): string {
+  if (!turma) return '';
+  if (turma.ano) return turma.ano;
+  return getGradeFromNome(turma.nome);
+}
+
+function getGradeDifficultyPrompt(turma?: { nome: string; ano?: string | null; nivel: string } | null): string {
+  if (!turma) return '';
+  const grade = getTurmaGradeDescription(turma);
+  const nivel = turma.nivel || 'FUNDAMENTAL';
+
+  let prompt = ``;
+  if (grade) {
+    prompt += `\n- SÉRIE/ANO DO ALUNO: A turma pertence ao "${grade}".
+- REGRA CRÍTICA DE COMPLEXIDADE POR SÉRIE: Você DEVE adequar estritamente a complexidade das perguntas ao currículo escolar e capacidade intelectual típica de alunos do "${grade}".
+- Não crie perguntas de séries avançadas. Há um gap intelectual importante entre cada série do Ensino Fundamental (5º, 6º, 7º, 8º, 9º ano) e do Ensino Médio (1º, 2º, 3º ano) que deve ser respeitado:
+  - Exemplo (Matemática): Se o tema for "Regra de Três", para o 5º ou 6º ano do Ensino Fundamental crie apenas problemas simples de regra de três direta. Para o 7º ou 8º ano use regra de três simples inversa. Apenas para o 9º ano ou Ensino Médio utilize regra de três composta.
+  - Exemplo (Português): Para o 5º ano, foque em concordância verbal/nominal simples ou identificação de classes gramaticais básicas. Para o 9º ano ou Ensino Médio, aborde orações coordenadas/subordinadas, figuras de linguagem complexas ou regência verbal avançada.
+  - Exemplo (Ciências/Física): Para o 6º ano, foque em conceitos macroscópicos simples de misturas e materiais. Para o 9º ano ou Ensino Médio, use equações físicas completas (como Leis de Newton, velocidade média com contas completas, etc.).\n`;
+  } else {
+    prompt += `\n- NÍVEL DE ENSINO: A turma é do nível "${nivel}". Adeque as perguntas a este nível de ensino.\n`;
+  }
+  return prompt;
 }
