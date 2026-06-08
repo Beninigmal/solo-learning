@@ -5618,6 +5618,16 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
           }
         });
 
+        // Cria o registro no histórico do mestre
+        await prisma.giftedArtifactHistory.create({
+          data: {
+            mestreId: request.user.id,
+            studentId,
+            artifactId,
+            quantidade: 1
+          }
+        });
+
         return reply.send({
           success: true,
           message: 'Artefato concedido com sucesso!',
@@ -5657,6 +5667,81 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
       } catch (error: any) {
         request.log.error(error);
         return reply.status(500).send({ error: 'Erro ao resgatar artefatos presenteados.', details: error.message });
+      }
+    }
+  );
+
+  // ─── GET /quests/mestre/gift-history ───────────────────────────────────────
+  fastify.get(
+    '/mestre/gift-history',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        if (request.user.role !== 'PROFESSOR' && request.user.role !== 'ADMIN') {
+          return reply.status(403).send({ error: 'Apenas Mestres e Arquitetos podem visualizar o histórico.' });
+        }
+
+        const { page, limit, date } = request.query as any;
+        const pageNum = parseInt(page || '1', 10);
+        const limitNum = parseInt(limit || '10', 10);
+        const skip = (pageNum - 1) * limitNum;
+
+        const whereClause: any = {
+          mestreId: request.user.id
+        };
+
+        if (date) {
+          const parts = date.split('-');
+          if (parts.length === 3) {
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1; // 0-indexed month
+            const day = parseInt(parts[2], 10);
+            
+            const start = new Date(year, month, day, 0, 0, 0, 0);
+            const end = new Date(year, month, day, 23, 59, 59, 999);
+            
+            whereClause.createdAt = {
+              gte: start,
+              lte: end
+            };
+          }
+        }
+
+        const [history, total] = await Promise.all([
+          prisma.giftedArtifactHistory.findMany({
+            where: whereClause,
+            include: {
+              student: {
+                select: {
+                  nome: true,
+                  nickname: true,
+                  matricula: true
+                }
+              }
+            },
+            orderBy: {
+              createdAt: 'desc'
+            },
+            skip,
+            take: limitNum
+          }),
+          prisma.giftedArtifactHistory.count({
+            where: whereClause
+          })
+        ]);
+
+        return reply.send({
+          data: history,
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total,
+            totalPages: Math.ceil(total / limitNum)
+          }
+        });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao resgatar histórico de artefatos.', details: error.message });
       }
     }
   );

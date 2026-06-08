@@ -43,6 +43,8 @@ model User {
   calendarEventsCreated  CalendarEvent[]   @relation("UserCalendarEvents")
   raidMessages    RaidMessage[]
   giftedArtifacts GiftedArtifact[]
+  giftsGiven    GiftedArtifactHistory[] @relation("MestreGifts")
+  giftsReceived GiftedArtifactHistory[] @relation("StudentGifts")
   anelSerpenteExpires DateTime?
   bolsaSorteExpires   DateTime?
 
@@ -355,5 +357,17 @@ model DeleteAccountRequest {
   email       String
   instituicao String
   createdAt   DateTime @default(now())
+}
+
+model GiftedArtifactHistory {
+  id         String   @id @default(uuid())
+  mestreId   String
+  studentId  String
+  artifactId String
+  quantidade Int      @default(1)
+  createdAt  DateTime @default(now())
+
+  mestre  User @relation("MestreGifts", fields: [mestreId], references: [id], onDelete: Cascade)
+  student User @relation("StudentGifts", fields: [studentId], references: [id], onDelete: Cascade)
 }
 
