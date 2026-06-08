@@ -39,6 +39,27 @@ Integrado de forma nativa ao modelo **Google Gemini**, o sistema gera missões c
 
 ---
 
+## 📖 Dicionário de Termos (RPG & Gamer)
+
+Para educadores e responsáveis que não estão familiarizados com o universo de jogos de RPG e termos de manhwas/animes, aqui está um guia prático dos conceitos aplicados no Solen:
+
+- **RPG (Role-Playing Game):** Jogo de interpretação de papéis. Nele, o participante assume o papel de um personagem que evolui ao longo do tempo ganhando experiência, habilidades e enfrentando desafios.
+- **Quest (Missão):** Uma tarefa ou objetivo pedagógico a ser concluído. Resolver exercícios é como "completar uma quest".
+- **XP (Points of Experience / Pontos de Experiência):** Pontuação acumulada ao concluir atividades corretas. Funciona como a nota, mas acumulativa. Serve para subir o nível do jogador.
+- **Level Up (Subir de Nível):** Quando o aluno acumula XP suficiente, ele sobe de nível, demonstrando seu progresso global e desbloqueando novas mecânicas.
+- **Rank (Classificação):** Grau de poder ou proficiência acadêmica do caçador (aluno), variando de **Rank E** (iniciante) a **Rank S** (lendário/mestre no assunto).
+- **Status Window (Janela de Status):** Painel que mostra os dados, atributos e o progresso do aluno (nível, rank, XP e pontos).
+- **Party (Grupo):** Equipe de até 3 alunos que se unem para realizar missões de forma cooperativa.
+- **Raid (Invasão / Masmorra de Grupo):** Um desafio de maior complexidade a ser resolvido em grupo pelos integrantes da Party.
+- **Boss / Mini Boss (Chefe / Mini-Chefe):** Quest de grande dificuldade (como uma prova ou simulado) que exige maior conhecimento conceitual e dá recompensas superiores.
+- **Drop / Dropar (Obter Recompensa):** O ato de ganhar um item mágico aleatório ao finalizar uma quest ou derrotar um boss.
+- **Bag (Bolsa / Inventário):** O local onde ficam guardados os artefatos (itens mágicos) obtidos pelo aluno para uso posterior.
+- **Buff (Melhoria de Status):** Efeito positivo temporário (como o multiplicador de XP concedido pela Bandeira de Guerra ou Elixir Dourado).
+- **Debuff (Penalidade / Maldição):** Efeito negativo aplicado (como a perda de 25% de XP base por errar seguidamente questões salvas no Baú).
+- **Invasor:** Um jogador de fora da sua party que entra para tentar "roubar" o XP de uma Raid (uma dinâmica gamificada para incentivar a agilidade).
+
+---
+
 ## 🛠️ Stack Tecnológica
 
 - **Frontend:** React Native Web & Mobile via **Expo** (TypeScript + NativeWind/TailwindCSS).
