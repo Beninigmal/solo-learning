@@ -69,3 +69,33 @@ O artigo 318 da CLT protege a saúde do professor regulamentando limites diário
 
 ### B. Bloqueio de Excedência
 Ao tentar vincular um professor a turmas cujo somatório de aulas semanais ultrapasse o limite máximo contratual calculado com base no regime (ex: máximo 26 aulas para 40h Concursado, 32 aulas para 40h REDA ou 40 aulas para 40h CLT), o sistema dispara um bloqueio impeditivo, garantindo a conformidade regulatória.
+
+---
+
+## 4. Complexidade Cognitiva e Dificuldade por Série na Geração IA
+
+Para respeitar o gap intelectual entre diferentes séries do Ensino Fundamental (5º ao 9º ano) e do Ensino Médio (1ª a 3ª série), a geração de missões diárias comuns, Mini Bosses e Bosses Gerais utiliza heurísticas de detecção de ano escolar baseadas no nome ou no campo `ano` da `Turma`.
+
+### A. Algoritmo de Mapeamento de Ano/Série
+1. **Dedução do Ano:**
+   - O algoritmo aplica uma expressão regular no nome da turma (ex: `"5ª Série A"`, `"3º Ano Ensino Médio"`) para capturar o dígito correspondente.
+   - Identifica se a turma é do Ensino Fundamental ou do Ensino Médio.
+2. **Definição de Diretrizes Pedagógicas:**
+   - Converte o ano da turma em uma descrição amigável (ex: `"5º ano do Ensino Fundamental"` ou `"3º ano do Ensino Médio"`).
+
+### B. Injeção de Regras Rígidas nos Prompts de IA (Gemini)
+O sistema injeta instruções restritivas no template de prompt da IA para garantir que a complexidade corresponda à maturidade do aluno:
+- **Ensino Fundamental Inicial/Médio (ex: 5º ou 6º Ano):**
+  - *Exemplo (Matemática):* Se o tema for "Regra de Três", exige-se exclusivamente regra de três simples direta.
+  - *Exemplo (Português):* Foco em concordância verbal/nominal simples ou classes gramaticais básicas.
+  - *Exemplo (Ciências):* Foco em conceitos macroscópicos simples de misturas e materiais.
+- **Ensino Fundamental Final (ex: 7º ou 8º Ano):**
+  - *Exemplo (Matemática):* Regra de três simples inversa.
+- **Ensino Fundamental 9º Ano e Ensino Médio (1º ao 3º Ano):**
+  - *Exemplo (Matemática):* Regra de três composta e problemas de equações completas.
+  - *Exemplo (Português):* Orações coordenadas/subordinadas, figuras de linguagem complexas ou regência verbal avançada.
+  - *Exemplo (Ciências/Física):* Fórmulas e equações completas (como Leis de Newton, velocidade média com cálculos físicos, etc.).
+
+### C. Dificuldade de Bosses
+- **Mini Bosses:** Gerados dinamicamente com base nas missões resolvidas com sucesso pelo aluno nas últimas 24 horas. O prompt do Mini Boss eleva a dificuldade acima de "Difícil" daquela categoria, mas mantém a formatação curricular exata e adaptada ao ano escolar da turma do aluno.
+- **Bosses Gerais:** Utilizam as mesmas heurísticas rígidas de série/ano escolar para calibrar a dificuldade e complexidade da batalha conceitual de acordo com o ano letivo configurado no Painel.
