@@ -1,3 +1,4 @@
+
 # 🔮 Solen — Solo Learning (O RPG da Educação)
 
 > *"Apenas os caçadores mais dedicados conseguirão alcançar o Rank S do conhecimento."*
@@ -119,3 +120,8 @@ npx expo start --web
 
 ## 🎯 Autores e Origem
 Desenvolvido por educadores e entusiastas de jogos de RPG para modernizar a aprendizagem e gamificar o ensino no Brasil.
+Lucas Araújo (Beni)
+beninigmal@gmail.com
+
+# solo-learning
+
