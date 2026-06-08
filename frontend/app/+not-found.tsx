@@ -23,7 +23,7 @@ export default function NotFound() {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
-    // Fade in da tela
+
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
