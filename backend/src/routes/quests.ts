@@ -821,13 +821,40 @@ const artifactNames: Record<string, string> = {
   bolsa_sorte: 'Bolsa da Sorte 🎒',
   mao_midas: 'Mão de Midas 🪙',
   pena_escriba: 'Pena do Escriba 🪶',
-  varinha_pinheiro: 'Varinha de Pinheiro 🪄'
+  varinha_pinheiro: 'Varinha de Pinheiro 🪄',
+  chapeu_arcanista: 'Chapéu do Archmago 🎩'
 };
 
-function rollArtifactDrop(questNivel: string): string | null {
+interface UserBuffs {
+  chapeuArcanistActive?: boolean;
+  bolsaSorteActive?: boolean;
+  anelSerpenteActive?: boolean;
+}
+
+function rollArtifactDrop(questNivel: string, buffs?: UserBuffs): string | null {
   const rand = Math.random() * 100;
+  const chapeuActive = buffs?.chapeuArcanistActive ?? false;
 
   if (questNivel === 'MINIBOSS' || questNivel === 'BOSS') {
+    // Com Chapéu do Archmago: chance extra de Lendários (+10% cada, redistribui)
+    if (chapeuActive) {
+      // Legendaries with buff (~3.5% each instead of 0.5%)
+      if (rand < 3.5) return 'sussurros_sabios';
+      if (rand < 7.0) return 'becker_alquimista';
+      if (rand < 10.5) return 'olhar_monarca';
+      // Epics (same as before, shifted)
+      if (rand < 15.5) return 'elixir_dourado';
+      if (rand < 20.5) return 'pocao_cura';
+      if (rand < 25.5) return 'relogio_tempo';
+      if (rand < 30.5) return 'anel_serpente';
+      if (rand < 35.5) return 'lagrima_fenix';
+      if (rand < 40.5) return 'bandeira_guerra';
+      if (rand < 45.5) return 'orbe_perspicacia';
+      if (rand < 50.5) return 'chave_mestra';
+      if (rand < 55.5) return 'cetro_exilio';
+      return null;
+    }
+
     // Legendaries (0.5% each)
     if (rand < 0.5) return 'sussurros_sabios';
     if (rand < 1.0) return 'becker_alquimista';
@@ -846,6 +873,30 @@ function rollArtifactDrop(questNivel: string): string | null {
 
     return null;
   } else {
+    // MISSÕES COMUNS
+    // Com Chapéu do Archmago: chance de dropar Épicos também (~10% total para épicos)
+    if (chapeuActive) {
+      // Epic bonus (10% chance, split equally)
+      if (rand < 1.67) return 'elixir_dourado';
+      if (rand < 3.34) return 'pocao_cura';
+      if (rand < 5.0) return 'relogio_tempo';
+      if (rand < 6.67) return 'anel_serpente';
+      if (rand < 8.34) return 'lagrima_fenix';
+      if (rand < 10.0) return 'cetro_exilio';
+      // Magic (same pool, shifted)
+      if (rand < 15.0) return 'sapatilhas_veloz';
+      if (rand < 20.0) return 'martelo_magico';
+      if (rand < 25.0) return 'poeira_estelar';
+      if (rand < 30.0) return 'pergaminho_oraculo';
+      if (rand < 35.0) return 'bracelete_cristal';
+      if (rand < 40.0) return 'escudo_arcano';
+      if (rand < 42.0) return 'bolsa_sorte';
+      if (rand < 44.0) return 'mao_midas';
+      if (rand < 45.0) return 'pena_escriba';
+      if (rand < 47.0) return 'varinha_pinheiro';
+      return null;
+    }
+
     // Magical (Percentages as requested)
     if (rand < 5.0) return 'sapatilhas_veloz';
     if (rand < 10.0) return 'martelo_magico';
@@ -1066,8 +1117,13 @@ function getGradeDifficultyPrompt(turma?: { nome: string; ano?: string | null; n
           data: { xp: { increment: xpFinal } }
         });
 
-        // Roll artifact drop for this member
-        const droppedId = rollArtifactDrop(questNivel);
+        // Roll artifact drop for this member (check chapeu buff)
+        const memberUserData = await prisma.user.findUnique({
+          where: { id: targetUserId },
+          select: { chapeuArcanistExpires: true }
+        });
+        const memberChapeuActive = !!(memberUserData?.chapeuArcanistExpires && new Date(memberUserData.chapeuArcanistExpires) > now);
+        const droppedId = rollArtifactDrop(questNivel, { chapeuArcanistActive: memberChapeuActive });
         if (droppedId) {
           await prisma.giftedArtifact.create({
             data: {
@@ -1160,8 +1216,13 @@ function getGradeDifficultyPrompt(turma?: { nome: string; ano?: string | null; n
         data: { xp: { increment: xpToAward } }
       });
 
-      // Roll artifact drop for the solo player
-      const droppedId = rollArtifactDrop(questNivel);
+      // Roll artifact drop for the solo player (check chapeu buff)
+      const soloUserData = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { chapeuArcanistExpires: true }
+      });
+      const soloChapeuActive = !!(soloUserData?.chapeuArcanistExpires && new Date(soloUserData.chapeuArcanistExpires) > now);
+      const droppedId = rollArtifactDrop(questNivel, { chapeuArcanistActive: soloChapeuActive });
       if (droppedId) {
         await prisma.giftedArtifact.create({
           data: {
@@ -5573,6 +5634,18 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
             success: true,
             xpGanho: 100,
             message: `Banimento bem-sucedido! O Invasor @${invaderUser.nickname || invaderUser.nome} foi exilado da fenda. Você recebeu +100 XP e ele perdeu ${xpToSteal} XP!`
+          });
+        }
+
+        if (artifactId === 'chapeu_arcanista') {
+          const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 dias
+          await prisma.user.update({
+            where: { id: userId },
+            data: { chapeuArcanistExpires: expiresAt }
+          });
+          return reply.send({
+            success: true,
+            message: '🎩 Chapéu do Archmago equipado! Por 7 dias, missões comuns podem dropar itens Épicos e Mini Bosses podem dropar itens Lendários!'
           });
         }
 

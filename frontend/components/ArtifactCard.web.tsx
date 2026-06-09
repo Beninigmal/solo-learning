@@ -51,6 +51,7 @@ const artifactImages: { [id: string]: any } = {
   pena_escriba: require('../assets/pena_escriba.png'),
   cetro_exilio: require('../assets/cetro_exilio.png'),
   varinha_pinheiro: require('../assets/varinha_pinheiro.png'),
+  chapeu_arcanista: require('../assets/chapeu_arcanista.png'),
 };
 
 export function ArtifactCard({ artifact, size = 'normal', animated = true, isConsumed = false, onPress }: ArtifactCardProps) {
@@ -137,6 +138,7 @@ export function ArtifactCard({ artifact, size = 'normal', animated = true, isCon
       case 'pena_escriba': return 'edit-3';
       case 'cetro_exilio': return 'shield-off';
       case 'varinha_pinheiro': return 'zap';
+      case 'chapeu_arcanista': return 'cpu';
       default: return 'star';
     }
   };
