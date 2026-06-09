@@ -131,7 +131,8 @@ const allAvailableArtifacts = [
   { id: 'bolsa_sorte', name: 'Bolsa da Sorte', type: 'magic', description: 'Aumenta a taxa de drop de artefatos em missões diárias comuns em +15% por 7 dias.' },
   { id: 'mao_midas', name: 'Mão de Midas', type: 'magic', description: 'Oferece 50% de chance de transmutar um item Mágico em um Épico aleatório (falha destrói o item).' },
   { id: 'pena_escriba', name: 'Pena do Escriba', type: 'magic', description: 'Em perguntas teóricas dissertativas, revela as 3 principais palavras-chave esperadas para aprovação.' },
-  { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo discursiva em múltipla escolha com opções.' }
+  { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo discursiva em múltipla escolha com opções.' },
+  { id: 'chapeu_arcanista', name: 'Chapéu do Archmago', type: 'legendary', description: 'Quando ativo por 7 dias, adiciona chance de drop de itens Épicos em missões comuns e Lendários em Mini Bosses. Não entra no pool de drop enquanto equipado, exceto via Rank Up.' }
 ];
 
 export function usePlayerState() {
@@ -313,6 +314,9 @@ export function usePlayerState() {
           awarded = { id: 'sussurros_sabios', name: 'Sussurros Sábios', type: 'legendary', description: 'Envia um pedido de ajuda ao Mestre para liberar uma dica pedagógica. Concede tentativa extra e +50% de XP.' };
         } else if (newRankInfo.currentRank === 'S') {
           awarded = { id: 'olhar_monarca', name: 'Olhar do Monarca', type: 'legendary', description: 'Revela os tópicos conceituais e fórmulas conceituais que serão exigidos nas próximas missões do Mini Boss ou Boss Geral.' };
+          // Chapéu do Archmago também cai no Rank S (único drop possível além de presentes do Mestre)
+          const chapeu = { id: 'chapeu_arcanista', name: 'Chapéu do Archmago', type: 'legendary', description: 'Quando ativo por 7 dias, adiciona chance de drop de itens Épicos em missões comuns e Lendários em Mini Bosses. Exclusivo de Rank Up.' };
+          setBagInventory((prev) => [...prev, chapeu]);
         }
 
         if (awarded) {
@@ -1802,7 +1806,8 @@ export function usePlayerState() {
         'bandeira_guerra',
         'orbe_perspicacia',
         'chave_mestra',
-        'cetro_exilio'
+        'cetro_exilio',
+        'chapeu_arcanista'
       ];
 
       if (directIds.includes(artId)) {
