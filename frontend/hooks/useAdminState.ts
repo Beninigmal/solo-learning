@@ -483,14 +483,35 @@ export function useAdminState() {
       const userRaw = await AsyncStorage.getItem('@Solen:user');
       if (userRaw) {
         const u = JSON.parse(userRaw);
+        if (u.role === 'ADMIN') {
+          router.replace('/(superadmin)/dashboard');
+          return;
+        } else if (u.role !== 'ARQUITETO') {
+          if (u.role === 'PROFESSOR') router.replace('/(mestre)/dashboard');
+          else if (u.role === 'ALUNO') router.replace('/(player)/status');
+          else router.replace('/login');
+          return;
+        }
         setCurrentUser(u);
         if (!u.acceptedTermsAt) {
           setShowTerms(true);
         }
+      } else {
+        router.replace('/login');
+        return;
       }
 
       const freshUser = await getMe();
       if (freshUser) {
+        if (freshUser.role === 'ADMIN') {
+          router.replace('/(superadmin)/dashboard');
+          return;
+        } else if (freshUser.role !== 'ARQUITETO') {
+          if (freshUser.role === 'PROFESSOR') router.replace('/(mestre)/dashboard');
+          else if (freshUser.role === 'ALUNO') router.replace('/(player)/status');
+          else router.replace('/login');
+          return;
+        }
         setCurrentUser(freshUser);
         await AsyncStorage.setItem('@Solen:user', JSON.stringify(freshUser));
         if (!freshUser.acceptedTermsAt) {
@@ -501,8 +522,9 @@ export function useAdminState() {
       }
     } catch (e) {
       console.error(e);
+      router.replace('/login');
     }
-  }, []);
+  }, [router]);
 
   const handleAcceptTerms = async (parentConsentName?: string) => {
     setTermsLoading(true);
