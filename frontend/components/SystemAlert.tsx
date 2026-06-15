@@ -59,7 +59,9 @@ export function SystemAlert({ visible, title, message, type = 'info', onClose, b
             shadowOffset: { width: 0, height: 0 },
             shadowOpacity: 0.8,
             shadowRadius: 15,
-            elevation: 15
+            elevation: 15,
+            maxWidth: 480,
+            width: '100%'
           }}
         >
           <View className="flex-row items-center gap-3 mb-4 w-full justify-center relative z-10">
