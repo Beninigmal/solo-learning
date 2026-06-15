@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, Animated, RefreshC
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   logout, 
   getInstitutions, 
@@ -70,7 +71,29 @@ export default function SuperAdminDashboard() {
       Animated.spring(slideAnim, { toValue: 0, friction: 6, tension: 40, useNativeDriver: true }),
     ]).start();
 
-    loadAllData();
+    const checkAuth = async () => {
+      try {
+        const userRaw = await AsyncStorage.getItem('@Solen:user');
+        if (!userRaw) {
+          router.replace('/login');
+          return;
+        }
+        const u = JSON.parse(userRaw);
+        if (u.role !== 'ADMIN') {
+          if (u.role === 'ARQUITETO') router.replace('/(admin)/dashboard');
+          else if (u.role === 'PROFESSOR') router.replace('/(mestre)/dashboard');
+          else if (u.role === 'ALUNO') router.replace('/(player)/status');
+          else router.replace('/login');
+          return;
+        }
+        loadAllData();
+      } catch (err) {
+        console.error('Erro no checkAuth do superadmin:', err);
+        router.replace('/login');
+      }
+    };
+
+    checkAuth();
   }, []);
 
   const showAlert = (title: string, msg: string, type: 'info' | 'success' | 'error' | 'warning' = 'info', callback?: () => void) => {
