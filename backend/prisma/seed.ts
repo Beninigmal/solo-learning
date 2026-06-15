@@ -17,7 +17,7 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log('🌱 Iniciando seeding completo (Novo Schema com Super Admin e Instituições)...');
 
-  const defaultPassword = await bcrypt.hash('Solen2026', 10);
+  const defaultPassword = await bcrypt.hash('Solen@18102010', 10);
 
   // 1. Criar Super Admin (ADMIN)
   await prisma.user.upsert({
