@@ -45,8 +45,9 @@ model User {
   giftedArtifacts GiftedArtifact[]
   giftsGiven    GiftedArtifactHistory[] @relation("MestreGifts")
   giftsReceived GiftedArtifactHistory[] @relation("StudentGifts")
-  anelSerpenteExpires DateTime?
-  bolsaSorteExpires   DateTime?
+  anelSerpenteExpires   DateTime?
+  bolsaSorteExpires     DateTime?
+  chapeuArcanistExpires DateTime?
 
   lastActiveAt DateTime @default(now())
   restrictions ProfessorRestriction[]

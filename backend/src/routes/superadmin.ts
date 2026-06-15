@@ -200,6 +200,7 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
 
       return reply.status(200).send(updated);
     } catch (error: any) {
+      console.error('[PUT /institutions/:id] ERROR:', error);
       if (error.code === 'P2002') {
         const target = error.meta?.target || [];
         if (target.includes('codigo')) {

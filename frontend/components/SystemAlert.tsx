@@ -53,13 +53,15 @@ export function SystemAlert({ visible, title, message, type = 'info', onClose, b
       <View className="flex-1 bg-black/80 justify-center items-center p-6 relative">
         {type === 'BOSS' && <DoomFireParticles />}
         <View 
-          className={`w-full ${type === 'BOSS' ? 'bg-[#0a1128]/80' : 'bg-[#0a1128]/95'} rounded-sm border-2 ${getBorderColor()} p-6 items-center relative overflow-hidden`}
+          className={`w-full max-w-md ${type === 'BOSS' ? 'bg-[#0a1128]/80' : 'bg-[#0a1128]/95'} rounded-sm border-2 ${getBorderColor()} p-6 items-center relative overflow-hidden`}
           style={{
             shadowColor: getColor(),
             shadowOffset: { width: 0, height: 0 },
             shadowOpacity: 0.8,
             shadowRadius: 15,
-            elevation: 15
+            elevation: 15,
+            maxWidth: 480,
+            width: '100%'
           }}
         >
           <View className="flex-row items-center gap-3 mb-4 w-full justify-center relative z-10">

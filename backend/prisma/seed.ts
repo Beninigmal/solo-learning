@@ -4,9 +4,12 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
 
+const connectionString = process.env.DATABASE_URL || '';
+const isProd = connectionString.includes('render.com');
+
 const pool = new pg.Pool({ 
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } 
+  connectionString,
+  ...(isProd ? { ssl: { rejectUnauthorized: false } } : {})
 });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
@@ -14,7 +17,7 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log('🌱 Iniciando seeding completo (Novo Schema com Super Admin e Instituições)...');
 
-  const defaultPassword = await bcrypt.hash('Solen2026', 10);
+  const defaultPassword = await bcrypt.hash('Solen@18102010', 10);
 
   // 1. Criar Super Admin (ADMIN)
   await prisma.user.upsert({

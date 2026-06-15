@@ -40,6 +40,7 @@ import {
   getQuestDeliveryStatus,
   registerPushToken,
   getPendingGiftedArtifacts,
+  getArtifactInventory,
 } from '../services/api';
 
 // Helper function to dynamically map player XP to Solo Leveling Ranks
@@ -131,7 +132,8 @@ const allAvailableArtifacts = [
   { id: 'bolsa_sorte', name: 'Bolsa da Sorte', type: 'magic', description: 'Aumenta a taxa de drop de artefatos em missões diárias comuns em +15% por 7 dias.' },
   { id: 'mao_midas', name: 'Mão de Midas', type: 'magic', description: 'Oferece 50% de chance de transmutar um item Mágico em um Épico aleatório (falha destrói o item).' },
   { id: 'pena_escriba', name: 'Pena do Escriba', type: 'magic', description: 'Em perguntas teóricas dissertativas, revela as 3 principais palavras-chave esperadas para aprovação.' },
-  { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo discursiva em múltipla escolha com opções.' }
+  { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo discursiva em múltipla escolha com opções.' },
+  { id: 'chapeu_arcanista', name: 'Chapéu do Archmago', type: 'legendary', description: 'Quando ativo por 7 dias, adiciona chance de drop de itens Épicos em missões comuns e Lendários em Mini Bosses. Não entra no pool de drop enquanto equipado, exceto via Rank Up.' }
 ];
 
 export function usePlayerState() {
@@ -313,6 +315,9 @@ export function usePlayerState() {
           awarded = { id: 'sussurros_sabios', name: 'Sussurros Sábios', type: 'legendary', description: 'Envia um pedido de ajuda ao Mestre para liberar uma dica pedagógica. Concede tentativa extra e +50% de XP.' };
         } else if (newRankInfo.currentRank === 'S') {
           awarded = { id: 'olhar_monarca', name: 'Olhar do Monarca', type: 'legendary', description: 'Revela os tópicos conceituais e fórmulas conceituais que serão exigidos nas próximas missões do Mini Boss ou Boss Geral.' };
+          // Chapéu do Archmago também cai no Rank S (único drop possível além de presentes do Mestre)
+          const chapeu = { id: 'chapeu_arcanista', name: 'Chapéu do Archmago', type: 'legendary', description: 'Quando ativo por 7 dias, adiciona chance de drop de itens Épicos em missões comuns e Lendários em Mini Bosses. Exclusivo de Rank Up.' };
+          setBagInventory((prev) => [...prev, chapeu]);
         }
 
         if (awarded) {
@@ -719,27 +724,33 @@ export function usePlayerState() {
     try {
       const giftRes = await getPendingGiftedArtifacts();
       if (giftRes && giftRes.success && giftRes.gifts && giftRes.gifts.length > 0) {
-        const newlyAdded: any[] = [];
-        giftRes.gifts.forEach((giftId: string) => {
-          const found = allAvailableArtifacts.find(x => x.id === giftId);
-          if (found) {
-            newlyAdded.push(found);
-          }
+        const allArtifacts = allAvailableArtifacts;
+        const serverIds = new Set(giftRes.gifts);
+
+        setBagInventory((prev) => {
+          const existingIds = new Set(prev.map((x: any) => x.id));
+          const trulyNew = allArtifacts
+            .filter((x: any) => serverIds.has(x.id) && !existingIds.has(x.id));
+
+          if (trulyNew.length === 0) return prev;
+
+          const updatedBag = [...prev, ...trulyNew];
+          AsyncStorage.setItem(`@Solen:inventory:${user?.id || ''}`, JSON.stringify(updatedBag)).catch(() => {});
+          return updatedBag;
         });
 
-        if (newlyAdded.length > 0) {
-          setBagInventory((prev) => {
-            const updatedBag = [...prev, ...newlyAdded];
-            AsyncStorage.setItem(`@Solen:inventory:${user?.id || ''}`, JSON.stringify(updatedBag)).catch(() => {});
-            return updatedBag;
-          });
+        // Notificar apenas sobre itens realmente novos
+        const existingIds = new Set(bagInventory.map((x: any) => x.id));
+        const trulyNewItems = allArtifacts
+          .filter((x: any) => serverIds.has(x.id) && !existingIds.has(x.id));
 
+        if (trulyNewItems.length > 0) {
           sounds.playSuccess?.() || sounds.playSelect();
           showAlert(
             isQuestCompletion ? '🔮 NOVO ARTEFATO ENCONTRADO!' : '🎁 PRESENTE DO MESTRE',
             isQuestCompletion
-              ? `Você encontrou novos artefatos ao concluir o desafio:\n\n${newlyAdded.map(x => `• ${x.name}`).join('\n')}`
-              : `O Mestre das Masmorras concedeu novos artefatos para o seu arsenal:\n\n${newlyAdded.map(x => `• ${x.name}`).join('\n')}`,
+              ? `Você encontrou novos artefatos ao concluir o desafio:\n\n${trulyNewItems.map((x: any) => `• ${x.name}`).join('\n')}`
+              : `O Mestre das Masmorras concedeu novos artefatos para o seu arsenal:\n\n${trulyNewItems.map((x: any) => `• ${x.name}`).join('\n')}`,
             'success'
           );
         }
@@ -774,7 +785,6 @@ export function usePlayerState() {
       if (userRaw) {
         const u = JSON.parse(userRaw);
         setUser(u);
-        loadBagInventoryFromStorage(u.id);
         if (!u.acceptedTermsAt) {
           setShowTerms(true);
         }
@@ -783,7 +793,6 @@ export function usePlayerState() {
       const freshUser = await getMe();
       if (freshUser) {
         setUser(freshUser);
-        loadBagInventoryFromStorage(freshUser.id);
         await AsyncStorage.setItem('@Solen:user', JSON.stringify(freshUser));
         if (!freshUser.acceptedTermsAt) {
           setShowTerms(true);
@@ -794,37 +803,22 @@ export function usePlayerState() {
           fetchPlayerAgenda();
         }
 
-        // Checa se o mestre concedeu artefatos pendentes
+        // Buscar inventário de artefatos do servidor (fonte da verdade)
         try {
-          const giftRes = await getPendingGiftedArtifacts();
-          if (giftRes && giftRes.success && giftRes.gifts && giftRes.gifts.length > 0) {
-            const allAvailable = allAvailableArtifacts;
-
-            const newlyAdded: any[] = [];
-            giftRes.gifts.forEach((giftId: string) => {
-              const found = allAvailable.find(x => x.id === giftId);
-              if (found) {
-                newlyAdded.push(found);
-              }
-            });
-
-            if (newlyAdded.length > 0) {
-              setBagInventory((prev) => {
-                const updatedBag = [...prev, ...newlyAdded];
-                AsyncStorage.setItem(`@Solen:inventory:${freshUser.id}`, JSON.stringify(updatedBag)).catch(() => {});
-                return updatedBag;
-              });
-
-              sounds.playSuccess?.() || sounds.playSelect();
-              showAlert(
-                '🎁 PRESENTE DO MESTRE',
-                `O Mestre das Masmorras concedeu novos artefatos para o seu arsenal:\n\n${newlyAdded.map(x => `• ${x.name}`).join('\n')}`,
-                'success'
-              );
-            }
+          const invRes = await getArtifactInventory();
+          if (invRes && invRes.success && invRes.gifts && invRes.gifts.length > 0) {
+            const artifacts = invRes.gifts
+              .map((giftId: string) => allAvailableArtifacts.find((x: any) => x.id === giftId))
+              .filter(Boolean);
+            setBagInventory(artifacts);
+            await AsyncStorage.setItem(`@Solen:inventory:${freshUser.id}`, JSON.stringify(artifacts)).catch(() => {});
+          } else {
+            // Fallback: AsyncStorage como cache local
+            loadBagInventoryFromStorage(freshUser.id);
           }
-        } catch (giftErr) {
-          console.error('Erro ao buscar presentes do mestre:', giftErr);
+        } catch (invErr) {
+          console.warn('Erro ao buscar inventário do servidor, usando cache local:', invErr);
+          loadBagInventoryFromStorage(freshUser.id);
         }
       }
 
@@ -1802,7 +1796,8 @@ export function usePlayerState() {
         'bandeira_guerra',
         'orbe_perspicacia',
         'chave_mestra',
-        'cetro_exilio'
+        'cetro_exilio',
+        'chapeu_arcanista'
       ];
 
       if (directIds.includes(artId)) {

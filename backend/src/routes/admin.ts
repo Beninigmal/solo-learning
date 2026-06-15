@@ -333,11 +333,20 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           if (level === "MEDIO_REGULAR") return 2;
           return 3;
         }
-        if (cleanSub.includes("historia") || cleanSub.includes("geografia") || cleanSub.includes("ciencia") || cleanSub.includes("biologia")) {
+        if (cleanSub.includes("historia") || cleanSub.includes("geografia")) {
           return (level === "FUNDAMENTAL") ? 3 : 2;
         }
-        if (cleanSub.includes("fisica") || cleanSub.includes("quimica")) {
-          return 2;
+        if (cleanSub.includes("ciencia") && !cleanSub.includes("biologia")) {
+          return (level === "FUNDAMENTAL") ? 3 : 0;
+        }
+        if (cleanSub.includes("biologia")) {
+          return (level === "FUNDAMENTAL") ? 0 : 2;
+        }
+        if (cleanSub.includes("fisica")) {
+          return (level === "FUNDAMENTAL") ? 0 : 2;
+        }
+        if (cleanSub.includes("quimica")) {
+          return (level === "FUNDAMENTAL") ? 0 : 2;
         }
         if (cleanSub.includes("ingles") || cleanSub.includes("ed") || cleanSub.includes("esport")) {
           return 2;

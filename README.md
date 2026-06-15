@@ -1,115 +1,139 @@
 
-# 🔮 Solen — Solo Learning (O RPG da Educação)
+# 🔮 Solen — Solo Learning (Sistema de Gestão Educacional Gamificado)
 
 > *"Apenas os caçadores mais dedicados conseguirão alcançar o Rank S do conhecimento."*
 
-Solen (Solo Learning) é uma plataforma educacional gamificada projetada para transformar o aprendizado escolar tradicional em um verdadeiro RPG de exploração e masmorras. Inspirado na estética do aclamado Manhwa **"Solo Leveling"**, o projeto aplica dinâmicas de engajamento baseadas em Ranks, Status Windows, Daily Quests, Itens Mágicos e Batalhas de Bosses para motivar alunos no desenvolvimento de suas habilidades acadêmicas.
+Solen é um **sistema de gestão educacional gamificado** que une administração escolar completa com mecânicas de RPG inspiradas no Manhwa **"Solo Leveling"**. O projeto nasceu como uma plataforma de engajamento estudantil e evoluiu para uma ferramenta completa que atende desde a coordenação pedagógica até o aluno, passando por gestão de instituições, grade curricular inteligente e conformidade legal.
 
 ---
 
-## 🏛️ A Origem da Ideia
+## 🏛️ Visão Geral
 
-O projeto nasceu de um questionamento pedagógico: **"Como trazer o engajamento obsessivo e a sensação de evolução contínua dos jogos e manhwas para a rotina de estudos escolar?"**
+O Solen resolve dois problemas simultaneamente:
 
-No manhwa *Solo Leveling*, o protagonista recebe um sistema misterioso que o impõe **Missões Diárias** (Daily Quests), **Janelas de Status** (Status Windows) detalhadas de seus atributos físicos, e duras **Penalidades** caso falhe. 
-
-Solen transpõe esse mesmo ecossistema para a educação básica e média:
-- Em vez de exercícios de fixação chatos, o aluno enfrenta **Quests Diárias** de Matemática ou Português.
-- Em vez de notas frias de boletim, o aluno visualiza seus atributos de **Força, Inteligência e Agilidade Pedagógica** crescendo na sua **Janela de Status**.
-- Em vez de prazos perdidos sem impacto visível, missões não resolvidas expiram e são seladas no **Baú**, gerando acúmulo de penalidades de XP.
+1. **Gestão escolar**: Cadastro de instituições (multi-tenant), turmas, professores, alunos, disciplinas e alocação inteligente de grade horária respeitando a legislação (LDB, Piso do Magistério, CLT, REDA)
+2. **Engajamento estudantil**: Gamificação profunda com Ranks (E a S), Quests diárias geradas por IA, Raids em grupo, Baú de revisão e artefatos mágicos
 
 ---
 
-## ⚔️ Mecânicas de Gamificação (Solen Systems)
+## ⚔️ Perfis de Acesso (RBAC)
 
-### 1. 📜 Status Window & Ranks
-Os alunos começam como caçadores de **Rank E** e evoluem até o cobiçado **Rank S**. A cada quest concluída com sucesso, o aluno acumula **XP**, sobe de nível e distribui pontos de atributos baseados no seu desempenho pedagógico (velocidade, acertos e precisão).
+### 👑 ADMIN (Superadmin)
+- Gestão global multi-escolas
+- Cadastro de instituições e Arquitetos
 
-### 2. 🐉 Masmorras de Grupo (Raids & Parties)
-Os alunos podem se unir em **Parties** de até 3 caçadores para enfrentar **Raids** acadêmicas cooperativas em tempo real. As respostas são alternadas por turnos compartilhados entre os participantes e a party conta com chat dinâmico. Cuidado: invasores inimigos podem corromper sua party com a **Chave Mestra**, e você precisará do **Cetro do Exílio** para limpá-la!
+### 🏛️ ARQUITETO (Coordenação)
+- Cadastro de turmas, professores e disciplinas
+- Importação de alunos em lote (CSV)
+- Configuração da grade curricular
 
-### 3. 🎒 Inventário de Artefatos Mágicos
-Os alunos acumulam e utilizam artefatos dropados para facilitar sua jornada de estudos:
-- **🛡️ Escudo Arcano & Bracelete de Cristal:** Bloqueiam penalidades de XP por tentativas erradas.
-- **🕰️ Relógio Ganha Tempo & 💧 Lágrima da Fênix:** Distorcem o tempo para estender prazos ou reativar missões expiradas no Baú.
-- **🔨 Martelo Mágico & 📜 Pergaminho do Oráculo:** Descompõem problemas complexos em passos educativos (*scaffolding*) e dicas pedagógicas da IA.
-- **🎯 Poeira Estelar & 🪄 Varinha de Pinheiro:** Eliminam alternativas incorretas e transmutam missões de cálculo em múltipla escolha.
+### ⚔️ MESTRE (Professor)
+- Forja de missões via IA (Gemini) com rascunho e aprovação
+- Radar de XP da turma com alerta de risco
+- Agenda e histórico de missões
 
-### 4. 🧠 Inteligência Artificial Generativa (Gemini)
-Integrado de forma nativa ao modelo **Google Gemini**, o sistema gera missões contextualizadas sob medida para a turma do aluno, respeitando estritamente a complexidade cognitiva ideal para o seu ano escolar (diferenciando os currículos de 5º, 6º, 7º, 8º ou 9º ano do Fundamental e do Ensino Médio). 
+### 🧑‍🚀 CAÇADOR (Aluno)
+- Quests diárias com progressão de dificuldade
+- Sistema de Ranks (E → S) e acúmulo de XP
+- Party e Raids cooperativas
+- Baú de missões perdidas com recuperação de XP
+- Inventário de artefatos mágicos
 
 ---
 
-## 📖 Dicionário de Termos (RPG & Gamer)
+## 🧠 Monarch Engine v3
 
-Para educadores e responsáveis que não estão familiarizados com o universo de jogos de RPG e termos de manhwas/animes, aqui está um guia prático dos conceitos aplicados no Solen:
+Algoritmo de **Constraint Satisfaction Problem (CSP)** para alocação automática de grade horária que respeita:
 
-- **RPG (Role-Playing Game):** Jogo de interpretação de papéis. Nele, o participante assume o papel de um personagem que evolui ao longo do tempo ganhando experiência, habilidades e enfrentando desafios.
-- **Quest (Missão):** Uma tarefa ou objetivo pedagógico a ser concluído. Resolver exercícios é como "completar uma quest".
-- **XP (Points of Experience / Pontos de Experiência):** Pontuação acumulada ao concluir atividades corretas. Funciona como a nota, mas acumulativa. Serve para subir o nível do jogador.
-- **Level Up (Subir de Nível):** Quando o aluno acumula XP suficiente, ele sobe de nível, demonstrando seu progresso global e desbloqueando novas mecânicas.
-- **Rank (Classificação):** Grau de poder ou proficiência acadêmica do caçador (aluno), variando de **Rank E** (iniciante) a **Rank S** (lendário/mestre no assunto).
-- **Status Window (Janela de Status):** Painel que mostra os dados, atributos e o progresso do aluno (nível, rank, XP e pontos).
-- **Party (Grupo):** Equipe de até 3 alunos que se unem para realizar missões de forma cooperativa.
-- **Raid (Invasão / Masmorra de Grupo):** Um desafio de maior complexidade a ser resolvido em grupo pelos integrantes da Party.
-- **Boss / Mini Boss (Chefe / Mini-Chefe):** Quest de grande dificuldade (como uma prova ou simulado) que exige maior conhecimento conceitual e dá recompensas superiores.
-- **Drop / Dropar (Obter Recompensa):** O ato de ganhar um item mágico aleatório ao finalizar uma quest ou derrotar um boss.
-- **Bag (Bolsa / Inventário):** O local onde ficam guardados os artefatos (itens mágicos) obtidos pelo aluno para uso posterior.
-- **Buff (Melhoria de Status):** Efeito positivo temporário (como o multiplicador de XP concedido pela Bandeira de Guerra ou Elixir Dourado).
-- **Debuff (Penalidade / Maldição):** Efeito negativo aplicado (como a perda de 25% de XP base por errar seguidamente questões salvas no Baú).
-- **Invasor:** Um jogador de fora da sua party que entra para tentar "roubar" o XP de uma Raid (uma dinâmica gamificada para incentivar a agilidade).
+- **Lei de Diretrizes e Bases (LDB)** — matriz curricular por nível de ensino
+- **Piso do Magistério (Lei 11.738/2008)** — limite de 2/3 em sala de aula para concursados
+- **Regime REDA** — 80% regência / 20% hora-atividade
+- **CLT (Art. 318)** — limite de aulas consecutivas/intercaladas
+- **Diferenciação Pública vs. Privada** — regras distintas de alocação por rede
+
+---
+
+## 🎒 Gamificação (Solen Systems)
+
+### 📜 Status Window & Ranks
+Rank E (iniciante) → Rank S (lendário). XP acumulado por quests concluídas, com barra de progresso visual.
+
+### 🐉 Raids & Parties
+Grupos de até 3 alunos para missões cooperativas em tempo real, com invasores, Chave Mestra e Cetro do Exílio.
+
+### 🎒 Inventário de Artefatos
+- **Escudo Arcano & Bracelete de Cristal:** Bloqueiam penalidades de XP
+- **Relógio Ganha Tempo & Lágrima da Fênix:** Estendem prazos ou revivem missões
+- **Martelo Mágico & Pergaminho do Oráculo:** Scaffolding e dicas pedagógicas
+- **Poeira Estelar & Varinha de Pinheiro:** Eliminam alternativas ou transmutam questões
+
+### 🧠 IA Generativa (Gemini)
+Geração de missões contextualizadas por série/ano, com complexidade cognitiva progressiva (5º ano Fundamental → 3º ano Ensino Médio).
+
+---
+
+## 🔒 Conformidade e Segurança
+
+- **Multi-tenant** por instituição com isolamento de dados
+- **LGPD** — fluxo de consentimento, termos de uso e direito ao esquecimento
+- **Autenticação JWT** com diferenciação por role
+- **Biometria** (expo-local-authentication) para login seguro
+- **Prevenção IDOR** — validação cruzada de instituição em todas as rotas
 
 ---
 
 ## 🛠️ Stack Tecnológica
 
-- **Frontend:** React Native Web & Mobile via **Expo** (TypeScript + NativeWind/TailwindCSS).
-- **Backend:** Node.js com **Fastify** (TypeScript).
-- **Banco de Dados & ORM:** **PostgreSQL** com **Prisma ORM**.
-- **Motor de IA:** **Google Generative AI (Gemini API)** para geração dinâmica de enunciados, dicas e contextualização de bosses.
-- **Hospedagem:** **Vercel** (Frontend) + **Render** (Backend).
+| Camada | Tecnologia |
+| :--- | :--- |
+| **Frontend** | React Native Web & Mobile via **Expo** (TypeScript + NativeWind/TailwindCSS) |
+| **Backend** | Node.js com **Fastify** (TypeScript) — Clean Architecture & SOLID |
+| **Banco de Dados & ORM** | **PostgreSQL** com **Prisma ORM** |
+| **Motor de IA** | **Google Generative AI (Gemini API)** — geração de enunciados, dicas e bosses |
+| **Hospedagem** | **Vercel** (Frontend) + **Render** (Backend) |
 
 ---
 
 ## 📁 Estrutura do Projeto
 
-O projeto é mantido em uma estrutura de monorepositório para facilitar o desenvolvimento integrado:
-
 ```bash
 /root
-  ├── frontend/          # Aplicativo móvel e aplicação Web em Expo / React Native
-  ├── backend/           # API REST em Node.js com Fastify e Prisma ORM
-  └── regras_grades/     # Matrizes de regras e diretrizes curriculares (Monarch Engine)
+  ├── frontend/          # Aplicativo mobile/web em Expo / React Native
+  │   ├── app/           # Rotas (Expo Router) por perfil: player, mestre, admin
+  │   ├── components/    # Presenters (player/, mestre/, admin/) + CyberUI Kit
+  │   └── hooks/         # usePlayerState, useMestreState, useAdminState
+  ├── backend/           # API REST Fastify + Prisma
+  │   └── src/
+  │       ├── core/      # Use cases, interfaces de repositórios/providers
+  │       └── infra/     # Prisma repositories, Gemini provider, notificações
+  └── regras_grades/     # Diretrizes curriculares e regras do Monarch Engine
 ```
 
 ---
 
-## 🚀 Como Executar o Projeto Localmente
+## 🚀 Como Executar Localmente
 
 ### Pré-requisitos
-- Node.js (v18 ou superior)
-- PostgreSQL ativo localmente
+- Node.js v18+
+- PostgreSQL ativo
 
-### 1. Configurando o Backend
-Entre no diretório do backend, instale as dependências e configure as variáveis de ambiente:
+### 1. Backend
 ```bash
 cd backend
 npm install
 ```
-Crie um arquivo `.env` baseado no arquivo de exemplo e insira suas credenciais do banco e da **API Key do Gemini**:
+Configure `.env`:
 ```env
 DATABASE_URL="postgresql://usuario:senha@localhost:5432/solen_db"
 JWT_SECRET="sua_chave_jwt_secreta"
 GEMINI_API_KEY="sua_gemini_api_key"
 ```
-Execute as migrações do banco de dados e inicie o servidor de desenvolvimento:
 ```bash
 npx prisma migrate dev
 npm run dev
 ```
 
-### 2. Configurando o Frontend
-Abra um novo terminal, entre no diretório do frontend, instale as dependências e inicie o Metro Bundler:
+### 2. Frontend
 ```bash
 cd frontend
 npm install
@@ -118,10 +142,9 @@ npx expo start --web
 
 ---
 
-## 🎯 Autores e Origem
-Desenvolvido por educadores e entusiastas de jogos de RPG para modernizar a aprendizagem e gamificar o ensino no Brasil.
-Lucas Araújo (Beni)
-beninigmal@gmail.com
+## 🎯 Autores
 
-# solo-learning
+Desenvolvido por educadores e entusiastas de RPG para modernizar a gestão e o ensino no Brasil.
+
+**Lucas Araújo (Beni)** — beninigmal@gmail.com
 
