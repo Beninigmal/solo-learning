@@ -40,6 +40,7 @@ import {
   getQuestDeliveryStatus,
   registerPushToken,
   getPendingGiftedArtifacts,
+  getArtifactInventory,
 } from '../services/api';
 
 // Helper function to dynamically map player XP to Solo Leveling Ranks
@@ -723,27 +724,33 @@ export function usePlayerState() {
     try {
       const giftRes = await getPendingGiftedArtifacts();
       if (giftRes && giftRes.success && giftRes.gifts && giftRes.gifts.length > 0) {
-        const newlyAdded: any[] = [];
-        giftRes.gifts.forEach((giftId: string) => {
-          const found = allAvailableArtifacts.find(x => x.id === giftId);
-          if (found) {
-            newlyAdded.push(found);
-          }
+        const allArtifacts = allAvailableArtifacts;
+        const serverIds = new Set(giftRes.gifts);
+
+        setBagInventory((prev) => {
+          const existingIds = new Set(prev.map((x: any) => x.id));
+          const trulyNew = allArtifacts
+            .filter((x: any) => serverIds.has(x.id) && !existingIds.has(x.id));
+
+          if (trulyNew.length === 0) return prev;
+
+          const updatedBag = [...prev, ...trulyNew];
+          AsyncStorage.setItem(`@Solen:inventory:${user?.id || ''}`, JSON.stringify(updatedBag)).catch(() => {});
+          return updatedBag;
         });
 
-        if (newlyAdded.length > 0) {
-          setBagInventory((prev) => {
-            const updatedBag = [...prev, ...newlyAdded];
-            AsyncStorage.setItem(`@Solen:inventory:${user?.id || ''}`, JSON.stringify(updatedBag)).catch(() => {});
-            return updatedBag;
-          });
+        // Notificar apenas sobre itens realmente novos
+        const existingIds = new Set(bagInventory.map((x: any) => x.id));
+        const trulyNewItems = allArtifacts
+          .filter((x: any) => serverIds.has(x.id) && !existingIds.has(x.id));
 
+        if (trulyNewItems.length > 0) {
           sounds.playSuccess?.() || sounds.playSelect();
           showAlert(
             isQuestCompletion ? '🔮 NOVO ARTEFATO ENCONTRADO!' : '🎁 PRESENTE DO MESTRE',
             isQuestCompletion
-              ? `Você encontrou novos artefatos ao concluir o desafio:\n\n${newlyAdded.map(x => `• ${x.name}`).join('\n')}`
-              : `O Mestre das Masmorras concedeu novos artefatos para o seu arsenal:\n\n${newlyAdded.map(x => `• ${x.name}`).join('\n')}`,
+              ? `Você encontrou novos artefatos ao concluir o desafio:\n\n${trulyNewItems.map((x: any) => `• ${x.name}`).join('\n')}`
+              : `O Mestre das Masmorras concedeu novos artefatos para o seu arsenal:\n\n${trulyNewItems.map((x: any) => `• ${x.name}`).join('\n')}`,
             'success'
           );
         }
@@ -778,7 +785,6 @@ export function usePlayerState() {
       if (userRaw) {
         const u = JSON.parse(userRaw);
         setUser(u);
-        loadBagInventoryFromStorage(u.id);
         if (!u.acceptedTermsAt) {
           setShowTerms(true);
         }
@@ -787,7 +793,6 @@ export function usePlayerState() {
       const freshUser = await getMe();
       if (freshUser) {
         setUser(freshUser);
-        loadBagInventoryFromStorage(freshUser.id);
         await AsyncStorage.setItem('@Solen:user', JSON.stringify(freshUser));
         if (!freshUser.acceptedTermsAt) {
           setShowTerms(true);
@@ -798,37 +803,22 @@ export function usePlayerState() {
           fetchPlayerAgenda();
         }
 
-        // Checa se o mestre concedeu artefatos pendentes
+        // Buscar inventário de artefatos do servidor (fonte da verdade)
         try {
-          const giftRes = await getPendingGiftedArtifacts();
-          if (giftRes && giftRes.success && giftRes.gifts && giftRes.gifts.length > 0) {
-            const allAvailable = allAvailableArtifacts;
-
-            const newlyAdded: any[] = [];
-            giftRes.gifts.forEach((giftId: string) => {
-              const found = allAvailable.find(x => x.id === giftId);
-              if (found) {
-                newlyAdded.push(found);
-              }
-            });
-
-            if (newlyAdded.length > 0) {
-              setBagInventory((prev) => {
-                const updatedBag = [...prev, ...newlyAdded];
-                AsyncStorage.setItem(`@Solen:inventory:${freshUser.id}`, JSON.stringify(updatedBag)).catch(() => {});
-                return updatedBag;
-              });
-
-              sounds.playSuccess?.() || sounds.playSelect();
-              showAlert(
-                '🎁 PRESENTE DO MESTRE',
-                `O Mestre das Masmorras concedeu novos artefatos para o seu arsenal:\n\n${newlyAdded.map(x => `• ${x.name}`).join('\n')}`,
-                'success'
-              );
-            }
+          const invRes = await getArtifactInventory();
+          if (invRes && invRes.success && invRes.gifts && invRes.gifts.length > 0) {
+            const artifacts = invRes.gifts
+              .map((giftId: string) => allAvailableArtifacts.find((x: any) => x.id === giftId))
+              .filter(Boolean);
+            setBagInventory(artifacts);
+            await AsyncStorage.setItem(`@Solen:inventory:${freshUser.id}`, JSON.stringify(artifacts)).catch(() => {});
+          } else {
+            // Fallback: AsyncStorage como cache local
+            loadBagInventoryFromStorage(freshUser.id);
           }
-        } catch (giftErr) {
-          console.error('Erro ao buscar presentes do mestre:', giftErr);
+        } catch (invErr) {
+          console.warn('Erro ao buscar inventário do servidor, usando cache local:', invErr);
+          loadBagInventoryFromStorage(freshUser.id);
         }
       }
 

@@ -653,6 +653,11 @@ export const getPendingGiftedArtifacts = async () => {
   return response.data;
 };
 
+export const getArtifactInventory = async () => {
+  const response = await api.get('/quests/artifacts/inventory');
+  return response.data;
+};
+
 export const getGiftedArtifactsHistory = async (page: number = 1, limit: number = 10, date?: string) => {
   const params: any = { page, limit };
   if (date) params.date = date;

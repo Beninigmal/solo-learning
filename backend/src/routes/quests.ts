@@ -3699,15 +3699,27 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
     if (/geografia/.test(n)) {
       return { aulas: (level === "FUNDAMENTAL") ? 3 : 2, geminada: false };
     }
-    if (/ciencia|biologia/.test(n)) {
-      return { aulas: (level === "FUNDAMENTAL") ? 3 : 2, geminada: false };
+    if (/ciencias?$/.test(n)) {
+      return { aulas: (level === "FUNDAMENTAL") ? 3 : 0, geminada: false };
     }
-    if (/fisica(?!.*educ)/.test(n)) return { aulas: 2, geminada: false };
-    if (/quimica/.test(n)) return { aulas: 2, geminada: false };
+    if (/biologia/.test(n)) {
+      return { aulas: (level === "FUNDAMENTAL") ? 0 : 2, geminada: false };
+    }
     if (/ingles|lingua inglesa|lingua estrangeira/.test(n)) return { aulas: 2, geminada: true };
     if (/educacao fisica|ed\.?\s*fisica/.test(n)) return { aulas: 2, geminada: true };
+    if (/fisica/.test(n)) {
+      return { aulas: (level === "FUNDAMENTAL") ? 0 : 2, geminada: false };
+    }
+    if (/quimica/.test(n)) {
+      return { aulas: (level === "FUNDAMENTAL") ? 0 : 2, geminada: false };
+    }
     if (/arte|artes/.test(n)) return { aulas: 1, geminada: false };
-    if (/filosofia|sociologia/.test(n)) return { aulas: 1, geminada: false };
+    if (/filosofia/.test(n)) {
+      return { aulas: (level === "FUNDAMENTAL") ? 0 : 1, geminada: false };
+    }
+    if (/sociologia/.test(n)) {
+      return { aulas: (level === "FUNDAMENTAL") ? 0 : 1, geminada: false };
+    }
     if (/religiao|ensino religioso/.test(n)) return { aulas: 1, geminada: false };
 
     return { aulas: 0, geminada: false }; // fallback: equilibrado
@@ -4063,27 +4075,14 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         }
       });
 
-      // 2. Filtrar disciplinas baseando-se no nível da turma
-      const cleanNormalize = (name: string): string => {
-        return name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      };
-
-      const filteredDisciplinas = allDisciplinas.filter(d => {
-        const clean = cleanNormalize(d.nome);
-        if (turmaNivel === 'FUNDAMENTAL') {
-          const isPhysicalEd = /(educacao|educ|ed)\.?\s*fisica|e\.?\s*f\.?|^ef$/i.test(clean);
-          const isHighSchoolOnly = clean.includes('quimica') || clean.includes('biologia') || (clean.includes('fisica') && !isPhysicalEd);
-          return !isHighSchoolOnly;
-        } else {
-          return !clean.includes('ciencia');
-        }
-      });
-
-      // 3. Mesclar vínculos reais com vínculos virtuais para disciplinas sem professor
+      // 2. Mesclar vínculos reais com vínculos virtuais para disciplinas sem professor
+      // Só adiciona disciplinas que a matriz curricular prevê para este nível de ensino.
       const combinedTurmaDisciplinas: any[] = [...realTurmaDisciplinas];
-      for (const d of filteredDisciplinas) {
+      for (const d of allDisciplinas) {
         const exists = realTurmaDisciplinas.some(x => x.disciplinaId === d.id);
         if (!exists) {
+          const matriz = getMatrizCurricularDefault(d.nome, turmaNome, turmaNivel);
+          if (matriz.aulas <= 0) continue; // não pertence a este nível
           combinedTurmaDisciplinas.push({
             id: `virtual_${d.id}`,
             turmaId,
@@ -4301,31 +4300,18 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       const professorWeeklyCount = new Map<string, number>(); // Acumulado cross-turma
       const globalBusySlots = new Set<string>(); // Slots ocupados em turmas já processadas
 
-      const cleanNormalize = (name: string): string => {
-        return name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      };
-
       for (const turma of eligibleTurmas) {
         const realTurmaDisciplinas = turma.turmaDisciplinas;
         const turmaNivel = turma.nivel || 'FUNDAMENTAL';
 
-        // 1. Filtrar disciplinas baseando-se no nível da turma
-        const filteredDisciplinas = allDisciplinas.filter(d => {
-          const clean = cleanNormalize(d.nome);
-          if (turmaNivel === 'FUNDAMENTAL') {
-            const isPhysicalEd = /(educacao|educ|ed)\.?\s*fisica|e\.?\s*f\.?|^ef$/i.test(clean);
-            const isHighSchoolOnly = clean.includes('quimica') || clean.includes('biologia') || (clean.includes('fisica') && !isPhysicalEd);
-            return !isHighSchoolOnly;
-          } else {
-            return !clean.includes('ciencia');
-          }
-        });
-
-        // 2. Mesclar vínculos reais com vínculos virtuais para disciplinas sem professor
+        // Mesclar vínculos reais com vínculos virtuais para disciplinas sem professor
+        // Só adiciona disciplinas que a matriz curricular prevê para este nível de ensino.
         const combinedTurmaDisciplinas: any[] = [...realTurmaDisciplinas];
-        for (const d of filteredDisciplinas) {
+        for (const d of allDisciplinas) {
           const exists = realTurmaDisciplinas.some(x => x.disciplinaId === d.id);
           if (!exists) {
+            const matriz = getMatrizCurricularDefault(d.nome, turma.nome || '', turmaNivel);
+            if (matriz.aulas <= 0) continue;
             combinedTurmaDisciplinas.push({
               id: `virtual_${d.id}`,
               turmaId: turma.id,
@@ -5841,25 +5827,41 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
     }
   );
 
+  // ─── GET /quests/artifacts/inventory ─────────────────────────────────────────
+  // Retorna TODOS os artefatos que o usuário possui (inventário persistente).
+  // Os registros NÃO são deletados — servem como fonte da verdade entre dispositivos.
+  fastify.get(
+    '/artifacts/inventory',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        const gifts = await prisma.giftedArtifact.findMany({
+          where: { userId }
+        });
+        return reply.send({
+          success: true,
+          gifts: gifts.map((g) => g.artifactId)
+        });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao carregar inventário de artefatos.', details: error.message });
+      }
+    }
+  );
+
   // ─── GET /quests/pending-gifts ─────────────────────────────────────────────
+  // Retorna artefatos pendentes (mesmo que inventory, sem deletar).
+  // Mantido para compatibilidade com o fluxo de notificação do frontend.
   fastify.get(
     '/pending-gifts',
     { preValidation: [fastify.authenticate] },
     async (request, reply) => {
       try {
         const userId = request.user.id;
-
-        // Busca artefatos presenteados pendentes
         const gifts = await prisma.giftedArtifact.findMany({
           where: { userId }
         });
-
-        if (gifts.length > 0) {
-          // Deleta para limpar e não receber novamente
-          await prisma.giftedArtifact.deleteMany({
-            where: { userId }
-          });
-        }
 
         return reply.send({
           success: true,

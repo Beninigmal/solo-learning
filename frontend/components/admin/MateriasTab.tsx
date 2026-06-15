@@ -65,30 +65,12 @@ export function MateriasTab({
   const firstSelectedTurmaId = selectedLinkTurmaIds[0];
   const firstSelectedTurma = turmas.find(t => t.id === firstSelectedTurmaId);
   const activeLevel = firstSelectedTurma ? (firstSelectedTurma.nivel || 'FUNDAMENTAL') : null;
-  const selectedLevel = activeLevel || 'FUNDAMENTAL';
 
   const cleanNormalize = (name: string): string => {
     return name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   };
 
-  const isSubjectVisible = (discName: string) => {
-    const clean = cleanNormalize(discName);
-    if (selectedLevel === 'FUNDAMENTAL') {
-      const isPhysicalEd = /(educacao|educ|ed)\.?\s*fisica|e\.?\s*f\.?|^ef$/i.test(clean);
-      const isHighSchoolOnly = clean.includes('quimica') || clean.includes('biologia') || (clean.includes('fisica') && !isPhysicalEd);
-      return !isHighSchoolOnly;
-    } else {
-      return !clean.includes('ciencia');
-    }
-  };
-
-  const isProfessorVisible = (m: any) => {
-    // Permitir que professores lecionem tanto no fundamental quanto no médio
-    return true;
-  };
-
-  const filteredDisciplinas = allDisciplinasList.filter(d => isSubjectVisible(d.nome));
-  const filteredProfessors = masters.filter(isProfessorVisible);
+  const filteredDisciplinas = allDisciplinasList;
 
   // PAINEL DE CARGA HORÁRIA DO MESTRE (CÁLCULO EM TEMPO REAL)
   const selectedTeacher = masters.find(m => m.id === selectedProfessorId);
@@ -223,7 +205,7 @@ export function MateriasTab({
         <Text className="text-white/50 text-[10px] uppercase font-bold mb-1">3. Selecionar Professor:</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4" contentContainerStyle={{ paddingHorizontal: 8 }}>
           <View className="flex-row gap-2">
-            {filteredProfessors.map(m => (
+            {masters.map(m => (
               <TouchableOpacity
                 key={m.id}
                 onPress={() => { setSelectedProfessorId(m.id); sounds.playSelect(); }}
