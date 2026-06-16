@@ -414,13 +414,18 @@ export const replyGoldenHelpRequest = async (deliveryId: string, data: { respons
   return response.data;
 };
 
-export const consumeBecker = async () => {
-  const response = await api.post('/quests/becker/consume');
+export const consumeBecker = async (artifactId?: string) => {
+  const response = await api.post('/quests/becker/consume', { artifactId });
   return response.data;
 };
 
 export const consumeDirectArtifact = async (artifactId: string) => {
   const response = await api.post('/quests/artifacts/consume-direct', { artifactId });
+  return response.data;
+};
+
+export const transmuteArtifact = async (targetId: string, success: boolean, newEpicId?: string) => {
+  const response = await api.post('/quests/artifacts/transmute', { targetId, success, newEpicId });
   return response.data;
 };
 

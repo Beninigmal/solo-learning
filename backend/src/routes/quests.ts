@@ -5379,22 +5379,27 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
   );
 
   // ─── CONSUME BECKER DO ALQUIMISTA ──────────────────────────────────────────
-  fastify.post(
+  fastify.post<{ Body: { artifactId?: string } }>(
     '/becker/consume',
     { preValidation: [fastify.authenticate] },
     async (request, reply) => {
       try {
         const userId = request.user.id;
+        const { artifactId } = request.body || {};
         
         await prisma.user.update({
           where: { id: userId },
           data: { xp: { increment: 500 } }
         });
         
-        return reply.send({ xpConcedido: 500, message: 'Becker do Alquimista consumido! +500 XP flat concedido com sucesso!' });
+        if (artifactId) {
+          await consumeArtifactIfPresent(userId, artifactId);
+        }
+        
+        return reply.send({ xpConcedido: 500, message: 'Artefato vaporizado! +500 XP flat concedido com sucesso!' });
       } catch (error: any) {
         request.log.error(error);
-        return reply.status(500).send({ error: 'Erro ao consumir Becker.', details: error.message });
+        return reply.status(500).send({ error: 'Erro ao vaporizar artefato.', details: error.message });
       }
     }
   );
@@ -5673,6 +5678,44 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
       } catch (error: any) {
         request.log.error(error);
         return reply.status(500).send({ error: 'Erro ao processar consumo direto de artefato.', details: error.message });
+      }
+    }
+  );
+
+  // ─── TRANSMUTAÇÃO MÃO DE MIDAS ───────────────────────────────────────────────
+  fastify.post<{ Body: { targetId: string; success: boolean; newEpicId?: string } }>(
+    '/artifacts/transmute',
+    { preValidation: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const userId = request.user.id;
+        const { targetId, success, newEpicId } = request.body;
+
+        // Consome Mão de Midas
+        await consumeArtifactIfPresent(userId, 'mao_midas');
+        
+        // Consome o artefato alvo
+        if (targetId) {
+          await consumeArtifactIfPresent(userId, targetId);
+        }
+
+        if (success && newEpicId) {
+          // Concede o novo item épico
+          await prisma.giftedArtifact.create({
+            data: { userId, artifactId: newEpicId }
+          });
+          return reply.send({ success: true, message: 'Transmutação concluída com sucesso no servidor!' });
+        } else {
+          // Se falhou, concede 50 XP de consolação
+          await prisma.user.update({
+            where: { id: userId },
+            data: { xp: { increment: 50 } }
+          });
+          return reply.send({ success: true, message: 'Midas falhou! Artefatos consumidos e +50 XP concedido.' });
+        }
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro na transmutação.', details: error.message });
       }
     }
   );

@@ -41,6 +41,7 @@ import {
   registerPushToken,
   getPendingGiftedArtifacts,
   getArtifactInventory,
+  transmuteArtifact,
 } from '../services/api';
 
 // Helper function to dynamically map player XP to Solo Leveling Ranks
@@ -1764,13 +1765,14 @@ export function usePlayerState() {
         setShowBurnModal(false);
         setBurnArtifact(null);
 
+        let newEpic: any = null;
         if (sorte) {
           const epics = [
             { id: 'elixir_dourado', name: 'Elixir Dourado', type: 'epic', description: 'Duplica o XP da próxima missão respondida corretamente.' },
             { id: 'pocao_cura', name: 'Poção de Cura', type: 'epic', description: 'Restaura a perda de XP de questões acumuladas no baú.' },
             { id: 'relogio_tempo', name: 'Relógio Ganha Tempo', type: 'epic', description: 'Estende o prazo de expiração de uma missão ativa por mais 24 horas.' }
           ];
-          const newEpic = epics[Math.floor(Math.random() * epics.length)];
+          newEpic = epics[Math.floor(Math.random() * epics.length)];
           setBagInventory((prev) => {
             const temp = prev.filter((x) => x.id !== itemAlvo.id && x.id !== 'mao_midas');
             return [...temp, newEpic];
@@ -1788,6 +1790,9 @@ export function usePlayerState() {
           sounds.playError?.() || sounds.playSelect();
           showAlert('Midas Falhou!', `Seu [${itemAlvo.name}] desintegrou-se na tentativa de transmutação, mas você obteve 50 XP de consolação!`, 'warning');
         }
+        
+        await transmuteArtifact(itemAlvo.id, sorte, newEpic?.id);
+        
         loadInitialData();
         return;
       }
@@ -1848,7 +1853,15 @@ export function usePlayerState() {
       }
 
       // 3. SE FOR QUALQUER OUTRO ITEM (Queima genérica de Becker/XP)
-      await consumeBecker();
+      setBagInventory((prev: any[]) => {
+        const idx = prev.findIndex((x: any) => x.id === artId);
+        if (idx === -1) return prev;
+        const next = [...prev];
+        next.splice(idx, 1);
+        return next;
+      });
+
+      await consumeBecker(artId);
       await consumeItemLocally(artId);
       setShowBurnModal(false);
       setBurnArtifact(null);
