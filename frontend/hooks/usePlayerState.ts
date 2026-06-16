@@ -1806,6 +1806,15 @@ export function usePlayerState() {
       ];
 
       if (directIds.includes(artId)) {
+        // Remove optimisticamente antes das chamadas async — bolsa mostra correto se reaberta
+        setBagInventory((prev: any[]) => {
+          const idx = prev.findIndex((x: any) => x.id === artId);
+          if (idx === -1) return prev;
+          const next = [...prev];
+          next.splice(idx, 1);
+          return next;
+        });
+
         const res = await consumeDirectArtifact(artId);
         await consumeItemLocally(artId);
         
