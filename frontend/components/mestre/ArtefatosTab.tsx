@@ -45,7 +45,7 @@ export const ArtefatosTab: React.FC<ArtefatosTabProps> = ({
     { id: 'pena_escriba', name: 'Pena do Escriba', type: 'magic', icon: 'edit-3', description: 'Decodifica e exibe as palavras-chaves essenciais esperadas pelo validador.' },
     { id: 'pergaminho_oraculo', name: 'Pergaminho do Oráculo', type: 'magic', icon: 'eye', description: 'Concede uma dica enigmática e conceitual sobre a questão.' },
     { id: 'poeira_estelar', name: 'Poeira Estelar', type: 'magic', icon: 'sparkles', description: 'Elimina uma alternativa incorreta em qualquer missão de múltipla escolha.' },
-    { id: 'chapeu_arcanista', name: 'Chapéu do Archmago', type: 'legendary', icon: 'cpu', description: 'Por 7 dias: missões comuns podem dropar Épicos e Mini Bosses podem dropar Lendários. Não entra no drop enquanto ativo.' }
+    { id: 'chapeu_arcanista', name: 'Chapéu do Arcanista', type: 'legendary', icon: 'cpu', description: 'Aumenta a chance de dropar itens Épicos em missões comuns e Lendários em Bosses por 7 dias.' }
   ];
 
   const handleGift = async (artifactId: string) => {

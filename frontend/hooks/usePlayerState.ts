@@ -41,6 +41,7 @@ import {
   registerPushToken,
   getPendingGiftedArtifacts,
   getArtifactInventory,
+  transmuteArtifact,
 } from '../services/api';
 
 // Helper function to dynamically map player XP to Solo Leveling Ranks
@@ -133,7 +134,7 @@ const allAvailableArtifacts = [
   { id: 'mao_midas', name: 'Mão de Midas', type: 'magic', description: 'Oferece 50% de chance de transmutar um item Mágico em um Épico aleatório (falha destrói o item).' },
   { id: 'pena_escriba', name: 'Pena do Escriba', type: 'magic', description: 'Em perguntas teóricas dissertativas, revela as 3 principais palavras-chave esperadas para aprovação.' },
   { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo discursiva em múltipla escolha com opções.' },
-  { id: 'chapeu_arcanista', name: 'Chapéu do Archmago', type: 'legendary', description: 'Quando ativo por 7 dias, adiciona chance de drop de itens Épicos em missões comuns e Lendários em Mini Bosses. Não entra no pool de drop enquanto equipado, exceto via Rank Up.' }
+  { id: 'chapeu_arcanista', name: 'Chapéu do Arcanista', type: 'legendary', description: 'Aumenta a chance de dropar itens Épicos em missões comuns e Lendários em Bosses por 7 dias.' }
 ];
 
 export function usePlayerState() {
@@ -232,15 +233,19 @@ export function usePlayerState() {
   const [showBurnModal, setShowBurnModal] = useState(false);
 
   const consumeItemLocally = async (itemId: string) => {
-    setBagInventory((prev) => {
-      const idx = prev.findIndex((item) => item.id === itemId);
+    try {
+      if (!user?.id) return;
+      const stored = await AsyncStorage.getItem(`@Solen:inventory:${user.id}`);
+      let currentBag = stored ? JSON.parse(stored) : bagInventory;
+      const idx = currentBag.findIndex((item: any) => item.id === itemId);
       if (idx !== -1) {
-        const updated = [...prev];
-        updated.splice(idx, 1);
-        return updated;
+        currentBag.splice(idx, 1);
+        await AsyncStorage.setItem(`@Solen:inventory:${user.id}`, JSON.stringify(currentBag));
+        setBagInventory(currentBag);
       }
-      return prev;
-    });
+    } catch (e) {
+      console.error('Erro ao consumir item localmente:', e);
+    }
   };
 
   // --- INÍCIO DE PERSISTÊNCIA DE DICAS DE ARTEFATOS EM CACHE LOCAL (PREVENÇÃO DE CRASHES) ---
@@ -306,17 +311,17 @@ export function usePlayerState() {
       if (newIdx > oldIdx) {
         let awarded: any = null;
         if (newRankInfo.currentRank === 'D') {
-          awarded = { id: 'poeira_estelar', name: 'Poeira Estelar', type: 'magic', description: 'Elimina uma alternativa incorreta em qualquer missão.' };
+          awarded = { id: 'poeira_estelar', name: 'Poeira Estelar', type: 'legendary', description: 'Elimina uma alternativa incorreta em qualquer missão.' };
         } else if (newRankInfo.currentRank === 'C') {
-          awarded = { id: 'martelo_magico', name: 'Martelo Mágico', type: 'magic', description: 'Fracione um problema complexo em 3 pequenos passos passo-a-passo.' };
+          awarded = { id: 'martelo_magico', name: 'Martelo Mágico', type: 'legendary', description: 'Fracione um problema complexo em 3 pequenos passos passo-a-passo.' };
         } else if (newRankInfo.currentRank === 'B') {
           awarded = { id: 'becker_alquimista', name: 'Becker do Alquimista', type: 'legendary', description: 'Consome a essência alquímica para ganhar instantaneamente +500 XP flat!' };
         } else if (newRankInfo.currentRank === 'A') {
           awarded = { id: 'sussurros_sabios', name: 'Sussurros Sábios', type: 'legendary', description: 'Envia um pedido de ajuda ao Mestre para liberar uma dica pedagógica. Concede tentativa extra e +50% de XP.' };
         } else if (newRankInfo.currentRank === 'S') {
           awarded = { id: 'olhar_monarca', name: 'Olhar do Monarca', type: 'legendary', description: 'Revela os tópicos conceituais e fórmulas conceituais que serão exigidos nas próximas missões do Mini Boss ou Boss Geral.' };
-          // Chapéu do Archmago também cai no Rank S (único drop possível além de presentes do Mestre)
-          const chapeu = { id: 'chapeu_arcanista', name: 'Chapéu do Archmago', type: 'legendary', description: 'Quando ativo por 7 dias, adiciona chance de drop de itens Épicos em missões comuns e Lendários em Mini Bosses. Exclusivo de Rank Up.' };
+          // Chapéu do Arcanista também cai no Rank S (único drop possível além de presentes do Mestre)
+          const chapeu = { id: 'chapeu_arcanista', name: 'Chapéu do Arcanista', type: 'legendary', description: 'Aumenta a chance de dropar itens Épicos em missões comuns e Lendários em Bosses por 7 dias.' };
           setBagInventory((prev) => [...prev, chapeu]);
         }
 
@@ -806,14 +811,15 @@ export function usePlayerState() {
         // Buscar inventário de artefatos do servidor (fonte da verdade)
         try {
           const invRes = await getArtifactInventory();
-          if (invRes && invRes.success && invRes.gifts && invRes.gifts.length > 0) {
-            const artifacts = invRes.gifts
+          if (invRes && invRes.success) {
+            // Array vazio = usuário não tem artefatos. Não usar cache — servidor é fonte de verdade.
+            const artifacts = (invRes.gifts || [])
               .map((giftId: string) => allAvailableArtifacts.find((x: any) => x.id === giftId))
               .filter(Boolean);
             setBagInventory(artifacts);
             await AsyncStorage.setItem(`@Solen:inventory:${freshUser.id}`, JSON.stringify(artifacts)).catch(() => {});
           } else {
-            // Fallback: AsyncStorage como cache local
+            // Fallback: AsyncStorage como cache local (só quando request falha)
             loadBagInventoryFromStorage(freshUser.id);
           }
         } catch (invErr) {
@@ -1759,13 +1765,14 @@ export function usePlayerState() {
         setShowBurnModal(false);
         setBurnArtifact(null);
 
+        let newEpic: any = null;
         if (sorte) {
           const epics = [
             { id: 'elixir_dourado', name: 'Elixir Dourado', type: 'epic', description: 'Duplica o XP da próxima missão respondida corretamente.' },
             { id: 'pocao_cura', name: 'Poção de Cura', type: 'epic', description: 'Restaura a perda de XP de questões acumuladas no baú.' },
             { id: 'relogio_tempo', name: 'Relógio Ganha Tempo', type: 'epic', description: 'Estende o prazo de expiração de uma missão ativa por mais 24 horas.' }
           ];
-          const newEpic = epics[Math.floor(Math.random() * epics.length)];
+          newEpic = epics[Math.floor(Math.random() * epics.length)];
           setBagInventory((prev) => {
             const temp = prev.filter((x) => x.id !== itemAlvo.id && x.id !== 'mao_midas');
             return [...temp, newEpic];
@@ -1783,6 +1790,9 @@ export function usePlayerState() {
           sounds.playError?.() || sounds.playSelect();
           showAlert('Midas Falhou!', `Seu [${itemAlvo.name}] desintegrou-se na tentativa de transmutação, mas você obteve 50 XP de consolação!`, 'warning');
         }
+        
+        await transmuteArtifact(itemAlvo.id, sorte, newEpic?.id);
+        
         loadInitialData();
         return;
       }
@@ -1801,6 +1811,15 @@ export function usePlayerState() {
       ];
 
       if (directIds.includes(artId)) {
+        // Remove optimisticamente antes das chamadas async — bolsa mostra correto se reaberta
+        setBagInventory((prev: any[]) => {
+          const idx = prev.findIndex((x: any) => x.id === artId);
+          if (idx === -1) return prev;
+          const next = [...prev];
+          next.splice(idx, 1);
+          return next;
+        });
+
         const res = await consumeDirectArtifact(artId);
         await consumeItemLocally(artId);
         
@@ -1834,7 +1853,15 @@ export function usePlayerState() {
       }
 
       // 3. SE FOR QUALQUER OUTRO ITEM (Queima genérica de Becker/XP)
-      await consumeBecker();
+      setBagInventory((prev: any[]) => {
+        const idx = prev.findIndex((x: any) => x.id === artId);
+        if (idx === -1) return prev;
+        const next = [...prev];
+        next.splice(idx, 1);
+        return next;
+      });
+
+      await consumeBecker(artId);
       await consumeItemLocally(artId);
       setShowBurnModal(false);
       setBurnArtifact(null);
