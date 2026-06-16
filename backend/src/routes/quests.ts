@@ -10,6 +10,16 @@ import { GenerateAIQuestsUseCase } from '../core/use-cases/quests/GenerateAIQues
 import { ApproveQuestBatchUseCase } from '../core/use-cases/quests/ApproveQuestBatchUseCase';
 import { QuestController } from '../presentation/controllers/QuestController';
 
+const consumeArtifactIfPresent = async (userId: string, artifactId: string) => {
+  if (!artifactId) return;
+  const artifact = await prisma.giftedArtifact.findFirst({
+    where: { userId, artifactId }
+  });
+  if (artifact) {
+    await prisma.giftedArtifact.delete({ where: { id: artifact.id } });
+  }
+};
+
 const WINDOW_MINUTES = 120;
 const WAIT_TTL_MINUTES = 40;
 const QUEST_EXPIRES_DAYS = 7;
@@ -1417,6 +1427,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           answer,
           image
         );
+        if (artifactId) await consumeArtifactIfPresent(userId, artifactId);
         
         // Se for uma quest de Raid, limpar a quest ativa da Raid pois foi concluída!
         if (isRaidQuest) {
@@ -1962,6 +1973,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           answer,
           image
         );
+        if (artifactId) await consumeArtifactIfPresent(userId, artifactId);
 
         // Se for uma quest de Raid, limpar a quest ativa da Raid pois foi concluída!
         const isRaidQuest = await prisma.raid.findFirst({
@@ -4781,6 +4793,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
             ? 'Elixir Dourado consumido! O XP desta missão foi duplicado!'
             : 'Absorção ativa! Penalidades por erros anuladas nesta missão!';
 
+          await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({ success: true, message });
         }
 
@@ -5015,6 +5028,7 @@ Retorne APENAS um JSON no formato:
               data: { usedHelpers: isBaú ? undefined : usedList.filter(Boolean).join(',') }
             });
 
+            await consumeArtifactIfPresent(userId, artifactId);
             return reply.send({
               nivel: novoNivel,
               enunciado: updatedQuest.enunciado,
@@ -5039,6 +5053,7 @@ Retorne APENAS um JSON no formato:
             }
           });
 
+          await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({
             success: true,
             expiresAt: novaExpiracao,
@@ -5069,6 +5084,7 @@ Retorne APENAS um JSON no formato:
             }
           });
 
+          await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({
             success: true,
             expiresAt: novaExpiracao,
@@ -5128,6 +5144,7 @@ Retorne APENAS um JSON no formato:
               data: { usedHelpers: isBaú ? undefined : usedList.filter(Boolean).join(',') }
             });
 
+            await consumeArtifactIfPresent(userId, artifactId);
             return reply.send({
               success: true,
               enunciado: updatedQuest.enunciado,
@@ -5405,6 +5422,7 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
             where: { id: userId },
             data: { xp: { increment: 500 } }
           });
+          await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({
             success: true,
             xpConcedido: 500,
@@ -5432,6 +5450,7 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
             ? activeQuests.map(q => q.tema || q.enunciado.substring(0, 45) + '...').join(', ')
             : 'Equações Quadráticas, Crase Gramatical, Leis de Newton';
 
+          await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({
             success: true,
             message: `Sua visão brilha com o Olhar do Monarca! As próximas ameaças envolverão os seguintes tópicos: ${topics}. Prepare-se!`
@@ -5444,6 +5463,7 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
             where: { id: userId },
             data: { anelSerpenteExpires: expiresAt }
           });
+          await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({
             success: true,
             message: 'Anel da Serpente ativado! Taxa de drop de artefatos em Mini Bosses aumentada em +35% para toda a sua party nos próximos 7 dias!'
@@ -5456,6 +5476,7 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
             where: { id: userId },
             data: { bolsaSorteExpires: expiresAt }
           });
+          await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({
             success: true,
             message: 'Bolsa da Sorte ativada! Taxa de drop de artefatos em missões diárias comuns aumentada em +15% nos próximos 7 dias!'
@@ -5491,6 +5512,7 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
             }
           });
 
+          await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({
             success: true,
             message: 'Bandeira de Guerra fincada com sucesso! Toda a sua party recebeu o buff de +20% XP pelas próximas 24 horas!'
@@ -5505,6 +5527,7 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
           });
 
           const topic = nextDelivery?.quest?.tema || nextDelivery?.quest?.disciplina?.nome || 'Estudos Gerais (Mini Boss)';
+          await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({
             success: true,
             message: `A Orbe de Perspicácia canaliza energia e revela: seu próximo desafio acadêmico abordará o tópico: "${topic}".`
@@ -5553,6 +5576,7 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
             }
           });
 
+          await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({
             success: true,
             raidCode: otherRaid.codigo,
@@ -5616,6 +5640,7 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
             }
           });
 
+          await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({
             success: true,
             xpGanho: 100,
@@ -5629,6 +5654,7 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
             where: { id: userId },
             data: { chapeuArcanistExpires: expiresAt }
           });
+          await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({
             success: true,
             message: '🎩 Chapéu do Archmago equipado! Por 7 dias, missões comuns podem dropar itens Épicos e Mini Bosses podem dropar itens Lendários!'
@@ -5636,6 +5662,7 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
         }
 
         if (artifactId === 'mao_midas') {
+          await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({
             success: true,
             message: 'Mão de Midas energizada! Utilize seu transmutador dinâmico na sua bolsa!'
