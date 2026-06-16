@@ -810,14 +810,15 @@ export function usePlayerState() {
         // Buscar inventário de artefatos do servidor (fonte da verdade)
         try {
           const invRes = await getArtifactInventory();
-          if (invRes && invRes.success && invRes.gifts && invRes.gifts.length > 0) {
-            const artifacts = invRes.gifts
+          if (invRes && invRes.success) {
+            // Array vazio = usuário não tem artefatos. Não usar cache — servidor é fonte de verdade.
+            const artifacts = (invRes.gifts || [])
               .map((giftId: string) => allAvailableArtifacts.find((x: any) => x.id === giftId))
               .filter(Boolean);
             setBagInventory(artifacts);
             await AsyncStorage.setItem(`@Solen:inventory:${freshUser.id}`, JSON.stringify(artifacts)).catch(() => {});
           } else {
-            // Fallback: AsyncStorage como cache local
+            // Fallback: AsyncStorage como cache local (só quando request falha)
             loadBagInventoryFromStorage(freshUser.id);
           }
         } catch (invErr) {
