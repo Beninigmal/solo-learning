@@ -1,9 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Modal, Animated as RNAnimated, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Text, Modal, Animated as RNAnimated, StyleSheet, Dimensions, TouchableOpacity, Easing as RNEasing } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSolenSounds } from '../hooks/useSolenSounds';
 import { ArtifactCard } from './ArtifactCard';
-import { CardBurnEffect } from './CardBurnEffect';
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  useDerivedValue,
+  withTiming,
+  withRepeat,
+  Easing,
+} from 'react-native-reanimated';
+import { Canvas, Mask, RoundedRect, Fill, Shader, Skia, Image, useImage } from '@shopify/react-native-skia';
 
 interface Artifact {
   id: string;
@@ -20,9 +28,227 @@ interface ArtifactBurnModalProps {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+// Local image assets mapping corresponding to build resolution
+const artifactImages: { [id: string]: any } = {
+  becker_alquimista: require('../assets/becker_alquimista.png'),
+  pocao_cura: require('../assets/pocao_cura.png'),
+  martelo_magico: require('../assets/martelo_magico.png'),
+  poeira_estelar: require('../assets/poeira_estelar.png'),
+  pergaminho_oraculo: require('../assets/pergaminho_oraculo.png'),
+  sussurros_sabios: require('../assets/sussurros_sabios.png'),
+  elixir_dourado: require('../assets/elixir_dourado.png'),
+  sapatilhas_veloz: require('../assets/sapatilhas_veloz.png'),
+  escudo_arcano: require('../assets/escudo_arcano.png'),
+  olhar_monarca: require('../assets/olhar_monarca.png'),
+  relogio_tempo: require('../assets/relogio_tempo.png'),
+  anel_serpente: require('../assets/anel_serpente.png'),
+  lagrima_fenix: require('../assets/lagrima_fenix.png'),
+  bandeira_guerra: require('../assets/bandeira_guerra.png'),
+  orbe_perspicacia: require('../assets/orbe_perspicacia.png'),
+  chave_mestra: require('../assets/chave_mestra.png'),
+  bracelete_cristal: require('../assets/bracelete_cristal.png'),
+  bolsa_sorte: require('../assets/bolsa_sorte.png'),
+  mao_midas: require('../assets/mao_midas.png'),
+  pena_escriba: require('../assets/pena_escriba.png'),
+  cetro_exilio: require('../assets/cetro_exilio.png'),
+  varinha_pinheiro: require('../assets/varinha_pinheiro.png'),
+  chapeu_arcanista: require('../assets/chapeu_arcanista.png'),
+};
+
+const maskShaderSource = `
+uniform float time;
+uniform vec2 resolution;
+uniform float progress;
+
+float hash(vec2 p) {
+    p = fract(p * vec2(127.1, 311.7));
+    p += dot(p, p + 74.27);
+    return fract(p.x * p.y);
+}
+
+float vnoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+        mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+        mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x),
+        f.y
+    );
+}
+
+float fbm(vec2 p) {
+    float v = 0.0; float a = 0.5;
+    for (int i = 0; i < 4; i++) {
+        v += a * vnoise(p);
+        p = p * 2.02 + vec2(3.7, 8.1);
+        a *= 0.5;
+    }
+    return v;
+}
+
+vec4 main(vec2 fragCoord) {
+    vec2 uv = fragCoord / resolution;
+    float noiseVal = fbm(uv * 4.5 + vec2(0.0, time * 0.12));
+    float value = (1.0 - uv.y) * 0.72 + noiseVal * 0.38;
+    float threshold = progress * 1.45 - 0.25;
+    // Softer dissolve edges: smoothstep range increased to 0.12
+    float alpha = smoothstep(threshold, threshold + 0.12, value);
+    return vec4(alpha, alpha, alpha, alpha);
+}
+`;
+
+const fireShaderSource = `
+uniform float time;
+uniform vec2 resolution;
+uniform float progress;
+
+float hash(vec2 p) {
+    p = fract(p * vec2(127.1, 311.7));
+    p += dot(p, p + 74.27);
+    return fract(p.x * p.y);
+}
+
+float vnoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+        mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+        mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x),
+        f.y
+    );
+}
+
+float fbm(vec2 p) {
+    float v = 0.0; float a = 0.5;
+    for (int i = 0; i < 4; i++) {
+        v += a * vnoise(p);
+        p = p * 2.02 + vec2(3.7, 8.1);
+        a *= 0.5;
+    }
+    return v;
+}
+
+vec4 main(vec2 fragCoord) {
+    vec2 uv = fragCoord / resolution;
+    float noiseVal = fbm(uv * 4.5 + vec2(0.0, time * 0.12));
+    float threshold = progress * 1.45 - 0.25;
+    float value = (1.0 - uv.y) * 0.72 + noiseVal * 0.38;
+    
+    float distToFire = value - threshold;
+    // Softened fire edge: band width increased to 0.16
+    float fireMask = step(0.0, distToFire) * step(distToFire, 0.16);
+    
+    float factor = clamp(distToFire / 0.16, 0.0, 1.0); 
+    float fireNoise = fbm(uv * 14.0 - vec2(0.0, time * 2.5));
+    // Soften glow intensity profile (multiplier reduced to 2.8 for wider hot zone)
+    float intensity = exp(-pow((factor - 0.25) * 2.8, 2.0));
+    
+    vec3 whiteHot = vec3(1.0, 0.96, 0.82) * 2.2;
+    vec3 gold = vec3(1.0, 0.7, 0.05) * 1.8;
+    vec3 red = vec3(0.85, 0.08, 0.0) * 1.2;
+    
+    vec3 col = mix(red, gold, factor);
+    col = mix(col, whiteHot, intensity);
+    
+    col *= (0.55 + 0.45 * fireNoise);
+    // Softer alpha transition for blurred flame look
+    float alpha = smoothstep(0.0, 0.15, factor) * (1.0 - smoothstep(0.80, 1.0, factor)) * (0.6 + 0.4 * fireNoise);
+    alpha *= fireMask;
+    
+    return vec4(col * alpha, alpha);
+}
+`;
+
+const organicMaskShader = Skia.RuntimeEffect.Make(maskShaderSource);
+const organicFireShader = Skia.RuntimeEffect.Make(fireShaderSource);
+
 export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: ArtifactBurnModalProps) {
+  const [localVisible, setLocalVisible] = useState(visible);
+  const bgOpacityAnim = useRef(new RNAnimated.Value(1)).current;
   const [isBurned, setIsBurned] = useState(false);
   const sounds = useSolenSounds();
+  const [activeArtifactState, setActiveArtifactState] = useState<Artifact | null>(null);
+
+  useEffect(() => {
+    if (visible && artifact) {
+      setLocalVisible(true);
+      setActiveArtifactState(artifact);
+      bgOpacityAnim.setValue(1);
+    } else {
+      if (!isBurned) {
+        setLocalVisible(false);
+        setActiveArtifactState(null);
+      }
+    }
+  }, [visible, isBurned, artifact]);
+
+  const activeArtifact = activeArtifactState || { id: '', name: '', type: 'magic' as const, description: '' };
+  const imgSource = artifactImages[activeArtifact.id] || require('../assets/nano_banana.png');
+  const cardImage = useImage(imgSource);
+
+  const getRarityColors = () => {
+    switch (activeArtifact.type) {
+      case 'legendary':
+        return {
+          color: '#ffca28',
+          bg: '#17130a',
+          borderColor: '#ffca28',
+        };
+      case 'epic':
+        return {
+          color: '#a349ff',
+          bg: '#10081d',
+          borderColor: '#a349ff',
+        };
+      case 'magic':
+      default:
+        return {
+          color: '#00f3ff',
+          bg: '#050a14',
+          borderColor: '#00b8d4',
+        };
+    }
+  };
+  const rarityColors = getRarityColors();
+  const rarityColor = rarityColors.color;
+  const rarityBgColor = rarityColors.bg;
+  const rarityBorderColor = rarityColors.borderColor;
+
+  // Reanimated shared values
+  const burnProgress = useSharedValue(0);
+  const time = useSharedValue(0);
+  const textOpacity = useSharedValue(1);
+
+  // Derived values for Skia shader uniforms
+  const intactMaskUniforms = useDerivedValue(() => ({
+    time: time.value,
+    resolution: [250, 420],
+    progress: burnProgress.value,
+  }));
+
+  const charredMaskUniforms = useDerivedValue(() => {
+    const charredVal = Math.max(0.0, Math.min(1.0, (burnProgress.value - 0.12) / 0.88));
+    return {
+      time: time.value,
+      resolution: [250, 420],
+      progress: charredVal,
+    };
+  });
+
+  const fireUniforms = useDerivedValue(() => ({
+    time: time.value,
+    resolution: [250, 420],
+    progress: burnProgress.value,
+  }));
+
+  // Reanimated layout animated style for the text overlay fading
+  const textFadeStyle = useAnimatedStyle(() => {
+    return {
+      opacity: textOpacity.value,
+    };
+  });
 
   // Animation values (all hardware-accelerated via useNativeDriver: true!)
   const scaleAnim = useRef(new RNAnimated.Value(0)).current;
@@ -83,7 +309,23 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
     }))
   ).current;
 
-  const activeArtifact = artifact || { id: '', name: '', type: 'magic' as const, description: '' };
+  // 85 lightweight native explosion spark emitters
+  const explosionSparks = useRef(
+    Array.from({ length: 85 }).map(() => {
+      const angle = Math.random() * Math.PI * 2;
+      const maxRadius = Math.max(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.65;
+      const speed = Math.random() * maxRadius + 120;
+      return {
+        progress: new RNAnimated.Value(0),
+        targetX: Math.cos(angle) * speed + (Math.random() - 0.5) * 150,
+        targetY: Math.sin(angle) * speed - (Math.random() * SCREEN_HEIGHT * 0.7 + 100), // float upwards
+        sway: (Math.random() - 0.5) * 180, // larger horizontal sway amplitude
+        size: Math.random() * 6.5 + 2.5, // varied sizes
+        delay: Math.random() * 805, // spread start time
+      };
+    })
+  ).current;
+
   const isLegendary = activeArtifact.type === 'legendary';
   const isEpic = activeArtifact.type === 'epic' || isLegendary;
   const rarityLabel = activeArtifact.type === 'legendary' ? 'Lendário' : activeArtifact.type === 'epic' ? 'Épico' : 'Mágico';
@@ -146,6 +388,9 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
   useEffect(() => {
     if (visible && artifact) {
       setIsBurned(false);
+      burnProgress.value = 0;
+      time.value = 0;
+      textOpacity.value = 1;
       scaleAnim.setValue(0);
       rotateXAnim.setValue(12);
       rotateYAnim.setValue(4);
@@ -160,6 +405,11 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
       shakeY.setValue(0);
       floatAnim.setValue(0);
       floatRotateAnim.setValue(0);
+
+      // Reset explosion sparks
+      explosionSparks.forEach((s) => {
+        s.progress.setValue(0);
+      });
 
       // Entrance bounce spring
       const scaleSpring = RNAnimated.spring(scaleAnim, {
@@ -219,8 +469,17 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
         );
         startTracked(floatLoop);
       });
-    }
 
+      // Start Reanimated loop for shader time uniform
+      time.value = withRepeat(
+        withTiming(1000, { duration: 1000000, easing: Easing.linear }),
+        -1
+      );
+    }
+  }, [visible, artifact]);
+
+  // Clean up animations only on full unmount, not when visibility changes mid-burn!
+  useEffect(() => {
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       shakeActive.current = false;
@@ -231,7 +490,7 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
       });
       activeAnimationsRef.current = [];
     };
-  }, [visible, artifact]);
+  }, []);
 
   // Trigger high-fidelity magical overload destruction
   const handleActivate = () => {
@@ -252,6 +511,9 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
     floatRotateAnim.setValue(0);
 
     shakeActive.current = true;
+
+    // Fade out text absolute overlay quickly
+    textOpacity.value = withTiming(0, { duration: 300 });
 
     // 1. Violent Glitch vibration (shaking card X and Y at 25Hz)
     const triggerShake = () => {
@@ -308,6 +570,22 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
       startTracked(sparkAnim);
     });
 
+    // Reset and trigger explosion sparks
+    explosionSparks.forEach((s) => {
+      s.progress.setValue(0);
+
+      const expSparkAnim = RNAnimated.sequence([
+        RNAnimated.delay(800 + s.delay), // starts just before/during the flash peak
+        RNAnimated.timing(s.progress, {
+          toValue: 1.0,
+          duration: 6400, // doubled to 6.4s so they wander longer
+          easing: RNEasing.out(RNEasing.quad),
+          useNativeDriver: true,
+        })
+      ]);
+      startTracked(expSparkAnim);
+    });
+
     // 3. Activated impact pop bounce
     const popBounce = RNAnimated.timing(scaleAnim, {
       toValue: 1.12,
@@ -316,95 +594,56 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
     });
     
     startTracked(popBounce, () => {
-      // 4. Burn line fade-in and sweeping incinerator block
-      const fireFade = RNAnimated.timing(fireOpacityAnim, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
+      // 4. Reanimated burn progress sweep!
+      burnProgress.value = withTiming(1.0, {
+        duration: 1150,
+        easing: Easing.linear,
       });
-      startTracked(fireFade);
 
-      // Flame flickering loop
-      const flickerLoop = RNAnimated.loop(
-        RNAnimated.sequence([
-          RNAnimated.timing(fireFlickerAnim, { toValue: 1.25, duration: 70, useNativeDriver: true }),
-          RNAnimated.timing(fireFlickerAnim, { toValue: 0.85, duration: 80, useNativeDriver: true }),
-          RNAnimated.timing(fireFlickerAnim, { toValue: 1.15, duration: 60, useNativeDriver: true }),
-          RNAnimated.timing(fireFlickerAnim, { toValue: 0.9, duration: 90, useNativeDriver: true }),
-        ])
-      );
-      startTracked(flickerLoop);
-
-      // Translate the carbonized mask to sweep card bottom-to-top
-      const burnSweep = RNAnimated.timing(burnTranslateY, {
-        toValue: 0,
-        duration: 1300,
-        useNativeDriver: true,
-      });
-      startTracked(burnSweep);
-
-      // Fade out the card details/borders underneath during the sweep
-      const contentFade = RNAnimated.timing(cardContentOpacityAnim, {
-        toValue: 0,
-        duration: 1300,
-        useNativeDriver: true,
-      });
-      startTracked(contentFade);
-
-      // Start overall card fade-out at the sweep tail-end
-      const cardFade = RNAnimated.sequence([
-        RNAnimated.delay(800),
-        RNAnimated.timing(cardOpacityAnim, {
-          toValue: 0.1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]);
-      startTracked(cardFade);
-
-      // 5. Final Supernova Explosion Release (at 1250ms)
+      // 5. Flash and Close Transition Timer
+      // Start the flash at 900ms (reaches peak at 1050ms)
       timeoutRef.current = setTimeout(() => {
         shakeActive.current = false;
 
-        // Blinding full-screen white energy flash
-        const flashAnimSeq = RNAnimated.sequence([
-          RNAnimated.timing(flashOpacityAnim, {
-            toValue: 1.0,
-            duration: 60,
-            useNativeDriver: true,
-          }),
-          RNAnimated.timing(flashOpacityAnim, {
-            toValue: 0,
-            duration: 450,
-            useNativeDriver: true,
-          }),
-        ]);
-        startTracked(flashAnimSeq);
-
-        // 3D Rapid Dimensional Spin and shrink collapse to 0
-        const collapseAnim = RNAnimated.parallel([
-          RNAnimated.timing(scaleAnim, {
-            toValue: 0,
-            duration: 350,
-            useNativeDriver: true,
-          }),
-          RNAnimated.timing(rotateXAnim, {
-            toValue: 360,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-          RNAnimated.timing(rotateYAnim, {
-            toValue: 360,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-        ]);
-        
-        startTracked(collapseAnim, () => {
-          sounds.playSuccess();
-          onAnimationEnd(activeArtifact);
+        // Blinding white flash (peaks in 150ms)
+        const flashAnim = RNAnimated.timing(flashOpacityAnim, {
+          toValue: 1.0,
+          duration: 150,
+          useNativeDriver: true,
         });
-      }, 1250);
+        
+        startTracked(flashAnim, () => {
+          // At peak opacity: make everything disappear instantly under the white overlay!
+          cardOpacityAnim.setValue(0);
+          
+          // Call onAnimationEnd immediately at the peak of the flash so parent shows popup!
+          onAnimationEnd(activeArtifact);
+
+          // Fade out the dark background overlay so underlying screen is visible behind sparks
+          const bgFade = RNAnimated.timing(bgOpacityAnim, {
+            toValue: 0.0,
+            duration: 1000,
+            useNativeDriver: true,
+          });
+          startTracked(bgFade);
+          
+          // Fade the white flash back to 0 (allowing sparks to hover in darkness)
+          const flashFadeOut = RNAnimated.timing(flashOpacityAnim, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: true,
+          });
+          
+          startTracked(flashFadeOut, () => {
+            sounds.playSuccess();
+            timeoutRef.current = setTimeout(() => {
+              setLocalVisible(false);
+              setActiveArtifactState(null);
+              setIsBurned(false);
+            }, 5200);
+          });
+        });
+      }, 900);
     });
   };
 
@@ -427,8 +666,22 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
   });
 
   return (
-    <Modal visible={visible && !!artifact} transparent={true} animationType="fade">
-      <View className="flex-1 bg-black/90 justify-center items-center relative">
+    <Modal visible={localVisible && !!activeArtifactState} transparent={true} animationType="fade">
+      {localVisible && (
+        <View style={styles.modalContainer}>
+        {/* Animated black background overlay */}
+        <RNAnimated.View
+          style={[
+            StyleSheet.absoluteFillObject,
+            {
+              backgroundColor: '#000000',
+              opacity: bgOpacityAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.9],
+              }),
+            }
+          ]}
+        />
         
         {/* Blinding Fullscreen Supernova Energy Flash Overlay */}
         <RNAnimated.View 
@@ -439,15 +692,19 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
           pointerEvents="none" 
         />
 
-        {/* Ambient card color shadow backdrop */}
-        <View
+        {/* Ambient card color shadow backdrop (Opacity linked to cardOpacityAnim) */}
+        <RNAnimated.View
           style={[
             styles.ambientGlow,
             {
-              backgroundColor: isEpic ? 'rgba(255, 202, 40, 0.12)' : 'rgba(163, 73, 255, 0.12)',
+              backgroundColor: isEpic ? 'rgba(255, 202, 40, 0.01)' : 'rgba(163, 73, 255, 0.01)',
               shadowColor: isEpic ? '#ffca28' : '#a349ff',
               shadowRadius: 50,
-              shadowOpacity: 0.5,
+              shadowOpacity: cardOpacityAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.5],
+              }),
+              opacity: cardOpacityAnim,
             },
           ]}
         />
@@ -478,54 +735,243 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
           >
             {/* Charcoal burned background border */}
             <View style={{ position: 'relative', width: 250, height: 420, overflow: 'hidden', borderRadius: 14 }}>
-              <RNAnimated.View style={{ opacity: cardContentOpacityAnim, width: '100%', height: '100%' }}>
+              
+              {/* If NOT burned, show the normal intact card */}
+              {!isBurned && (
                 <ArtifactCard
                   artifact={activeArtifact}
                   size="large"
                   animated={false}
                 />
-              </RNAnimated.View>
+              )}
+
+              {/* If burned, show the Skia Organic Dissolve Canvas */}
+              {isBurned && (
+                <Canvas style={{ width: 250, height: 420 }}>
+                  {/* Layer 1 (Bottom): Charred Card, lags behind */}
+                  <Mask
+                    mode="alpha"
+                    mask={
+                      <Fill>
+                        {organicMaskShader && (
+                          <Shader source={organicMaskShader} uniforms={charredMaskUniforms} />
+                        )}
+                      </Fill>
+                    }
+                  >
+                    {/* Charred Background */}
+                    <RoundedRect
+                      x={0}
+                      y={0}
+                      width={250}
+                      height={420}
+                      r={14}
+                      color="#0c0808"
+                    />
+                    {/* Charred Border */}
+                    <RoundedRect
+                      x={1.5}
+                      y={1.5}
+                      width={247}
+                      height={417}
+                      r={14}
+                      color="#1a1111"
+                      style="stroke"
+                      strokeWidth={3}
+                    />
+                    {/* Charred Artifact Image (drawn with low opacity to look like a burnt silhouette) */}
+                    {cardImage && (
+                      <Image
+                        image={cardImage}
+                        x={16}
+                        y={15}
+                        width={218}
+                        height={170}
+                        fit="contain"
+                        opacity={0.15}
+                      />
+                    )}
+                  </Mask>
+
+                  {/* Layer 2 (Top): Intact Card */}
+                  <Mask
+                    mode="alpha"
+                    mask={
+                      <Fill>
+                        {organicMaskShader && (
+                          <Shader source={organicMaskShader} uniforms={intactMaskUniforms} />
+                        )}
+                      </Fill>
+                    }
+                  >
+                    {/* Intact Background */}
+                    <RoundedRect
+                      x={0}
+                      y={0}
+                      width={250}
+                      height={420}
+                      r={14}
+                      color={rarityBgColor}
+                    />
+                    {/* Intact Border */}
+                    <RoundedRect
+                      x={1.5}
+                      y={1.5}
+                      width={247}
+                      height={417}
+                      r={14}
+                      color={rarityBorderColor}
+                      style="stroke"
+                      strokeWidth={3}
+                    />
+                    {/* Artifact Image */}
+                    {cardImage && (
+                      <Image
+                        image={cardImage}
+                        x={16}
+                        y={15}
+                        width={218}
+                        height={170}
+                        fit="contain"
+                      />
+                    )}
+                  </Mask>
+
+                  {/* Glowing Fire Edge Overlay on top of the Mask */}
+                  <Fill>
+                    {organicFireShader && (
+                      <Shader source={organicFireShader} uniforms={fireUniforms} />
+                    )}
+                  </Fill>
+                </Canvas>
+              )}
+
+              {/* Standard React Native Text Overlays (Fade out during burn) */}
+              {isBurned && (
+                <Reanimated.View 
+                  style={[
+                    StyleSheet.absoluteFillObject,
+                    { padding: 16, justifyContent: 'space-between', zIndex: 10 },
+                    textFadeStyle
+                  ]}
+                  pointerEvents="none"
+                >
+                  {/* Top Row */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View style={[styles.rarityBadge, { backgroundColor: rarityColor }]}>
+                      <Text className="font-extrabold uppercase tracking-widest text-[8px] text-black">
+                        {rarityLabel}
+                      </Text>
+                    </View>
+                    <View style={[styles.iconBox, { borderColor: rarityBorderColor, shadowColor: rarityColor }]}>
+                      <Feather name={getIcon()} size={18} color={rarityColor} />
+                    </View>
+                  </View>
+                  
+                  {/* Bottom Column */}
+                  <View style={{ alignItems: 'center', width: '100%' }}>
+                    <Text className="text-white font-bold uppercase tracking-wider text-center text-xl" style={styles.cardTitle}>
+                      {activeArtifact.name}
+                    </Text>
+                    <Text className="text-white/95 font-mono text-center leading-tight mt-1 text-xs" style={styles.cardDescription} numberOfLines={6}>
+                      {activeArtifact.description || 'Em desenvolvimento.'}
+                    </Text>
+                  </View>
+                </Reanimated.View>
+              )}
 
               {/* Holofoil light sheen sweep overlay */}
-              <RNAnimated.View
-                style={[
-                  styles.foilSheen,
-                  {
-                    transform: [{ translateX: foilTranslateX }],
-                  },
-                ]}
-              />
-
-              {/* Lightweight native sparks flying directly inside/out the card */}
-              {isBurned && sparks.map((s, idx) => (
+              {!isBurned && (
                 <RNAnimated.View
-                  key={idx}
                   style={[
-                    styles.spark,
+                    styles.foilSheen,
                     {
-                      width: s.size,
-                      height: s.size,
-                      borderRadius: s.size / 2,
-                      backgroundColor: s.color,
-                      opacity: s.opacity,
-                      transform: [
-                        { translateY: s.y },
-                        { translateX: s.driftX },
-                        { scale: s.scale }
-                      ],
-                      left: s.x,
-                    }
+                      transform: [{ translateX: foilTranslateX }],
+                    },
                   ]}
                 />
-              ))}
-
-              {/* SkSL Doom Fire burn shader — replaces old burnCover+fireLine */}
-              {isBurned && (
-                <CardBurnEffect width={250} height={420} borderRadius={14} />
               )}
             </View>
           </RNAnimated.View>
         </TouchableOpacity>
+
+        {/* Root level sparks container (not clipped by card boundaries) */}
+        {isBurned && (
+          <View style={{ position: 'absolute', width: 250, height: 420, pointerEvents: 'none' }}>
+            {sparks.map((s, idx) => (
+              <RNAnimated.View
+                key={idx}
+                style={[
+                  styles.spark,
+                  {
+                    width: s.size,
+                    height: s.size,
+                    borderRadius: s.size / 2,
+                    backgroundColor: s.color,
+                    opacity: s.opacity,
+                    transform: [
+                      { translateY: s.y },
+                      { translateX: s.driftX },
+                      { scale: s.scale }
+                    ],
+                    left: s.x,
+                  }
+                ]}
+              />
+            ))}
+            {explosionSparks.map((s, idx) => {
+              const translateX = s.progress.interpolate({
+                inputRange: [0, 0.25, 0.5, 0.75, 1],
+                outputRange: [
+                  125,
+                  125 + s.targetX * 0.25 + s.sway,
+                  125 + s.targetX * 0.55 - s.sway,
+                  125 + s.targetX * 0.8 + s.sway * 0.4,
+                  125 + s.targetX
+                ],
+              });
+              const translateY = s.progress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [210, 210 + s.targetY],
+              });
+              const opacity = s.progress.interpolate({
+                inputRange: [0, 0.08, 0.85, 1],
+                outputRange: [0, 0.95, 0.45, 0],
+              });
+              const scale = s.progress.interpolate({
+                inputRange: [0, 0.1, 1],
+                outputRange: [0.3, 1.2, 0.2],
+              });
+              const color = s.progress.interpolate({
+                inputRange: [0, 0.25, 0.65, 1],
+                outputRange: ['#ffffff', '#ffedd0', '#ff9f1a', '#ff6a00'],
+              });
+
+              return (
+                <RNAnimated.View
+                  key={`exp-${idx}`}
+                  style={[
+                    styles.spark,
+                    {
+                      left: 0,
+                      top: 0,
+                      width: s.size,
+                      height: s.size,
+                      borderRadius: s.size / 2,
+                      backgroundColor: color,
+                      opacity: opacity,
+                      transform: [
+                        { translateX: translateX },
+                        { translateY: translateY },
+                        { scale: scale }
+                      ],
+                    }
+                  ]}
+                />
+              );
+            })}
+          </View>
+        )}
 
         {/* Close/Cancel Button (Only visible if the card is NOT currently being burned/incinerated!) */}
         {!isBurned && (
@@ -542,7 +988,9 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
         )}
 
         {/* Prompt label */}
-        <View style={{ alignItems: 'center', justifyContent: 'center', marginTop: 32 }}>
+        <RNAnimated.View 
+          style={{ alignItems: 'center', justifyContent: 'center', marginTop: 32, opacity: cardOpacityAnim }}
+        >
           <RNAnimated.Text style={[
             styles.promptLabel,
             { opacity: isBurned ? 1 : pulseAnim }
@@ -563,8 +1011,9 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
               </Text>
             </TouchableOpacity>
           )}
-        </View>
+        </RNAnimated.View>
       </View>
+      )}
     </Modal>
   );
 }
@@ -576,6 +1025,13 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     textTransform: 'uppercase',
     letterSpacing: 3,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    backgroundColor: 'transparent',
   },
   closeButton: {
     position: 'absolute',
@@ -613,6 +1069,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8,
     elevation: 10,
     overflow: 'hidden',
+  },
+  iconBox: {
+    backgroundColor: '#000000d0',
+    borderRadius: 18,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.2,
+    shadowRadius: 5,
+    shadowOpacity: 0.8,
+    elevation: 4,
   },
   cardInner: {
     flex: 1,
