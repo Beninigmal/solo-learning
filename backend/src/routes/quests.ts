@@ -3474,13 +3474,11 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       const { turmaId } = request.params;
       const { diaSemana, posicao } = request.body;
 
-      await prisma.timetableSlot.delete({
+      await prisma.timetableSlot.deleteMany({
         where: {
-          turmaId_diaSemana_posicao: {
-            turmaId,
-            diaSemana,
-            posicao: Number(posicao)
-          }
+          turmaId,
+          diaSemana,
+          posicao: Number(posicao)
         }
       });
 
