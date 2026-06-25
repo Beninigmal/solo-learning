@@ -329,13 +329,28 @@ export function useAdminState() {
       setLoadingTimetable(true);
       const data = await getTurmaTimetable(turmaId);
       setTimetableSlots(data);
+      
+      // Auto-detect and switch to the shift that has slots
+      if (data && data.length > 0) {
+        const hasMatutino = data.some((s: any) => s.posicao >= 1 && s.posicao <= 6);
+        const hasVespertino = data.some((s: any) => s.posicao >= 11 && s.posicao <= 16);
+        const hasNoturno = data.some((s: any) => s.posicao >= 21 && s.posicao <= 26);
+        
+        if (hasVespertino && !hasMatutino && !hasNoturno) {
+          setSelectedShift('VESPERTINO');
+        } else if (hasNoturno && !hasMatutino && !hasVespertino) {
+          setSelectedShift('NOTURNO');
+        } else if (hasMatutino) {
+          setSelectedShift('MATUTINO');
+        }
+      }
     } catch (error) {
       console.error('Erro ao carregar grade de horários', error);
       showAlert('Erro', 'Não foi possível carregar a grade de horários.', 'error');
     } finally {
       setLoadingTimetable(false);
     }
-  }, [showAlert]);
+  }, [showAlert, setSelectedShift]);
 
   const handleSaveTimetableSlot = async (
     diaSemana: string,
@@ -1170,7 +1185,7 @@ export function useAdminState() {
   const handleResetMasterAccess = async (id: string) => {
     showAlert(
       'MENSAGEM DO PORTAL',
-      'Tem certeza de que deseja resetar o acesso deste mestre? A senha padrão voltará a ser "Solen2026" e ele fará o primeiro acesso novamente.',
+      'Tem certeza de que deseja resetar o acesso deste mestre? A senha padrão voltará a ser "1234" e ele fará o primeiro acesso novamente.',
       'warning',
       [
         { text: 'Cancelar', onPress: () => setAlertVisible(false), style: 'cancel' },
@@ -1183,7 +1198,7 @@ export function useAdminState() {
               await resetMasterAccess(id);
               showAlert(
                 'MENSAGEM DO PORTAL',
-                'Acesso do mestre resetado com sucesso! A senha padrão voltou a ser "Solen2026".',
+                'Acesso do mestre resetado com sucesso! A senha padrão voltou a ser "1234".',
                 'success'
               );
               fetchMasters();

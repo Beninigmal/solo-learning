@@ -298,6 +298,7 @@ export default function AdminDashboard() {
 
             {state.activeTab === 'GRADE' && (
               <GradeTab
+                currentUser={state.currentUser}
                 turmas={state.turmas}
                 timetableTurmaId={state.timetableTurmaId}
                 setTimetableTurmaId={state.setTimetableTurmaId}

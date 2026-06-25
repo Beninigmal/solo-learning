@@ -647,6 +647,11 @@ export const deleteArchitect = async (id: string) => {
   return response.data;
 };
 
+export const resetArchitectAccess = async (id: string) => {
+  const response = await api.post(`/superadmin/architects/${id}/reset`);
+  return response.data;
+};
+
 // ─── Presentes de Artefatos (Mestre -> Alunos) ──────────────────────────────
 export const giftArtifactToStudent = async (studentId: string, artifactId: string) => {
   const response = await api.post('/quests/mestre/gift-artifact', { studentId, artifactId });

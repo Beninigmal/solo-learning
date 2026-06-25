@@ -54,9 +54,11 @@ interface GradeTabProps {
   handleBatchGenerateTimetable: (shift: 'MATUTINO' | 'VESPERTINO' | 'NOTURNO') => Promise<void>;
   fetchDisciplinaConfig: (turmaId: string) => Promise<void>;
   handleSaveDisciplinaConfig: (turmaId: string) => Promise<void>;
+  currentUser?: any;
 }
 
 export function GradeTab({
+  currentUser,
   turmas,
   timetableTurmaId,
   setTimetableTurmaId,
@@ -89,8 +91,56 @@ export function GradeTab({
   fetchDisciplinaConfig,
   handleSaveDisciplinaConfig,
 }: GradeTabProps) {
+  const isLivre = currentUser?.institution?.tipo === 'PRIVADO_LIVRE' || currentUser?.institution?.tipo?.startsWith('PRIVADO_LIVRE');
+  const minSlots = isLivre ? 1 : (selectedShift === 'NOTURNO' ? 3 : 4);
+  const maxSlots = isLivre ? 10 : 6;
+
   const [slotsCount, setSlotsCount] = useState(5);
   const [intervalAfterSlot, setIntervalAfterSlot] = useState(3);
+
+  // Validate and adjust intervalAfterSlot whenever slotsCount or selectedShift changes
+  useEffect(() => {
+    const maxInterval = slotsCount - 1;
+    if (maxInterval <= 0) {
+      setIntervalAfterSlot(0);
+    } else {
+      setIntervalAfterSlot(current => {
+        if (current > maxInterval) {
+          return maxInterval;
+        }
+        return current;
+      });
+    }
+  }, [slotsCount, selectedShift]);
+
+  const handleDecreaseSlots = () => {
+    sounds.playSelect();
+    const newMin = isLivre ? 1 : (selectedShift === 'NOTURNO' ? 3 : 4);
+    setSlotsCount(prev => Math.max(newMin, prev - 1));
+  };
+
+  const handleIncreaseSlots = () => {
+    sounds.playSelect();
+    setSlotsCount(prev => Math.min(maxSlots, prev + 1));
+  };
+
+  const handleDecreaseInterval = () => {
+    sounds.playSelect();
+    setIntervalAfterSlot(prev => Math.max(0, prev - 1));
+  };
+
+  const handleIncreaseInterval = () => {
+    sounds.playSelect();
+    const maxVal = slotsCount - 1;
+    if (intervalAfterSlot < maxVal) {
+      setIntervalAfterSlot(prev => prev + 1);
+    }
+  };
+
+  const getIntervalLabel = (val: number) => {
+    if (val === 0) return '0';
+    return `${val}ª`;
+  };
 
   // Sincronizar configuração de disciplinas do Monarch v3
   useEffect(() => {
@@ -271,14 +321,14 @@ export function GradeTab({
                 <Text className="text-white/40 text-[9px] font-mono mb-1.5 uppercase">Aulas por Turno:</Text>
                 <View className="flex-row items-center gap-2">
                   <TouchableOpacity 
-                    onPress={() => { sounds.playSelect(); setSlotsCount(prev => Math.max(4, prev - 1)); }} 
+                    onPress={handleDecreaseSlots} 
                     className="bg-black/40 border border-neonBlue/30 w-8 h-8 rounded-sm items-center justify-center active:bg-neonBlue/10"
                   >
                     <Text className="text-neonBlue font-mono font-bold">-</Text>
                   </TouchableOpacity>
                   <Text className="text-white font-mono font-bold text-sm w-6 text-center">{slotsCount}</Text>
                   <TouchableOpacity 
-                    onPress={() => { sounds.playSelect(); setSlotsCount(prev => Math.min(6, prev + 1)); }} 
+                    onPress={handleIncreaseSlots} 
                     className="bg-black/40 border border-neonBlue/30 w-8 h-8 rounded-sm items-center justify-center active:bg-neonBlue/10"
                   >
                     <Text className="text-neonBlue font-mono font-bold">+</Text>
@@ -290,14 +340,14 @@ export function GradeTab({
                 <Text className="text-white/40 text-[9px] font-mono mb-1.5 uppercase">Intervalo após a Aula:</Text>
                 <View className="flex-row items-center gap-2">
                   <TouchableOpacity 
-                    onPress={() => { sounds.playSelect(); setIntervalAfterSlot(prev => Math.max(2, prev - 1)); }} 
+                    onPress={handleDecreaseInterval} 
                     className="bg-black/40 border border-neonBlue/30 w-8 h-8 rounded-sm items-center justify-center active:bg-neonBlue/10"
                   >
                     <Text className="text-neonBlue font-mono font-bold">-</Text>
                   </TouchableOpacity>
-                  <Text className="text-white font-mono font-bold text-sm w-6 text-center">{intervalAfterSlot}ª</Text>
+                  <Text className="text-white font-mono font-bold text-sm w-6 text-center">{getIntervalLabel(intervalAfterSlot)}</Text>
                   <TouchableOpacity 
-                    onPress={() => { sounds.playSelect(); setIntervalAfterSlot(prev => Math.min(slotsCount - 1, prev + 1)); }} 
+                    onPress={handleIncreaseInterval} 
                     className="bg-black/40 border border-neonBlue/30 w-8 h-8 rounded-sm items-center justify-center active:bg-neonBlue/10"
                   >
                     <Text className="text-neonBlue font-mono font-bold">+</Text>
@@ -471,14 +521,14 @@ export function GradeTab({
                 <Text className="text-white/40 text-[9px] font-mono mb-1.5 uppercase">Aulas por Turno:</Text>
                 <View className="flex-row items-center gap-2">
                   <TouchableOpacity 
-                    onPress={() => { sounds.playSelect(); setSlotsCount(prev => Math.max(4, prev - 1)); }} 
+                    onPress={handleDecreaseSlots} 
                     className="bg-black/40 border border-neonBlue/30 w-8 h-8 rounded-sm items-center justify-center active:bg-neonBlue/10"
                   >
                     <Text className="text-neonBlue font-mono font-bold">-</Text>
                   </TouchableOpacity>
                   <Text className="text-white font-mono font-bold text-sm w-6 text-center">{slotsCount}</Text>
                   <TouchableOpacity 
-                    onPress={() => { sounds.playSelect(); setSlotsCount(prev => Math.min(6, prev + 1)); }} 
+                    onPress={handleIncreaseSlots} 
                     className="bg-black/40 border border-neonBlue/30 w-8 h-8 rounded-sm items-center justify-center active:bg-neonBlue/10"
                   >
                     <Text className="text-neonBlue font-mono font-bold">+</Text>
@@ -490,14 +540,14 @@ export function GradeTab({
                 <Text className="text-white/40 text-[9px] font-mono mb-1.5 uppercase">Intervalo após a Aula:</Text>
                 <View className="flex-row items-center gap-2">
                   <TouchableOpacity 
-                    onPress={() => { sounds.playSelect(); setIntervalAfterSlot(prev => Math.max(2, prev - 1)); }} 
+                    onPress={handleDecreaseInterval} 
                     className="bg-black/40 border border-neonBlue/30 w-8 h-8 rounded-sm items-center justify-center active:bg-neonBlue/10"
                   >
                     <Text className="text-neonBlue font-mono font-bold">-</Text>
                   </TouchableOpacity>
-                  <Text className="text-white font-mono font-bold text-sm w-6 text-center">{intervalAfterSlot}ª</Text>
+                  <Text className="text-white font-mono font-bold text-sm w-6 text-center">{getIntervalLabel(intervalAfterSlot)}</Text>
                   <TouchableOpacity 
-                    onPress={() => { sounds.playSelect(); setIntervalAfterSlot(prev => Math.min(slotsCount - 1, prev + 1)); }} 
+                    onPress={handleIncreaseInterval} 
                     className="bg-black/40 border border-neonBlue/30 w-8 h-8 rounded-sm items-center justify-center active:bg-neonBlue/10"
                   >
                     <Text className="text-neonBlue font-mono font-bold">+</Text>

@@ -16,7 +16,11 @@ const server = Fastify({
 });
 
 // Registrando plugins
-server.register(cors, { origin: '*' });
+server.register(cors, {
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
+});
 server.register(authPlugin);
 server.register(securityPlugin);
 
