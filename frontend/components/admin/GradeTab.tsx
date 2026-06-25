@@ -92,7 +92,7 @@ export function GradeTab({
   handleSaveDisciplinaConfig,
 }: GradeTabProps) {
   const isLivre = currentUser?.institution?.tipo === 'PRIVADO_LIVRE' || currentUser?.institution?.tipo?.startsWith('PRIVADO_LIVRE');
-  const minSlots = isLivre ? 1 : 4;
+  const minSlots = isLivre ? 1 : (selectedShift === 'NOTURNO' ? 3 : 4);
   const maxSlots = isLivre ? 10 : 6;
 
   const [slotsCount, setSlotsCount] = useState(5);
@@ -101,36 +101,22 @@ export function GradeTab({
   // Validate and adjust intervalAfterSlot whenever slotsCount or selectedShift changes
   useEffect(() => {
     const maxInterval = slotsCount - 1;
-    if (selectedShift === 'NOTURNO') {
-      if (slotsCount < 4) {
-        setIntervalAfterSlot(0);
-      } else {
-        if (intervalAfterSlot !== 0) {
-          if (intervalAfterSlot < 3) {
-            setIntervalAfterSlot(3);
-          } else if (intervalAfterSlot > maxInterval) {
-            setIntervalAfterSlot(maxInterval);
-          }
-        }
-      }
+    if (maxInterval <= 0) {
+      setIntervalAfterSlot(0);
     } else {
-      if (slotsCount < 3) {
-        setIntervalAfterSlot(0);
-      } else {
-        if (intervalAfterSlot !== 0) {
-          if (intervalAfterSlot < 2) {
-            setIntervalAfterSlot(2);
-          } else if (intervalAfterSlot > maxInterval) {
-            setIntervalAfterSlot(maxInterval);
-          }
+      setIntervalAfterSlot(current => {
+        if (current > maxInterval) {
+          return maxInterval;
         }
-      }
+        return current;
+      });
     }
   }, [slotsCount, selectedShift]);
 
   const handleDecreaseSlots = () => {
     sounds.playSelect();
-    setSlotsCount(prev => Math.max(minSlots, prev - 1));
+    const newMin = isLivre ? 1 : (selectedShift === 'NOTURNO' ? 3 : 4);
+    setSlotsCount(prev => Math.max(newMin, prev - 1));
   };
 
   const handleIncreaseSlots = () => {
@@ -140,32 +126,19 @@ export function GradeTab({
 
   const handleDecreaseInterval = () => {
     sounds.playSelect();
-    const minVal = selectedShift === 'NOTURNO' ? 3 : 2;
-    if (intervalAfterSlot === 0) {
-      return;
-    }
-    if (intervalAfterSlot <= minVal) {
-      setIntervalAfterSlot(0);
-    } else {
-      setIntervalAfterSlot(prev => prev - 1);
-    }
+    setIntervalAfterSlot(prev => Math.max(0, prev - 1));
   };
 
   const handleIncreaseInterval = () => {
     sounds.playSelect();
-    const minVal = selectedShift === 'NOTURNO' ? 3 : 2;
     const maxVal = slotsCount - 1;
-    if (intervalAfterSlot === 0) {
-      if (slotsCount >= (selectedShift === 'NOTURNO' ? 4 : 3)) {
-        setIntervalAfterSlot(minVal);
-      }
-    } else if (intervalAfterSlot < maxVal) {
+    if (intervalAfterSlot < maxVal) {
       setIntervalAfterSlot(prev => prev + 1);
     }
   };
 
   const getIntervalLabel = (val: number) => {
-    if (val === 0) return 'Sem';
+    if (val === 0) return '0';
     return `${val}ª`;
   };
 
