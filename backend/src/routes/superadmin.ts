@@ -321,4 +321,32 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
       return reply.status(500).send({ error: 'Erro ao excluir arquiteto.' });
     }
   });
+
+  // ─── POST /architects/:id/reset ───────────────────────────────────────────
+  fastify.post<{ Params: { id: string } }>('/architects/:id/reset', async (request, reply) => {
+    const { id } = request.params;
+
+    try {
+      const architect = await prisma.user.findFirst({
+        where: { id, role: 'ARQUITETO' }
+      });
+      if (!architect) {
+        return reply.status(404).send({ error: 'Arquiteto não encontrado.' });
+      }
+
+      const defaultPassword = await bcrypt.hash('Solen2026', 10);
+      await prisma.user.update({
+        where: { id },
+        data: { 
+          isFirstAccess: true,
+          nickname: null,
+          password: defaultPassword
+        }
+      });
+
+      return reply.send({ message: 'Acesso do arquiteto resetado com sucesso! A senha padrão voltou a ser "Solen2026" e ele fará o primeiro acesso novamente.' });
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao resetar arquiteto.' });
+    }
+  });
 };

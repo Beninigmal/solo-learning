@@ -31,7 +31,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     }
 
     try {
-      const defaultPassword = await bcrypt.hash('Solen2026', 10);
+      const defaultPassword = await bcrypt.hash('1234', 10);
       
       // Se tiver nova matéria, criar ou buscar
       if (novaMateria) {
@@ -561,7 +561,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     const instituicao = request.user.instituicao!;
 
     try {
-      const defaultPassword = await bcrypt.hash('Solen2026', 10);
+      const defaultPassword = await bcrypt.hash('1234', 10);
       await prisma.user.update({
         where: { 
           id, 
@@ -574,7 +574,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           password: defaultPassword
         }
       });
-      return reply.send({ message: 'Acesso do mestre resetado com sucesso! A senha padrão voltou a ser "Solen2026" e ele fará o primeiro acesso novamente.' });
+      return reply.send({ message: 'Acesso do mestre resetado com sucesso! A senha padrão voltou a ser "1234" e ele fará o primeiro acesso novamente.' });
     } catch (error) {
       return reply.status(404).send({ error: 'Mestre não encontrado ou sem permissão.' });
     }
@@ -673,7 +673,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       }
       const isPrivate = instType.startsWith('PRIVADO');
 
-      const defaultPassword = await bcrypt.hash('Solen2026', 10);
+      const defaultPassword = await bcrypt.hash('1234', 10);
       let createdCount = 0;
       let errors: string[] = [];
 

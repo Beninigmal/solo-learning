@@ -13,7 +13,8 @@ import {
   updateInstitution,
   updateArchitect,
   blockArchitect,
-  deleteArchitect
+  deleteArchitect,
+  resetArchitectAccess
 } from '../../services/api';
 import { SystemAlert } from '../../components/SystemAlert';
 import { CyberSubmitButton } from '../../components/CyberSubmitButton';
@@ -51,6 +52,10 @@ export default function SuperAdminDashboard() {
   // Architect delete action states
   const [architectToDelete, setArchitectToDelete] = useState<any | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Architect reset action states
+  const [architectToReset, setArchitectToReset] = useState<any | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Alert State
   const [alertVisible, setAlertVisible] = useState(false);
@@ -238,6 +243,27 @@ export default function SuperAdminDashboard() {
     } finally {
       setShowDeleteConfirm(false);
       setArchitectToDelete(null);
+    }
+  };
+
+  const handleResetArchitectPress = (arch: any) => {
+    sounds.playSelect();
+    setArchitectToReset(arch);
+    setShowResetConfirm(true);
+  };
+
+  const confirmResetArchitect = async () => {
+    if (!architectToReset) return;
+    try {
+      await resetArchitectAccess(architectToReset.id);
+      showAlert('RESETADO', 'Acesso do arquiteto resetado com sucesso! A senha voltou a ser "Solen2026".', 'success');
+      loadAllData();
+    } catch (err: any) {
+      const msg = err.response?.data?.error || 'Erro ao resetar arquiteto.';
+      showAlert('ERRO DE PROCESSO', msg, 'error');
+    } finally {
+      setShowResetConfirm(false);
+      setArchitectToReset(null);
     }
   };
 
@@ -574,6 +600,15 @@ export default function SuperAdminDashboard() {
                           <Feather name="edit-2" size={11} color="#00f3ff" />
                         </TouchableOpacity>
 
+                        {/* Resetar Senha (Novidade) */}
+                        <TouchableOpacity 
+                          onPress={() => handleResetArchitectPress(item)}
+                          className="bg-yellow-950/20 p-1.5 border border-yellow-600/30 rounded-sm"
+                          activeOpacity={0.7}
+                        >
+                          <Feather name="key" size={11} color="#eab308" />
+                        </TouchableOpacity>
+
                         {/* Bloquear / Desbloquear */}
                         <TouchableOpacity 
                           onPress={() => handleBlockArchitect(item.id, !item.blocked)}
@@ -671,6 +706,43 @@ export default function SuperAdminDashboard() {
                   onPress={confirmDeleteArchitect}
                 >
                   <Text className="text-red-400 font-bold uppercase tracking-widest text-[10px] font-mono">Confirmar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Custom Reset Confirmation Modal */}
+        {showResetConfirm && (
+          <View className="absolute top-0 bottom-0 left-0 right-0 bg-black/85 z-50 justify-center items-center p-5">
+            <View 
+              className="bg-[#080d1a] border-2 border-yellow-500 rounded-sm p-6 w-full max-w-sm shadow-2xl items-center"
+              style={{
+                shadowColor: "#eab308",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.5,
+                shadowRadius: 15,
+                elevation: 20,
+              }}
+            >
+              <Feather name="key" size={32} color="#eab308" className="mb-4" />
+              <Text className="text-white text-lg font-bold uppercase tracking-wider mb-2 font-mono">Resetar Acesso</Text>
+              <Text className="text-white/70 text-xs text-center mb-6 font-mono">
+                Deseja realmente resetar o acesso do arquiteto {architectToReset?.nome} (Matrícula: {architectToReset?.matricula})? A senha padrão voltará a ser "Solen2026" e o apelido será limpo.
+              </Text>
+              
+              <View className="flex-row gap-3 w-full">
+                <TouchableOpacity 
+                  className="flex-1 bg-black border border-neonBlue py-3.5 rounded-sm items-center justify-center"
+                  onPress={() => { sounds.playSelect(); setShowResetConfirm(false); setArchitectToReset(null); }}
+                >
+                  <Text className="text-neonBlue font-bold uppercase tracking-widest text-[10px] font-mono">Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  className="flex-1 bg-yellow-500/20 border border-yellow-500 py-3.5 rounded-sm items-center justify-center"
+                  onPress={confirmResetArchitect}
+                >
+                  <Text className="text-yellow-400 font-bold uppercase tracking-widest text-[10px] font-mono">Confirmar</Text>
                 </TouchableOpacity>
               </View>
             </View>

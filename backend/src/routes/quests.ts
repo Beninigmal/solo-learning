@@ -3443,7 +3443,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
             turmaId_diaSemana_posicao: {
               turmaId,
               diaSemana: slot.diaSemana,
-              posicao: slot.posicao
+              posicao: Number(slot.posicao)
             }
           },
           update: {
@@ -3452,7 +3452,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           create: {
             turmaId,
             diaSemana: slot.diaSemana,
-            posicao: slot.posicao,
+            posicao: Number(slot.posicao),
             disciplinaId: slot.disciplinaId
           }
         });
@@ -3479,7 +3479,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           turmaId_diaSemana_posicao: {
             turmaId,
             diaSemana,
-            posicao
+            posicao: Number(posicao)
           }
         }
       });
@@ -3521,7 +3521,47 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         return reply.status(400).send({ error: 'Usuário sem vínculo com instituição.' });
       }
 
+      const institution = await prisma.institution.findUnique({ where: { id: user.institutionId } });
+      if (!institution) {
+        return reply.status(400).send({ error: 'Instituição não encontrada.' });
+      }
+
       const { shift, slotsCount, intervalAfterSlot } = request.body;
+      const isLivre = institution.tipo?.startsWith('PRIVADO_LIVRE') ?? false;
+
+      // Validação de slotsCount
+      const minSlots = isLivre ? 1 : 4;
+      const maxSlots = isLivre ? 10 : 6;
+      if (slotsCount < minSlots || slotsCount > maxSlots) {
+        return reply.status(400).send({ error: `Quantidade de aulas por turno deve ser entre ${minSlots} e ${maxSlots}.` });
+      }
+
+      // Validação de intervalAfterSlot
+      if (intervalAfterSlot < 0 || intervalAfterSlot >= slotsCount) {
+        return reply.status(400).send({ error: 'Intervalo deve ser menor que a quantidade de aulas por turno.' });
+      }
+
+      if (shift === 'NOTURNO') {
+        if (slotsCount >= 4) {
+          if (intervalAfterSlot !== 0 && intervalAfterSlot < 3) {
+            return reply.status(400).send({ error: 'No turno noturno, o intervalo deve ser após pelo menos a 3ª aula.' });
+          }
+        } else {
+          if (intervalAfterSlot !== 0) {
+            return reply.status(400).send({ error: 'Com menos de 4 aulas no turno noturno, o intervalo deve ser desabilitado (Sem).' });
+          }
+        }
+      } else {
+        if (slotsCount >= 3) {
+          if (intervalAfterSlot !== 0 && intervalAfterSlot < 2) {
+            return reply.status(400).send({ error: 'O intervalo deve ser após pelo menos a 2ª aula.' });
+          }
+        } else {
+          if (intervalAfterSlot !== 0) {
+            return reply.status(400).send({ error: 'Com menos de 3 aulas, o intervalo deve ser desabilitado (Sem).' });
+          }
+        }
+      }
 
       const setting = await prisma.institutionShiftSetting.upsert({
         where: {
@@ -3895,7 +3935,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       const prevTd = prevDisciplineId ? turmaDisciplinas.find(t => t.disciplinaId === prevDisciplineId) : null;
 
       const lastSlotBeforeInterval = startPos + intervalAfterSlot - 1;
-      const crossesInterval = prevPos === lastSlotBeforeInterval;
+      const crossesInterval = intervalAfterSlot > 0 && prevPos === lastSlotBeforeInterval;
 
       let candidates = turmaDisciplinas.filter(td => assignedCounts[td.disciplinaId] < (requiredCounts[td.disciplinaId] ?? 0));
 
