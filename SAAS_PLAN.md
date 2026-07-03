@@ -2,7 +2,7 @@
 
 Este documento apresenta a versão atualizada e revisada do plano estratégico para a transformação do **Solen (Solo Learning)** em um modelo **SaaS (Software as a Service) B2B** voltado para instituições de ensino. 
 
-Esta revisão inclui o novo plano de entrada (**Plano Rank B — Gamificação Pura**), a análise legal de direitos autorais para a transição dos nomes de marca, a substituição do assistente para **Ignis**, e o detalhamento financeiro correspondente.
+Esta revisão detalha a modelagem de consumo de tokens com base na matriz curricular, a análise legal de direitos autorais, e a substituição do assistente administrativo para **Ordinator**, além do novo plano de entrada (**Plano Rank B — Gamificação Pura**).
 
 ---
 
@@ -29,17 +29,17 @@ O Solen é comercializado como uma assinatura recorrente baseada na quantidade d
 ### 👑 Plano Rank S (Monarca / Supreme)
 *   **Valor Mensal**: **R$ 5,00 por aluno / mês** (R$ 1,50 extra por aluno sobre o plano Rank A)
 *   **Valor Anual (Fidelizado)**: **R$ 48,00 por aluno / ano** (equivalente a R$ 4,00 por aluno / mês)
-*   **Recursos**: Todos os recursos do Plano Rank A + **Ignis: O Assistente do Sistema** (agente de suporte e automação executiva para administradores e coordenadores).
+*   **Recursos**: Todos os recursos do Plano Rank A + **Ordinator: O Assistente do Sistema** (agente de suporte e automação executiva para administradores e coordenadores).
 
 ---
 
-## 🤖 2. O Recurso Exclusivo do Plano Rank S: "Ignis — O Assistente do Sistema"
+## 🤖 2. O Recurso Exclusivo do Plano Rank S: "Ordinator — O Assistente do Sistema"
 
-**Ignis** (nome alterado para evitar violação de propriedade intelectual, derivado do latim para "fogo") é o agente de suporte e automação inteligente integrado ao painel do Arquiteto (administrador escolar). Ele opera como um "estagiário executivo" que entende linguagem natural e realiza operações complexas diretamente no banco de dados e nos motores do sistema.
+**Ordinator** (do latim para *organizador, aquele que agenda e ordena*) é o agente de suporte e automação inteligente integrado ao painel do Arquiteto (administrador escolar). Ele opera como um "estagiário executivo" que entende linguagem natural e realiza operações complexas diretamente no banco de dados e nos motores do sistema.
 
-### A. Casos de Uso do Agente Ignis
+### A. Casos de Uso do Agente Ordinator
 1.  **Análise e Relatórios de Saúde Acadêmica**:
-    *   *Comando*: *"Ignis, analise o desempenho geral de Ciências e me dê um relatório das disciplinas com maior taxa de erro."*
+    *   *Comando*: *"Ordinator, analise o desempenho geral de Ciências e me dê um relatório das disciplinas com maior taxa de erro."*
     *   *Ação*: O agente roda queries nas tabelas de progresso das quests, correlaciona o XP ganho com o volume de alunos e retorna um relatório formatado destacando matérias com dificuldades conceituais.
 2.  **Remanejamento e Ajuste de Restrições (Monarch Engine)**:
     *   *Comando*: *"O professor Marcos de Português não poderá mais dar aulas nos dois últimos horários das quintas-feiras. Reajuste a grade e rode o Monarch novamente."*
@@ -64,12 +64,12 @@ O Solen é comercializado como uma assinatura recorrente baseada na quantidade d
 *   **Ajuste por Cooldown e Party**: Média de 1.3x tentativas após erros (bloqueadas pelo Cooldown de 30 min) e redução de 20% no processamento de respostas devido ao acerto compartilhado em Party (Dungeons).
 *   **Total de Análises de Resposta**: **68.640 análises de resposta / mês**.
 
-### C. Consumo Adicional do Agente Ignis (Plano Rank S)
-*   **Chamadas estimadas para o Ignis**: 100 chats/mês por escola.
+### C. Consumo Adicional do Agente Ordinator (Plano Rank S)
+*   **Chamadas estimadas para o Ordinator**: 100 chats/mês por escola.
 *   **Tamanho do Prompt (Input)**: ~4.000 tokens (inclui esquema do banco de dados, histórico de conversação do administrador e instruções de persona).
 *   **Tamanho da Resposta (Output)**: ~500 tokens (JSON de comandos + retorno em texto).
-*   *Consumo mensal do Ignis*: Input = 0,4M tokens; Output = 0,05M tokens.
-*   *Custo da API Gemini 2.0 Flash p/ o Ignis*: **R$ 0,33 / mês** por escola.
+*   *Consumo mensal do Ordinator*: Input = 0,4M tokens; Output = 0,05M tokens.
+*   *Custo da API Gemini 2.0 Flash p/ o Ordinator*: **R$ 0,33 / mês** por escola.
 
 ---
 
@@ -125,7 +125,7 @@ Os custos fixos de banco de dados, servidores, autenticação e notificações p
 *   **Risco Judicial**: O uso do nome exato de um personagem licenciado em um produto comercial (SaaS B2B) de software sem autorização explícita constitui **infração de direitos autorais (copyright)** e pode ser caracterizado como **concorrência desleal / aproveitamento parasita**. A editora Kakao Entertainment tem um histórico ativo de proteção de sua propriedade intelectual, podendo enviar notificações de *Cease & Desist* ou processar civilmente por perdas e danos.
 *   **Decisão Estratégica**: Substituir "Igris" no código e na comunicação por um nome livre de PI.
 
-### B. O Nome "Ignis" como Alternativa Legal
-*   **A Origem**: **Ignis** é uma palavra do dicionário latino que significa "fogo" ou "brilho".
-*   **Viabilidade Legal**: Por ser um termo de dicionário de língua clássica, é de domínio público e não pode sofrer apropriação exclusiva de marca como palavra isolada. É foneticamente muito próximo a "Igris" (preservando o ritmo verbal da interface cibernética) mas é **100% blindado contra processos de direitos autorais**.
+### B. O Nome "Ordinator" como Alternativa Legal
+*   **A Origem**: **Ordinator** é uma palavra do dicionário latino que significa "organizador", "coordenador" ou "aquele que coloca em ordem".
+*   **Viabilidade Legal**: Por ser um termo de dicionário de língua clássica, é de domínio público e não pode sofrer apropriação exclusiva de marca como palavra isolada. É foneticamente robusto, mantém a seriedade e o mistério cibernético dos sistemas de RPG mas é **100% blindado contra processos de direitos autorais**.
 *   **Outros Termos**: O uso de jargões comuns de RPG/D&D (como *Party*, *Dungeon*, *Quest*, *Mestre*) é totalmente livre, pois fazem parte do domínio público da ficção de fantasia medieval, estando inclusive protegidos sob a licença Creative Commons CC-BY 4.0 das regras SRD 5.1 da Wizards of the Coast.
