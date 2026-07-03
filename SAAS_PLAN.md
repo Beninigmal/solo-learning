@@ -2,7 +2,7 @@
 
 Este documento apresenta a versão atualizada e revisada do plano estratégico para a transformação do **Solen (Solo Learning)** em um modelo **SaaS (Software as a Service) B2B** voltado para instituições de ensino. 
 
-Esta revisão detalha a modelagem de consumo de tokens com base na matriz curricular, a análise legal de direitos autorais, e a substituição do assistente administrativo para **Ordinator**, além do novo plano de entrada (**Plano Rank B — Gamificação Pura**).
+Esta revisão inclui a infraestrutura de cobrança e controle multi-tenant, os novos planos de faturamento, a análise legal de marcas e o detalhamento técnico do agente **Ordinator**.
 
 ---
 
@@ -129,3 +129,52 @@ Os custos fixos de banco de dados, servidores, autenticação e notificações p
 *   **A Origem**: **Ordinator** é uma palavra do dicionário latino que significa "organizador", "coordenador" ou "aquele que coloca em ordem".
 *   **Viabilidade Legal**: Por ser um termo de dicionário de língua clássica, é de domínio público e não pode sofrer apropriação exclusiva de marca como palavra isolada. É foneticamente robusto, mantém a seriedade e o mistério cibernético dos sistemas de RPG mas é **100% blindado contra processos de direitos autorais**.
 *   **Outros Termos**: O uso de jargões comuns de RPG/D&D (como *Party*, *Dungeon*, *Quest*, *Mestre*) é totalmente livre, pois fazem parte do domínio público da ficção de fantasia medieval, estando inclusive protegidos sob a licença Creative Commons CC-BY 4.0 das regras SRD 5.1 da Wizards of the Coast.
+
+---
+
+## 💳 7. Infraestrutura de Cobrança & Controle Multi-tenant (SaaS Core)
+
+Para suportar a operação SaaS comercial de forma autônoma e segura, a arquitetura do backend e do banco de dados incorpora os seguintes controles de cobrança:
+
+### A. Modelo de Dados de Assinaturas (Prisma ORM)
+Criaremos um modelo de configuração de Tenant (`TenantConfig`) associado ao identificador `instituicao` (chave primária da tenant-isolation do Solen):
+```prisma
+model TenantConfig {
+  id              String   @id @default(uuid())
+  instituicao     String   @unique
+  plano           String   @default("TRIAL") // TRIAL, RANK_B, RANK_A, RANK_S
+  status          String   @default("ATIVO") // ATIVO, INADIMPLENTE, CANCELADO
+  trialExpiration DateTime
+  maxTurmasMonarch Int     @default(2) // Limite de turmas executáveis no Monarch
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+```
+
+### B. Middleware de Proteção contra Inadimplência
+*   **Validação HTTP**: Todas as rotas de API do backend acessadas por perfis administrativos (Arquitetos e Mestres) passarão por um middleware de faturamento.
+*   **Regra de Bloqueio**: Se o status do tenant for alterado para `INADIMPLENTE` ou `CANCELADO`, a requisição é rejeitada imediatamente com o status `402 Payment Required`, exibindo na interface do painel do coordenador um alerta amigável de cobrança pendente e impedindo a operação do sistema.
+
+### C. Integração e Webhooks com Gateways de Pagamento (Stripe/Asaas)
+*   O sistema disponibiliza rotas públicas de Webhook blindadas por assinatura criptográfica para sincronizar os pagamentos do gateway:
+    *   `payment.confirmed` / `invoice.paid`: Altera o status do tenant para `ATIVO` e renova o prazo de validade da licença.
+    *   `invoice.payment_failed` / `subscription.canceled`: Altera o status do tenant para `INADIMPLENTE` ou `CANCELADO` automaticamente, disparando os bloqueios de rota e enviando e-mails automáticos de cobrança para a coordenação.
+
+### D. Painel do Superadmin (Matrix)
+Interface web de alto nível exclusiva para o operador geral do SaaS (Superadmin), permitindo:
+*   Acompanhar estatísticas financeiras como **MRR** (Receita Recorrente Mensal) e **LTV** (Valor do Tempo de Vida do Cliente).
+*   Visualizar a lista de todas as instituições parceiras cadastradas e seus planos correspondentes.
+*   Conceder manualmente bônus de trial, descontos ou alterar planos de faturamento por demandas comerciais de forma rápida.
+
+---
+
+## 🛡️ 8. Estratégia Trial Anti-Abuso: Monarch Engine Limit
+
+*   **Restrição Rígida**: O resolvedor de conflitos [monarchSolveTurma](file:///home/beni/Documentos/Estudos/Projetos/Solen/backend/src/routes/quests.ts#L3753) só permitirá a execução e alocação de horários para no máximo **2 turmas (classes)** no plano Trial.
+*   **Bloqueio Gamificado na UI**: Caso o coordenador adicione uma terceira turma e tente rodar o algoritmo de alocação de horários, a interface exibirá uma janela de sistema no estilo RPG de Solo Leveling:
+    
+    > **⚠️ ALERTA DO SISTEMA DE MANA**
+    > 
+    > *Sua reserva de Mana atual é insuficiente para invocar o Monarch Engine em mais de 2 turmas simultâneas.*
+    > 
+    > *Para expandir os limites da sua Masmorra Escolar e gerenciar todas as suas turmas sem restrições, realize o upgrade para a licença **Premium de Caçador (SaaS Pro)**.*
