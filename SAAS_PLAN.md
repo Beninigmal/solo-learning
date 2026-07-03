@@ -1,83 +1,82 @@
 # 🔮 Solen SaaS — Plano de Negócios, Viabilidade de IA e Estratégia Antitransbordo
 
-Este documento apresenta a versão atualizada e revisada do plano estratégico para a transformação do **Solen (Solo Learning)** em um modelo **SaaS (Software as a Service) B2B** voltado para instituições de ensino. 
+Este documento apresenta a versão detalhada do plano estratégico para a transformação do **Solen (Solo Learning)** em um modelo **SaaS (Software as a Service) B2B** voltado para instituições de ensino. 
 
-Esta revisão detalha a modelagem de consumo de tokens com base na matriz curricular exata de matérias e dias de aula geradores de quests, recalcula o impacto financeiro do **Cooldown de 30 Minutos** e da mecânica de **Party**, e redefine as projeções de custos e lucros.
-
----
-
-## 🏛️ 1. Modelo de Negócios SaaS B2B
-
-O Solen é comercializado como uma licença anual ou mensal por **aluno ativo cadastrado**, cobrada diretamente da instituição de ensino (B2B):
-
-*   **Plano Mensal Recorrente**: **R$ 3,50 por aluno / mês**
-*   **Plano Anual Fidelizado**: **R$ 30,00 por aluno / ano** (equivalente a R$ 2,50 por aluno / mês)
-*   **Plano Trial Gratuito (14 dias)**: Acesso total ao sistema de gamificação, mas com o resolvedor do [Monarch Engine v3](file:///home/beni/Documentos/Estudos/Projetos/Solen/regras_grades_publica_privada.md) limitado a gerar grades horárias para no máximo **2 turmas** (para evitar que a escola extraia sua grade anual completa e cancele o serviço).
+Esta revisão incorpora a nova categoria de venda de alto nível (**Plano Rank S**), que introduz o agente inteligente **"Igris — O Assistente do Sistema"**, e recalcula as projeções financeiras.
 
 ---
 
-## 🧠 2. Viabilidade Financeira & Custos da API Gemini (Análise Curricular Precisa)
+## 🏛️ 1. Tiers e Planos de Precificação SaaS
 
-Para garantir máxima segurança orçamentária, realizamos um raciocínio conjunto baseado no quadro semanal real de uma turma padrão:
+O Solen é comercializado como uma assinatura recorrente baseada na quantidade de **alunos ativos cadastrados**, cobrada diretamente da instituição de ensino (B2B):
 
-### A. Estrutura Semanal de Matérias e Geração de Quests (Por Turma)
-*   **Português**: 2 dias de aula/semana (Gera quests 2 dias/semana)
-*   **Matemática**: 2 dias de aula/semana (Gera quests 2 dias/semana)
-*   **Geografia**: 2 dias de aula/semana (Gera quests 2 dias/semana)
-*   **História**: 2 dias de aula/semana (Gera quests 2 dias/semana)
-*   **Ciências**: 2 dias de aula/semana (Gera quests 2 dias/semana)
-*   **Inglês**: 1 dia de aula/semana (Gera quests 1 dia/semana)
-*   *Matérias sem Quests (Artes / Ed. Física)*: 2 dias/semana (0 quests)
+### 🚫 Plano Trial Gratuito (14 dias)
+*   **Valor**: Gratuito (R$ 0,00).
+*   **Recursos**: Acesso ao painel administrativo básico e à gamificação (quests, ranks, inventário).
+*   **Limitação Anti-Abuso**: O resolvedor do [Monarch Engine v3](file:///home/beni/Documentos/Estudos/Projetos/Solen/regras_grades_publica_privada.md) é limitado a gerar grades horárias para no máximo **2 turmas** (para impedir que a escola gere sua grade anual completa e cancele o serviço). Sem acesso ao agente assistente.
+
+### ⚔️ Plano Rank A (Premium)
+*   **Valor Mensal**: **R$ 3,50 por aluno / mês**
+*   **Valor Anual (Fidelizado)**: **R$ 30,00 por aluno / ano** (equivalente a R$ 2,50 por aluno / mês)
+*   **Recursos**: Acesso total e ilimitado ao Monarch Engine (todas as turmas da escola simultaneamente), monitoramento de radar em tempo real, envio ilimitado de quests diárias por IA e todo o ecossistema gamificado de RPG.
+
+### 👑 Plano Rank S (Monarca / Supreme)
+*   **Valor Mensal**: **R$ 5,00 por aluno / mês** (R$ 1,50 extra por aluno sobre o plano Rank A)
+*   **Valor Anual (Fidelizado)**: **R$ 48,00 por aluno / ano** (equivalente a R$ 4,00 por aluno / mês)
+*   **Recursos**: Todos os recursos do Plano Rank A + **Igris: O Assistente do Sistema** (agente de suporte e automação executiva para administradores e coordenadores).
+
+---
+
+## 🤖 2. O Recurso Exclusivo do Plano Rank S: "Igris — O Assistente do Sistema"
+
+Inspirado no mais leal cavaleiro das sombras de *Solo Leveling*, **Igris** é o agente de suporte e automação inteligente integrado ao painel do Arquiteto (administrador escolar). Ele opera como um "estagiário executivo" que entende linguagem natural e realiza operações complexas diretamente no banco de dados e nos motores do sistema.
+
+### A. Casos de Uso do Agente Igris
+1.  **Análise e Relatórios de Saúde Acadêmica**:
+    *   *Comando*: *"Igris, analise o desempenho geral de Ciências e me dê um relatório das disciplinas com maior taxa de erro."*
+    *   *Ação*: O agente roda queries nas tabelas de progresso das quests, correlaciona o XP ganho com o volume de alunos e retorna um relatório formatado destacando matérias com dificuldades conceituais.
+2.  **Remanejamento e Ajuste de Restrições (Integração com o Monarch Engine)**:
+    *   *Comando*: *"O professor Marcos de Português não poderá mais dar aulas nos dois últimos horários das quintas-feiras. Reajuste a grade e rode o Monarch novamente."*
+    *   *Ação*: O agente adiciona de forma autônoma a restrição na tabela `TeacherUnavailability` correspondente ao professor Marcos, executa a função de agendamento [monarchSolveTurma](file:///home/beni/Documentos/Estudos/Projetos/Solen/backend/src/routes/quests.ts#L3753) em lote, valida a consistência da nova grade e exibe a alteração pronta para aprovação do administrador.
+3.  **Planejamento Acadêmico Futuro (Antecipação de Anos Letivos)**:
+    *   *Comando*: *"Prepare o planejamento para o ano que vem. Remova o professor Fulano, adicione o professor Cícero com carga horária de 40h concursado, e aumente as aulas semanais de Matemática do 9º ano para 6 aulas."*
+    *   *Ação*: O agente atualiza as cargas contratuais e vínculos das disciplinas nas tabelas do Prisma, deixando a matriz pronta para a simulação do Monarch do novo ano letivo.
+
+---
+
+## 🧠 3. Viabilidade Financeira & Custos da API Gemini (Análise Curricular Precisa)
+
+### A. Carga Horária e Geração de Quests (Por Turma)
+*   **Matérias geradoras de Quests**: Português (2 dias/semana), Matemática (2 dias/semana), Geografia (2 dias/semana), História (2 dias/semana), Ciências (2 dias/semana) e Inglês (1 dia/semana).
 *   **Total de Dias com Quests na Semana**: **11 dias de aula por semana / turma**.
 *   **Quests por Dia de Aula**: **3 quests** (uma trilha de 3 perguntas geradas para fixação daquela aula).
+*   **Quests Mensais por Turma**: 11 dias × 3 quests × 4 semanas = **132 quests / mês**.
 
 ### B. Projeção de Consumo Mensal (Escola Média - 500 Alunos, 15 Turmas, 30 Professores)
-*   **Quests Semanais por Turma**: 11 dias × 3 quests = **33 quests / semana**.
-*   **Quests Mensais por Turma**: 33 quests × 4 semanas = **132 quests / mês**.
-*   **Total de Quests Geradas na Escola (Mestres)**: 15 turmas × 132 quests = **1.980 Quests geradas por mês**.
-*   **Total de Respostas Individuais Padrão (Alunos)**: 500 alunos × 132 quests = **66.000 respostas analisadas por mês** (sem contar erros/tentativas).
-    *   *Nota*: Isso equivale a uma média de 6,6 quests resolvidas por aluno por dia letivo (aproximadamente 10 a 15 minutos diários de estudo, engajamento realista e sustentável).
+*   **Total de Quests Geradas (Mestres)**: 15 turmas × 132 quests = **1.980 Quests geradas/mês**.
+*   **Total de Respostas Individuais Padrão (Alunos)**: 500 alunos × 132 quests = **66.000 respostas bases/mês**.
+*   **Ajuste por Cooldown e Party**: Média de 1.3x tentativas após erros (bloqueadas pelo Cooldown de 30 min) e redução de 20% no processamento de respostas devido ao acerto compartilhado em Party (Dungeons).
+*   **Total de Análises de Resposta**: **68.640 análises de resposta / mês**.
 
-### C. Consumo de Tokens por Operação Padrão
-1.  **Geração de Quests (1.980 operações/mês)**: Input de 1.500 tokens, Output de 800 tokens.
-    *   *Input Mensal*: 1.980 × 1.500 = **2.970.000 tokens (2,97M)**
-    *   *Output Mensal*: 1.980 × 800 = **1.584.000 tokens (1,58M)**
-2.  **Análise de Respostas (66.000 operações/mês)**: Input de 1.000 tokens, Output de 200 tokens.
-    *   *Input Mensal*: 66.000 × 1.000 = **66.000.000 tokens (66M)**
-    *   *Output Mensal*: 66.000 × 200 = **13.200.000 tokens (13,2M)**
+### C. Consumo Adicional do Agente Igris (Plano Rank S)
+*   **Chamadas estimadas para o Igris**: 100 chats/mês por escola (uso de planejamento e suporte).
+*   **Tamanho do Prompt (Input)**: ~4.000 tokens (inclui esquema de tabelas do banco de dados, histórico de conversação do administrador e instruções de persona).
+*   **Tamanho da Resposta (Output)**: ~500 tokens (inclui JSON de chamada de funções de banco de dados/Monarch e retorno em texto).
+*   *Consumo mensal do Igris*: Input = 400.000 tokens (0,4M); Output = 50.000 tokens (0,05M).
+*   *Custo da API Gemini 2.0 Flash p/ o Igris*: **R$ 0,33 / mês** por escola. (O custo é insignificante, tornando a margem de upselling do plano Rank S espetacular).
 
 ---
 
-### D. Custos de API Mensais Basais (Sem Erros e Sem Party)
+### D. Custos de API Consolidados (Por Escola/Mês)
 *Taxa de câmbio: 1 USD = R$ 5,50*
 
-*   **Gemini 2.0 Flash (Base)**:
-    *   Input: 68,97M tokens × $0,10/1M = $6,897 (~R$ 37,93)
-    *   Output: 14,78M tokens × $0,40/1M = $5,912 (~R$ 32,52)
-    *   **Custo Total de API Gemini 2.0**: **$12,81 / mês** (~R$ 70,45)
-*   **Gemini 2.5 Flash (Base)**:
-    *   Input: 68,97M tokens × $0,30/1M = $20,691 (~R$ 113,80)
-    *   Output: 14,78M tokens × $2,50/1M = $36,950 (~R$ 203,23)
-    *   **Custo Total de API Gemini 2.5**: **$57,64 / mês** (~R$ 317,03)
+#### Custo no Plano Rank A (Sem Igris):
+*   **Gemini 2.0 Flash**: **R$ 73,07 / mês** (71,61M input / 15,31M output)
+*   **Gemini 2.5 Flash**: **R$ 328,67 / mês** (71,61M input / 15,31M output)
 
----
-
-## 🛑 3. Impacto dos Erros (Cooldown) e Economia das Parties (Dungeons)
-
-No cenário real do aplicativo, consideramos o comportamento de tentativas e a otimização de guilda:
-
-1.  **Fator de Erro (Cooldown de 30 min + YouTube)**: Estimamos que, com a devolutiva indicando o erro e o tempo de bloqueio para estudo, a taxa média de tentativas por quest seja de **1.3x** (70% acertam de primeira, 30% erram uma vez e buscam o vídeo indicado).
-2.  **Fator Party (Dungeons Cooperativas)**: Estimamos que **30% dos alunos** joguem em grupos de 3 (Party). Como o acerto de um conclui a quest para todos, isso reduz as chamadas de correção de respostas estudantis em **20%** no total geral da escola.
-
-### Projeção Consolidada de Correções/Mês (Média de 1.3x tentativas + 20% redução Party):
-*   66.000 bases × 0,8 (Party) × 1.3 (Tentativas com erro) = **68.640 análises de resposta / mês**.
-
-### E. Custos Ajustados de API (Com Cooldown e Party ativos)
-
-| Modelo | Input Mensal (Gen + Corr) | Output Mensal (Gen + Corr) | Custo Mensal (USD) | Custo Mensal (BRL) | Custo / Aluno (BRL) |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Gemini 2.0 Flash** | 71,61M tokens | 15,31M tokens | **$13,28** | **R$ 73,07** | **R$ 0,14** |
-| **Gemini 2.5 Flash** | 71,61M tokens | 15,31M tokens | **$59,76** | **R$ 328,67** | **R$ 0,65** |
+#### Custo no Plano Rank S (Com Igris incluso):
+*   **Gemini 2.0 Flash**: R$ 73,07 + R$ 0,33 = **R$ 73,40 / mês**
+*   **Gemini 2.5 Flash**: R$ 328,67 + R$ 1,51 = **R$ 330,18 / mês**
 
 ---
 
@@ -88,35 +87,28 @@ Os custos fixos de banco de dados, servidores, autenticação e notificações p
 *   **Servidor Backend (Fastify no Render)**: R$ 20,00 / mês
 *   **Notificações & E-mails (EAS + Resend)**: R$ 15,00 / mês
 *   **Updates do App & CDN (Vercel)**: R$ 10,00 / mês
-*   **Total Infraestrutura**: **R$ 72,50 / mês**
+*   **Total de Infraestrutura**: **R$ 72,50 / mês**
 
 ---
 
-## 📈 5. Custos Totais e Projeção de Margem de Lucro Realizada
+## 📈 5. Custos Totais e Projeção de Margem de Lucro por Plano
 
-Faturamento Bruto Mensal da Escola Média: **R$ 1.750,00 / mês** (500 alunos × R$ 3,50).
+Considerando a infraestrutura completa, a taxa média de **1.3x tentativas por resposta corrigida** e a economia das Parties:
 
-### A. Projeção Financeira com Gemini 2.0 Flash
-*   Custo Operacional Total: R$ 73,07 (API) + R$ 72,50 (Infra) = **R$ 145,57 / mês**
-*   **Lucro Líquido Mensal**: **R$ 1.604,43 / mês**
-*   **Lucro Líquido Anual**: **R$ 19.253,16 / ano**
-*   **Margem de Lucro**: **91,7%**
+### ⚔️ Projeção do Plano Rank A (Premium - Faturamento: R$ 1.750,00 / mês)
+*   **Com Gemini 2.0 Flash**:
+    *   Custo Operacional: R$ 73,07 (API) + R$ 72,50 (Infra) = **R$ 145,57 / mês**
+    *   **Lucro Líquido**: **R$ 1.604,43 / mês** (Anual: R$ 19.253,16) — Margem: **91,7%**
+*   **Com Gemini 2.5 Flash**:
+    *   Custo Operacional: R$ 328,67 (API) + R$ 72,50 (Infra) = **R$ 401,17 / mês**
+    *   **Lucro Líquido**: **R$ 1.348,83 / mês** (Anual: R$ 16.185,96) — Margem: **77,1%**
 
-### B. Projeção Financeira com Gemini 2.5 Flash
-*   Custo Operacional Total: R$ 328,67 (API) + R$ 72,50 (Infra) = **R$ 401,17 / mês**
-*   **Lucro Líquido Mensal**: **R$ 1.348,83 / mês**
-*   **Lucro Líquido Anual**: **R$ 16.185,96 / ano**
-*   **Margem de Lucro**: **77,1%**
+### 👑 Projeção do Plano Rank S / Monarca (Supreme - Faturamento: R$ 2.500,00 / mês)
+*   **Com Gemini 2.0 Flash**:
+    *   Custo Operacional: R$ 73,40 (API) + R$ 72,50 (Infra) = **R$ 145,90 / mês**
+    *   **Lucro Líquido**: **R$ 2.354,10 / mês** (Anual: R$ 28.249,20) — Margem: **94,1%**
+*   **Com Gemini 2.5 Flash**:
+    *   Custo Operacional: R$ 330,18 (API) + R$ 72,50 (Infra) = **R$ 402,68 / mês**
+    *   **Lucro Líquido**: **R$ 2.097,32 / mês** (Anual: R$ 25.167,84) — Margem: **83,9%**
 
----
-
-## 🛡️ 6. Estratégia Trial Anti-Abuso: Monarch Engine Limit
-
-*   **Restrição Rígida**: O resolvedor de conflitos [monarchSolveTurma](file:///home/beni/Documentos/Estudos/Projetos/Solen/backend/src/routes/quests.ts#L3753) só permitirá a execução e alocação de horários para no máximo **2 turmas (classes)** no plano Trial.
-*   **Bloqueio Gamificado na UI**: Caso o coordenador adicione uma terceira turma e tente rodar o algoritmo de alocação de horários, a interface exibirá uma janela de sistema no estilo RPG de Solo Leveling:
-    
-    > **⚠️ ALERTA DO SISTEMA DE MANA**
-    > 
-    > *Sua reserva de Mana atual é insuficiente para invocar o Monarch Engine em mais de 2 turmas simultâneas.*
-    > 
-    > *Para expandir os limites da sua Masmorra Escolar e gerenciar todas as suas turmas sem restrições, realize o upgrade para a licença **Premium de Caçador (SaaS Pro)**.*
+> **Conclusão de Mercado**: O Plano Rank S oferece um aumento de faturamento de **42,8%** por escola com um incremento de custo operacional de apenas **0,2%** em relação ao plano Rank A. A funcionalidade do assistente Igris funciona como uma alavanca extraordinária de lucro e conversão.
