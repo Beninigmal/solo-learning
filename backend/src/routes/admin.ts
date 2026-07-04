@@ -8,6 +8,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
   
   // Middleware de autorização para ARQUITETO
   fastify.addHook('preValidation', fastify.authenticate);
+  fastify.addHook('preHandler', fastify.validateTenantStatus);
   fastify.addHook('preHandler', fastify.validateInstitution);
   
   fastHookUserRoleCheck: fastify.addHook('preHandler', async (request, reply) => {

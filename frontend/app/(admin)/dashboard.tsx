@@ -25,6 +25,7 @@ import { MateriasTab } from '../../components/admin/MateriasTab';
 import { ArquitetoTab } from '../../components/admin/ArquitetoTab';
 import { RecrutarTab } from '../../components/admin/RecrutarTab';
 import { GradeTab } from '../../components/admin/GradeTab';
+import { OrdinatorTab } from '../../components/admin/OrdinatorTab';
 
 export default function AdminDashboard() {
   const sounds = useSolenSounds();
@@ -75,6 +76,7 @@ export default function AdminDashboard() {
                 <Text className="text-neonBlue/80 text-[10px] font-mono font-bold uppercase mt-0.5 tracking-wider leading-4" numberOfLines={2} ellipsizeMode="tail">
                   🏛️ {state.currentUser.instituicao}
                   {state.currentUser.institution?.codigo ? ` (CÓD: ${state.currentUser.institution.codigo})` : ''}
+                  {state.currentUser.institution?.plano ? ` • PLANO: ${state.currentUser.institution.plano}` : ''}
                 </Text>
               )}
               <Text className="text-white/50 text-[9px] mt-1 tracking-widest uppercase font-bold">Painel de Criação</Text>
@@ -99,7 +101,7 @@ export default function AdminDashboard() {
           <View className="flex-row items-center mb-6">
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="max-h-12 flex-1">
               <View className="flex-row bg-black/40 border border-neonBlue/20 rounded-sm p-1">
-                {['SISTEMA', 'TURMAS', 'MATÉRIAS', 'ARQUITETO', 'RECRUTAR', 'GRADE'].map((tab) => (
+                {['SISTEMA', 'TURMAS', 'MATÉRIAS', 'ARQUITETO', 'RECRUTAR', 'GRADE', 'ORDINATOR'].map((tab) => (
                   <TouchableOpacity
                     key={tab}
                     className={`px-6 py-2 items-center rounded-sm ${
@@ -331,6 +333,10 @@ export default function AdminDashboard() {
                 handleSaveDisciplinaConfig={state.handleSaveDisciplinaConfig}
               />
             )}
+
+            <View style={{ display: state.activeTab === 'ORDINATOR' ? 'flex' : 'none', flex: 1 }}>
+              <OrdinatorTab onDataChanged={state.onRefresh} />
+            </View>
           </ScrollView>
         </Animated.View>
 

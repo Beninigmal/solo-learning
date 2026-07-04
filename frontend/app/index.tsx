@@ -242,9 +242,9 @@ export default function AnimatedSplashScreen() {
 
         {/* Conteúdo Principal */}
         <View style={styles.boxContent}>
-          <Text style={styles.mainTitle}>SOLO</Text>
+          <Text style={styles.mainTitle}>O</Text>
           <Animated.Text style={[styles.subTitle, { opacity: glowOpacity }]}>
-            LEARNING
+            SISTEMA
           </Animated.Text>
           
           <View style={styles.divider} />

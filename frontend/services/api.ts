@@ -607,8 +607,8 @@ export const getInstitutions = async () => {
   return response.data;
 };
 
-export const createInstitution = async (nome: string, tipo?: string) => {
-  const response = await api.post('/superadmin/institutions', { nome, tipo });
+export const createInstitution = async (nome: string, tipo?: string, plano?: string, maxTurmasMonarch?: number) => {
+  const response = await api.post('/superadmin/institutions', { nome, tipo, plano, maxTurmasMonarch });
   return response.data;
 };
 
@@ -622,8 +622,8 @@ export const createArchitect = async (matricula: string, nome: string, nickname:
   return response.data;
 };
 
-export const updateInstitution = async (id: string, nome: string, tipo?: string) => {
-  const response = await api.put(`/superadmin/institutions/${id}`, { nome, tipo });
+export const updateInstitution = async (id: string, nome: string, tipo?: string, plano?: string, maxTurmasMonarch?: number) => {
+  const response = await api.put(`/superadmin/institutions/${id}`, { nome, tipo, plano, maxTurmasMonarch });
   return response.data;
 };
 

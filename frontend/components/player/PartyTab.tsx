@@ -88,6 +88,18 @@ export function PartyTab({
             </View>
           </View>
 
+          {/* Party Wipe Cooldown Alert */}
+          {activeParty.partyCooldownUntil && new Date(activeParty.partyCooldownUntil) > new Date() && (
+            <View className="bg-red-950/50 border border-red-500/50 p-3 rounded-sm mb-4">
+              <Text className="text-red-400 font-bold uppercase tracking-widest text-xs mb-1">
+                ⚠️ PARTY WIPE! MASMORRA BLOQUEADA
+              </Text>
+              <Text className="text-red-300/80 text-[10px] font-mono">
+                Sua guilda falhou. O acesso a Raids está bloqueado. Aguardem o cooldown individual para tentar novamente.
+              </Text>
+            </View>
+          )}
+
           {/* List participants */}
           <View className="mb-4">
             <Text className="text-white/40 text-[10px] font-bold uppercase tracking-widest mb-2 font-mono">Aventureiros no Grupo (Max 3):</Text>
@@ -101,6 +113,11 @@ export function PartyTab({
                   <Text className={`font-bold text-sm ${p.isInvasor ? 'text-red-500 font-extrabold uppercase font-mono' : 'text-white'}`}>
                     {p.isInvasor ? '⚔️ [INVASOR] ' : ''}{p.user?.nickname || p.user?.nome}
                   </Text>
+                  {activeParty.currentResponderId === p.userId && (
+                    <View className="bg-neonBlue/20 px-2 py-0.5 rounded-sm border border-neonBlue">
+                      <Text className="text-neonBlue text-[8px] font-bold uppercase tracking-widest font-mono">Da Vez</Text>
+                    </View>
+                  )}
                 </View>
                 <Text className="text-neonBlue text-xs font-mono font-bold">+{p.user?.xp} XP</Text>
               </View>

@@ -17,7 +17,7 @@ interface QuestWindowModalProps {
   questXp: number;
   questErros: number;
   timeRemainingText: string;
-  feedback: { status: string; message: string } | null;
+  feedback: { status: string; message: string; youtubeLink?: string; cooldownUntil?: string } | null;
   hammerSteps: string[] | null;
   oracleHint: string | null;
   scribeKeywords: string[];
@@ -777,6 +777,33 @@ export function QuestWindowModal({
                 <Text className="text-white text-base text-center mb-6 font-serif leading-6">
                   {feedback.message}
                 </Text>
+
+                {feedback.youtubeLink && (
+                  <View className="w-full bg-red-950/40 border border-red-500/30 p-3 rounded-sm mb-4">
+                    <View className="flex-row items-center gap-2 mb-2">
+                      <Feather name="youtube" size={14} color="#ef4444" />
+                      <Text className="text-red-400 text-[10px] font-mono font-bold uppercase tracking-wider">REVISÃO NECESSÁRIA</Text>
+                    </View>
+                    <Text className="text-white/80 text-[11px] mb-2 leading-5 text-left">
+                      Foi detectada uma lacuna em seu conhecimento. Assista a este vídeo para recuperar seu foco:
+                    </Text>
+                    <Text className="text-neonBlue text-[10px] underline text-left" selectable={true}>
+                      {feedback.youtubeLink}
+                    </Text>
+                  </View>
+                )}
+
+                {feedback.cooldownUntil && (
+                  <View className="w-full bg-red-900/30 p-3 rounded-sm border border-red-500/50 mb-6">
+                    <View className="flex-row items-center gap-2 mb-1">
+                      <Feather name="clock" size={14} color="#ef4444" />
+                      <Text className="text-red-400 text-[10px] font-bold font-mono uppercase">PENALIDADE DE COOLDOWN</Text>
+                    </View>
+                    <Text className="text-white/80 text-[11px] text-left">
+                      Novas missões desta matéria estão bloqueadas até {new Date(feedback.cooldownUntil).toLocaleTimeString()}.
+                    </Text>
+                  </View>
+                )}
 
                 {/* --- PERSISTÊNCIA VISUAL DE DICAS DE ARTEFATOS NO FEEDBACK --- */}
                 {((hammerSteps && hammerSteps.length > 0) || oracleHint || (scribeKeywords && scribeKeywords.length > 0) || studentDoubt || helpRequested) && (

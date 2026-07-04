@@ -1336,6 +1336,15 @@ function getGradeDifficultyPrompt(turma?: { nome: string; ano?: string | null; n
         return reply.status(403).send({ error: 'Apenas o caçador designado pode responder esta missão na Raid!' });
       }
       
+      if (delivery.cooldownUntil && delivery.cooldownUntil > now) {
+        return reply.status(403).send({ error: 'Você está no cooldown de 30 minutos por errar. Aguarde para tentar novamente.' });
+      }
+
+      const checkUser = await prisma.user.findUnique({ where: { id: userId }, select: { partyCooldownUntil: true } });
+      if (checkUser?.partyCooldownUntil && checkUser.partyCooldownUntil > now) {
+        return reply.status(403).send({ error: 'Sua alma está fragilizada por uma falha em grupo (Party Wipe)! Você está em cooldown de 30 minutos e não pode participar de masmorras.' });
+      }
+      
       let prompt = answer === 'Cálculo na imagem'
         ? `Você é um tutor educacional rigoroso que avalia respostas de alunos de escola pública brasileira.
 REGRA CRÍTICA: Respostas vazias, evasivas, de brincadeira, ou que apenas digam que o aluno não sabe a resposta (ex: "Não sei", "não entendi", "...", "sei lá", "não faço ideia") devem ser marcadas como ABSOLUTAMENTE INCORRETAS com status "error". Nunca marque admissões de desconhecimento como corretas.
@@ -1345,7 +1354,7 @@ NOTA SOBRE O GABARITO: Se o gabarito oficial fornecido acima estiver vazio ou em
 O aluno optou por desenvolver o raciocínio na imagem. Analise a imagem, compare o resultado e o desenvolvimento com a resposta correta esperada, e avalie a resposta.
 
 Se CORRETO: retorne JSON: {"status": "success", "message": "Mensagem motivacional curta de parabenização"}
-Se ERRADO: retorne JSON: {"status": "error", "message": "Explique de forma educativa o que errou e dê uma dica sobre o raciocínio correto, MAS NÃO revele a resposta final."}`
+Se ERRADO: retorne JSON: {"status": "error", "message": "Identifique exatamente o ponto do raciocínio falho (sem dar a resposta direta).", "assuntoVideoaula": "Tema/assunto da videoaula necessária para busca no YouTube"}`
         : `Você é um tutor educacional rigoroso que avalia respostas de alunos de escola pública brasileira.
 REGRA CRÍTICA: Respostas vazias, evasivas, de brincadeira, ou que apenas digam que o aluno não sabe a resposta (ex: "Não sei", "não entendi", "...", "sei lá", "não faço ideia") devem ser marcadas como ABSOLUTAMENTE INCORRETAS com status "error". Nunca marque admissões de desconhecimento como corretas, mesmo que sejam honestas.
 A pergunta foi: "${question}".
@@ -1356,7 +1365,7 @@ A resposta enviada pelo aluno foi: "${answer}".
 Você deve comparar a resposta do aluno com a resposta correta esperada. Considere a resposta correta se o aluno chegou ao mesmo resultado numérico ou textual, mesmo que expresso de forma ligeiramente diferente (ex: com ou sem unidade de medida, pequenas variações de grafia, etc.).
 
 Se CORRETO: retorne JSON: {"status": "success", "message": "Mensagem motivacional curta de parabenização"}
-Se ERRADO: retorne JSON: {"status": "error", "message": "Explique de forma educativa o conceito por trás do erro e dê uma dica para o aluno melhorar, MAS NÃO revele a resposta final."}`;
+Se ERRADO: retorne JSON: {"status": "error", "message": "Identifique exatamente o ponto do raciocínio falho (sem dar a resposta direta).", "assuntoVideoaula": "Tema/assunto da videoaula necessária para busca no YouTube"}`;
 
       const isMultipleChoice = /(?:\r?\n)+(?:[A-Ea-e][\.\)\-]\s+)/.test(delivery.quest.enunciado) || 
                               (delivery.quest.gabarito && /^[A-E]$/i.test(delivery.quest.gabarito.trim()));
@@ -1655,78 +1664,130 @@ Retorne APENAS um JSON no seguinte formato:
         }
 
         if (isRaidQuest) {
-          // Propagar falha para os outros membros da Party
-          const otherParticipants = await prisma.raidParticipant.findMany({
-            where: { raidId: isRaidQuest.id, userId: { not: userId } }
+          const participants = await prisma.raidParticipant.findMany({
+            where: { raidId: isRaidQuest.id },
+            orderBy: { joinedAt: 'asc' }
           });
+          
+          const currentIndex = participants.findIndex(p => p.userId === userId);
+          const nextIndex = (currentIndex + 1) % participants.length;
+          const nextUserId = participants[nextIndex].userId;
+          
+          const isPartyWipe = novosErros >= participants.length;
 
-          for (const part of otherParticipants) {
-            const targetUserId = part.userId;
-            const existingDelivery = await prisma.questDelivery.findUnique({
-              where: { questId_userId: { questId: delivery.questId, userId: targetUserId } }
-            });
-            const novosErrosTarget = existingDelivery ? existingDelivery.erros + 1 : 1;
+          if (isPartyWipe) {
+            // Propagar falha para os outros membros da Party
+            const otherParticipants = participants.filter(p => p.userId !== userId);
 
-            await prisma.questDelivery.upsert({
-              where: { questId_userId: { questId: delivery.questId, userId: targetUserId } },
-              update: {
-                status: 'WAITING',
-                isCorrect: false,
-                erros: novosErrosTarget,
-                studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
-                studentImage: image || null,
-                waitingSince: now
-              },
-              create: {
-                questId: delivery.questId,
-                userId: targetUserId,
-                status: 'WAITING',
-                isCorrect: false,
-                erros: novosErrosTarget,
-                studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
-                studentImage: image || null,
-                scheduledAt: now,
-                deliveredAt: now,
-                waitingSince: now
+            for (const part of otherParticipants) {
+              const targetUserId = part.userId;
+              const existingDelivery = await prisma.questDelivery.findUnique({
+                where: { questId_userId: { questId: delivery.questId, userId: targetUserId } }
+              });
+              const novosErrosTarget = existingDelivery ? existingDelivery.erros + 1 : 1;
+
+              await prisma.questDelivery.upsert({
+                where: { questId_userId: { questId: delivery.questId, userId: targetUserId } },
+                update: {
+                  status: 'WAITING',
+                  isCorrect: false,
+                  erros: novosErrosTarget,
+                  studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
+                  studentImage: image || null,
+                  waitingSince: now
+                },
+                create: {
+                  questId: delivery.questId,
+                  userId: targetUserId,
+                  status: 'WAITING',
+                  isCorrect: false,
+                  erros: novosErrosTarget,
+                  studentAnswer: answer === 'Cálculo na imagem' ? null : answer,
+                  studentImage: image || null,
+                  scheduledAt: now,
+                  deliveredAt: now,
+                  waitingSince: now
+                }
+              });
+
+              await prisma.wrongAnswer.upsert({
+                where: { userId_questId: { userId: targetUserId, questId: delivery.questId } },
+                update: { tentativas: novosErrosTarget, resolvido: false },
+                create: { userId: targetUserId, questId: delivery.questId, tentativas: novosErrosTarget, resolvido: false }
+              });
+            }
+
+            const cooldownTime = new Date(now.getTime() + 30 * 60 * 1000);
+            await prisma.raid.update({
+              where: { id: isRaidQuest.id },
+              data: {
+                activeQuestId: null,
+                activeQuestDeliveryId: null,
+                lastResponderId: isRaidQuest.currentResponderId || userId,
+                currentResponderId: null,
+                partyCooldownUntil: cooldownTime
               }
             });
 
-            await prisma.wrongAnswer.upsert({
-              where: { userId_questId: { userId: targetUserId, questId: delivery.questId } },
-              update: { tentativas: novosErrosTarget, resolvido: false },
-              create: { userId: targetUserId, questId: delivery.questId, tentativas: novosErrosTarget, resolvido: false }
+            await prisma.user.updateMany({
+              where: { id: { in: participants.map(p => p.userId) } },
+              data: { partyCooldownUntil: cooldownTime }
             });
+
+            const userObj = await prisma.user.findUnique({
+              where: { id: userId },
+              select: { nickname: true, nome: true }
+            });
+            const userName = userObj?.nickname || userObj?.nome || 'Caçador';
+            await prisma.raidMessage.create({
+              data: {
+                raidId: isRaidQuest.id,
+                userId,
+                content: `❌ [Mural do Sistema] ${userName} falhou e a Party Wipe aconteceu! Vocês estão em cooldown de 30 minutos.`
+              }
+            });
+          } else {
+             // Passa a vez
+             await prisma.raid.update({
+               where: { id: isRaidQuest.id },
+               data: {
+                 currentResponderId: nextUserId,
+                 lastResponderId: userId
+               }
+             });
+
+             const userObj = await prisma.user.findUnique({
+               where: { id: userId },
+               select: { nickname: true, nome: true }
+             });
+             const userName = userObj?.nickname || userObj?.nome || 'Caçador';
+             await prisma.raidMessage.create({
+               data: {
+                 raidId: isRaidQuest.id,
+                 userId,
+                 content: `⚠️ [Mural do Sistema] ${userName} falhou no desafio. A vez passa para o próximo integrante da Party.`
+               }
+             });
           }
-
-          await prisma.raid.update({
-            where: { id: isRaidQuest.id },
-            data: {
-              activeQuestId: null,
-              activeQuestDeliveryId: null,
-              lastResponderId: isRaidQuest.currentResponderId || userId,
-              currentResponderId: null
-            }
-          });
-
-          const userObj = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { nickname: true, nome: true }
-          });
-          const userName = userObj?.nickname || userObj?.nome || 'Caçador';
-          await prisma.raidMessage.create({
-            data: {
-              raidId: isRaidQuest.id,
-              userId,
-              content: `❌ [Mural do Sistema] ${userName} falhou no desafio da masmorra! A missão foi removida da Raid.`
-            }
-          });
         }
 
         const isBoss = delivery.quest.nivel === 'BOSS' || delivery.quest.nivel === 'MINIBOSS';
         const xpRestante = isBoss
           ? delivery.quest.xp
           : Math.max(Math.round(delivery.quest.xp * Math.pow(0.75, novosErros)), 25);
-        return reply.send({ ...validation, isCorrect: false, xpRestante, erros: novosErros });
+          
+        const cooldownTime = new Date(now.getTime() + 30 * 60 * 1000);
+        await prisma.questDelivery.update({
+          where: { id: deliveryId },
+          data: { cooldownUntil: cooldownTime }
+        });
+        
+        let youtubeLink = undefined;
+        if (validation.assuntoVideoaula) {
+          youtubeLink = `https://www.youtube.com/results?search_query=como+resolver+${encodeURIComponent(validation.assuntoVideoaula)}`;
+        }
+
+        return reply.send({ ...validation, isCorrect: false, xpRestante, erros: novosErros, cooldownUntil: cooldownTime, youtubeLink });
       }
     } catch (error: any) {
       return reply.status(500).send({ error: 'Erro ao submeter resposta.' });
@@ -2248,6 +2309,17 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
     if (!codigo) return reply.status(400).send({ error: 'Código é obrigatório.' });
 
     try {
+      const joiningUser = await prisma.user.findUnique({
+        where: { id: userId }
+      });
+      if (!joiningUser) {
+        return reply.status(404).send({ error: 'Usuário não encontrado.' });
+      }
+
+      if (joiningUser.partyCooldownUntil && joiningUser.partyCooldownUntil > new Date()) {
+        return reply.status(403).send({ error: 'Você foi punido em uma Party recente e está em cooldown de 30 minutos. Aguarde para poder invadir outra Raid.' });
+      }
+
       const active = await prisma.raidParticipant.findFirst({
         where: { userId, raid: { status: 'OPEN' } }
       });
@@ -2274,12 +2346,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
          return reply.status(400).send({ error: 'Esta Party já atingiu o limite máximo de 3 aventureiros.' });
       }
 
-      const joiningUser = await prisma.user.findUnique({
-        where: { id: userId }
-      });
-      if (!joiningUser) {
-        return reply.status(404).send({ error: 'Usuário não encontrado.' });
-      }
+
 
       // Buscar participantes daquela Raid diretamente e frescos para validar turma
       const currentParticipants = await prisma.raidParticipant.findMany({
@@ -3928,15 +3995,13 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
           if (alreadyBusySlots.has(`${day}_${pos}_${professorId}`)) return false;
         }
 
-        // 2. Verificar restrição manual de agenda
-        if (relaxStage < 1) {
-          const hasRestriction = professorRestrictions.some(r => {
-            if (r.professorId !== professorId || r.diaSemana !== day || r.shift !== shift) return false;
-            if (r.posicao === null || r.posicao === undefined) return true; // turno inteiro bloqueado
-            return r.posicao === pos; // slot específico bloqueado
-          });
-          if (hasRestriction) return false;
-        }
+        // 2. Verificar restrição manual de agenda (HARD CONSTRAINT)
+        const hasRestriction = professorRestrictions.some(r => {
+          if (r.professorId !== professorId || r.diaSemana !== day || r.shift !== shift) return false;
+          if (r.posicao === null || r.posicao === undefined) return true; // turno inteiro bloqueado
+          return r.posicao === pos; // slot específico bloqueado
+        });
+        if (hasRestriction) return false;
 
         // 3. Verificar carga semanal cross-turma
         if (relaxStage < 2) {
@@ -3998,7 +4063,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       }
 
       // 6. Evitar que a mesma matéria seja ensinada em 3 dias consecutivos (Rule 3)
-      if (relaxStage < 2) {
+      if (relaxStage < 1) {
         const dayIndex = days.indexOf(day);
         const hasOnDay = (dIndex: number, discId: string): boolean => {
           if (dIndex < 0 || dIndex >= days.length) return false;
@@ -4053,14 +4118,23 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
   // ROTA: Auto-Generate (turma individual)
   // ==========================================
   fastify.post<{ Params: { turmaId: string }; Body: { shift: 'MATUTINO' | 'VESPERTINO' | 'NOTURNO' } }>('/turmas/:turmaId/timetable/auto-generate', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    const { turmaId } = request.params;
+    const { shift } = request.body;
+    const user = request.user;
+    
+    // SaaS Rule: RANK_B bloqueia Monarch
+    if (user.institutionId) {
+      const inst = await prisma.institution.findUnique({ where: { id: user.institutionId } });
+      if (inst && inst.plano === 'RANK_B') {
+        return reply.status(403).send({ error: 'Plano RANK_B suporta apenas Gamificação. Atualize para RANK_A para usar o Monarch Engine (Gerador de Grade).' });
+      }
+    }
+
     try {
-      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
-      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+      const u = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!u || (u.role !== 'ADMIN' && u.role !== 'ARQUITETO')) {
         return reply.status(403).send({ error: 'Apenas diretores e arquitetos podem acessar esta ferramenta.' });
       }
-
-      const { turmaId } = request.params;
-      const { shift } = request.body;
 
       if (!shift || !['MATUTINO', 'VESPERTINO', 'NOTURNO'].includes(shift)) {
         return reply.status(400).send({ error: 'Turno inválido ou não fornecido.' });
@@ -4085,7 +4159,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       const allDisciplinas = await prisma.disciplina.findMany({
         where: {
           OR: [
-            { instituicao: user.instituicao || '' },
+            { instituicao: u.instituicao || '' },
             { instituicao: null }
           ]
         }
@@ -4113,12 +4187,12 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       }
 
       const institution = await prisma.institution.findFirst({
-        where: { nome: user.instituicao! }
+        where: { nome: u.instituicao! }
       });
       const isPrivate = institution?.tipo?.startsWith('PRIVADO') ?? false;
 
       const shiftSetting = await prisma.institutionShiftSetting.findFirst({
-        where: { institutionId: user.institutionId || undefined, shift }
+        where: { institutionId: u.institutionId || undefined, shift }
       });
       const slotsCount = shiftSetting ? shiftSetting.slotsCount : 5;
       const intervalAfterSlot = shiftSetting ? shiftSetting.intervalAfterSlot : 3;
@@ -4131,13 +4205,13 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       const otherSlots = await prisma.timetableSlot.findMany({
         where: {
           NOT: { turmaId },
-          turma: { instituicao: user.instituicao },
+          turma: { instituicao: u.instituicao },
           posicao: { in: positions }
         },
         include: { disciplina: true }
       });
       const otherTurmaDisciplinas = await prisma.turmaDisciplina.findMany({
-        where: { NOT: { turmaId }, turma: { instituicao: user.instituicao } }
+        where: { NOT: { turmaId }, turma: { instituicao: u.instituicao } }
       });
 
       const alreadyBusySlots = new Set<string>();
@@ -4233,7 +4307,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
 
       let successMsg = `⚡ Monarch Engine v3: Grade do turno ${shift} gerada com Matriz Curricular Brasileira!`;
       if (stageSucceeded === 1) {
-        successMsg = `⚡ Monarch Engine v3: Grade gerada com sucesso! (Aviso: Restrições de agenda dos professores foram relaxadas para evitar conflitos).`;
+        successMsg = `⚡ Monarch Engine v3: Grade gerada com sucesso! (Aviso: A regra de evitar aulas na mesma matéria em 3 dias consecutivos foi relaxada para evitar conflitos).`;
       } else if (stageSucceeded === 2) {
         successMsg = `⚡ Monarch Engine v3: Grade gerada com sucesso! (Aviso: Limites de carga horária semanal dos professores foram relaxados para evitar conflitos).`;
       } else if (stageSucceeded === 3) {
@@ -4254,31 +4328,52 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
   // ROTA: Batch Generate (todas as turmas do turno)
   // ==========================================
   fastify.post<{ Body: { shift: 'MATUTINO' | 'VESPERTINO' | 'NOTURNO' } }>('/institution/timetable/batch-generate', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    const { shift } = request.body;
+    const user = request.user;
+    if (!user.instituicao) return reply.status(403).send({ error: 'Instituição não encontrada.' });
+
+    // SaaS Rules
+    let maxTurmas = 999;
+    if (user.institutionId) {
+      const inst = await prisma.institution.findUnique({ where: { id: user.institutionId } });
+      if (inst) {
+        if (inst.plano === 'RANK_B') {
+          return reply.status(403).send({ error: 'Plano RANK_B suporta apenas Gamificação. Atualize para RANK_A para usar o Monarch Engine.' });
+        }
+        if (inst.plano === 'TRIAL') {
+          maxTurmas = inst.maxTurmasMonarch || 2;
+        }
+      }
+    }
+
     try {
-      const user = await prisma.user.findUnique({ where: { id: request.user.id } });
-      if (!user || (user.role !== 'ADMIN' && user.role !== 'ARQUITETO')) {
+      const u = await prisma.user.findUnique({ where: { id: request.user.id } });
+      if (!u || (u.role !== 'ADMIN' && u.role !== 'ARQUITETO')) {
         return reply.status(403).send({ error: 'Apenas diretores e arquitetos podem usar o Batch Generate.' });
       }
 
       const institution = await prisma.institution.findFirst({
-        where: { nome: user.instituicao! }
+        where: { nome: u.instituicao! }
       });
       const isPrivate = institution?.tipo?.startsWith('PRIVADO') ?? false;
 
-      const { shift } = request.body;
       if (!shift || !['MATUTINO', 'VESPERTINO', 'NOTURNO'].includes(shift)) {
         return reply.status(400).send({ error: 'Turno inválido ou não fornecido.' });
       }
 
       // Buscar TODAS as turmas da instituição com disciplinas configuradas
       const allTurmas = await prisma.turma.findMany({
-        where: { instituicao: user.instituicao },
+        where: { instituicao: u.instituicao },
         include: {
           turmaDisciplinas: {
             include: { disciplina: true, professor: true }
           }
         }
       });
+
+      if (allTurmas.length > maxTurmas) {
+        return reply.status(403).send({ error: `Seu plano TRIAL permite rodar o Monarch para no máximo ${maxTurmas} turmas ao mesmo tempo. Você possui ${allTurmas.length} turmas.` });
+      }
 
       const eligibleTurmas = allTurmas.filter(t => t.turmaDisciplinas.length > 0);
       if (eligibleTurmas.length === 0) {
@@ -4466,7 +4561,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         }
 
         let statusText = 'OK';
-        if (stageSucceeded === 1) statusText = 'OK (Restrições de agenda ignoradas)';
+        if (stageSucceeded === 1) statusText = 'OK (Regra de 3 dias seguidos ignorada)';
         else if (stageSucceeded === 2) statusText = 'OK (Carga horária semanal ignorada)';
         else if (stageSucceeded === 3) statusText = 'OK (Gerada com conflitos físicos)';
 

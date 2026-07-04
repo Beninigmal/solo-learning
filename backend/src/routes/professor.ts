@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   
   fastify.addHook('preValidation', fastify.authenticate);
+  fastify.addHook('preHandler', fastify.validateTenantStatus);
   fastify.addHook('preHandler', fastify.validateInstitution);
   
   fastify.addHook('preHandler', async (request, reply) => {

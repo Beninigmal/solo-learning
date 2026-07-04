@@ -165,7 +165,7 @@ export function usePlayerState() {
   const [answer, setAnswer] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [waiting, setWaiting] = useState(false);
-  const [feedback, setFeedback] = useState<{ status: string; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ status: string; message: string; youtubeLink?: string; cooldownUntil?: string } | null>(null);
   const [isFromChest, setIsFromChest] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingRefresh, setLoadingRefresh] = useState(false);
@@ -1373,7 +1373,7 @@ export function usePlayerState() {
 
       } else {
         sounds.playError();
-        setFeedback({ status: 'WRONG', message: res.feedback || 'A resposta está incorreta.' });
+        setFeedback({ status: 'WRONG', message: res.feedback || 'A resposta está incorreta.', youtubeLink: res.youtubeLink, cooldownUntil: res.cooldownUntil });
         showAlert(
           'MISSÃO FALHADA',
           `A resposta está incorreta! O desafio foi enviado para o seu Baú de Relíquias de Aprendizado, onde você poderá tentar novamente para purificar o erro!`,
@@ -1474,7 +1474,7 @@ export function usePlayerState() {
         loadInitialData();
       } else {
         sounds.playError();
-        setFeedback({ status: 'WRONG', message: res.feedback || 'A resposta continua incorreta!' });
+        setFeedback({ status: 'WRONG', message: res.feedback || 'A resposta continua incorreta!', youtubeLink: res.youtubeLink, cooldownUntil: res.cooldownUntil });
         showAlert(
           'PENALIDADE CONTINUA',
           'A resposta continua incorreta! A penalidade de erros foi aplicada e a missão foi enviada de volta para o Baú!',
@@ -2155,7 +2155,7 @@ export function usePlayerState() {
       } else {
         showAlert(
           'Acesso à Câmera',
-          'O Solo Learning precisa de acesso à câmera para que você possa tirar foto do seu raciocínio matemático. Deseja permitir?',
+          'O Sistema precisa de acesso à câmera para que você possa tirar foto do seu raciocínio matemático. Deseja permitir?',
           'info',
           undefined,
           [

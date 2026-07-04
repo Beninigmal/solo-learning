@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "Solo Learning",
+    "name": "O Sistema",
     "slug": "frontend",
     "scheme": "solen",
-    "version": "1.2.9",
+    "version": "1.2.10",
     "orientation": "portrait",
     "icon": "./assets/first.png",
     "userInterfaceStyle": "light",

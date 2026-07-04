@@ -325,8 +325,8 @@ export default function LoginScreen() {
           >
             {/* Header */}
             <View className="border-b border-neonBlue/30 w-full pb-3 mb-6 items-center relative">
-              <Text className="text-neonBlue text-2xl font-bold uppercase tracking-[0.3em]">Autenticação</Text>
-              <Text className="text-neonBlue/50 text-xs mt-1 tracking-widest uppercase">Sistema Solo Learning</Text>
+              <Text className="text-neonBlue text-4xl font-bold uppercase tracking-[0.2em] font-mono shadow-lg">O Sistema</Text>
+              <Text className="text-neonBlue/50 text-xs mt-1 tracking-widest uppercase text-center px-4">Gamifique seus Estudos e gerencie sua instituição</Text>
               <TouchableOpacity
                 className="absolute right-0 top-1 p-1"
                 onPress={() => { sounds.playSelect(); setShowServerModal(true); }}
@@ -429,7 +429,7 @@ export default function LoginScreen() {
           {/* Centralized Branding Title & Subtitle below card */}
           <View className="mt-8 items-center w-full pb-4">
             <Text className="text-white text-3xl font-black tracking-[0.25em] text-center" style={{ textShadowColor: '#00f3ff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 12 }}>
-              SOLO LEARNING
+              O SISTEMA
             </Text>
             <Text className="text-neonBlue/70 text-xs font-bold tracking-[0.18em] uppercase mt-2 text-center">
               ATUALIZE O SEU CONHECIMENTO
