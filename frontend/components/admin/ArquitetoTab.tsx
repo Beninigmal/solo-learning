@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Alert } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { YearPicker } from '../YearPicker';
+import { SelectPicker } from '../SelectPicker';
 
 interface ArquitetoTabProps {
   turmas: any[];
@@ -83,6 +85,14 @@ export function ArquitetoTab({
   handleDeleteUser
 }: ArquitetoTabProps) {
   const [subTab, setSubTab] = useState<'VISAO_GERAL' | 'SISTEMA' | 'MESTRES' | 'PLAYERS'>('VISAO_GERAL');
+
+  const currentYear = new Date().getFullYear().toString();
+  const [filterMasterYear, setFilterMasterYear] = useState(currentYear);
+  const [filterMasterName, setFilterMasterName] = useState('');
+
+  const [filterPlayerYear, setFilterPlayerYear] = useState(currentYear);
+  const [filterPlayerName, setFilterPlayerName] = useState('');
+  const [filterPlayerTurma, setFilterPlayerTurma] = useState('');
 
   const confirmDeleteUser = (id: string, nome: string, role: string) => {
     sounds.playSelect();
@@ -370,18 +380,43 @@ export function ArquitetoTab({
       {/* ─── LISTA DE MESTRES ─── */}
       {subTab === 'MESTRES' && (
         <View>
-          <View className="flex-row justify-between items-center mb-6">
+          <View className="flex-row justify-between items-center mb-4">
             <Text className="text-white text-base font-bold uppercase tracking-widest">Guilda de Mestres</Text>
             <TouchableOpacity onPress={() => { sounds.playSelect(); fetchMasters?.(); }}>
               <Feather name="refresh-cw" size={16} color="#00f3ff" />
             </TouchableOpacity>
           </View>
+
+          {/* Filtros Mestres */}
+          <View className="bg-black/30 border border-neonBlue/20 p-3 rounded-sm mb-4 flex-row gap-2">
+            <TextInput
+              className="flex-1 bg-black/50 border border-neonBlue/40 text-white text-xs px-3 py-2 rounded-sm"
+              placeholder="Nome ou Nickname"
+              placeholderTextColor="#00f3ff40"
+              value={filterMasterName}
+              onChangeText={setFilterMasterName}
+            />
+            <YearPicker
+              value={filterMasterYear}
+              onChange={setFilterMasterYear}
+            />
+          </View>
+
           {loadingMasters ? (
             <ActivityIndicator size="large" color="#00f3ff" className="my-4" />
-          ) : masters.length === 0 ? (
-            <Text className="text-white/30 text-center text-sm py-4">Nenhum mestre cadastrado.</Text>
-          ) : (
-            masters.map((master) => (
+          ) : (() => {
+            const filteredMasters = masters.filter(master => {
+              const masterYear = new Date(master.createdAt || Date.now()).getFullYear().toString();
+              const matchYear = filterMasterYear ? masterYear === filterMasterYear : true;
+              const matchName = filterMasterName ? (master.nome?.toLowerCase().includes(filterMasterName.toLowerCase()) || master.nickname?.toLowerCase().includes(filterMasterName.toLowerCase())) : true;
+              return matchYear && matchName;
+            });
+
+            if (filteredMasters.length === 0) {
+              return <Text className="text-white/30 text-center text-sm py-4">Nenhum mestre encontrado com esses filtros.</Text>;
+            }
+
+            return filteredMasters.map((master) => (
               <View key={master.id} className="bg-black/50 border border-neonBlue/20 p-4 rounded-sm mb-3 flex-row justify-between items-center">
                 <View className="flex-1 pr-2">
                   <Text className="text-white font-bold text-sm" numberOfLines={1}>{master.nome}</Text>
@@ -399,21 +434,58 @@ export function ArquitetoTab({
                   </TouchableOpacity>
                 </View>
               </View>
-            ))
-          )}
+            ));
+          })()}
         </View>
       )}
 
       {/* ─── LISTA DE PLAYERS ─── */}
       {subTab === 'PLAYERS' && (
         <View>
-          <Text className="text-white text-base font-bold uppercase tracking-widest mb-6">Controle de Players</Text>
+          <Text className="text-white text-base font-bold uppercase tracking-widest mb-4">Controle de Players</Text>
+
+          {/* Filtros Players */}
+          <View className="bg-black/30 border border-neonBlue/20 p-3 rounded-sm mb-4">
+            <View className="flex-row gap-2 mb-2">
+              <TextInput
+                className="flex-1 bg-black/50 border border-neonBlue/40 text-white text-xs px-3 py-2 rounded-sm"
+                placeholder="Nome ou Nickname"
+                placeholderTextColor="#00f3ff40"
+                value={filterPlayerName}
+                onChangeText={setFilterPlayerName}
+              />
+              <SelectPicker
+                value={filterPlayerTurma}
+                onChange={setFilterPlayerTurma}
+                options={turmas
+                  .filter(t => filterPlayerYear ? t.ano === filterPlayerYear : true)
+                  .map(t => ({ label: t.nome, value: t.nome }))}
+                placeholder="Selecione a Turma"
+                title="Filtrar por Turma"
+              />
+            </View>
+            <YearPicker
+              value={filterPlayerYear}
+              onChange={setFilterPlayerYear}
+            />
+          </View>
+
           {loadingStudents ? (
             <ActivityIndicator size="large" color="#00f3ff" className="my-4" />
-          ) : students.length === 0 ? (
-            <Text className="text-white/30 text-center text-sm py-4">Nenhum aluno cadastrado.</Text>
-          ) : (
-            students.map((student) => (
+          ) : (() => {
+            const filteredStudents = students.filter(student => {
+              const studentYear = student.turma?.ano || new Date(student.createdAt || Date.now()).getFullYear().toString();
+              const matchYear = filterPlayerYear ? studentYear === filterPlayerYear : true;
+              const matchName = filterPlayerName ? (student.nome?.toLowerCase().includes(filterPlayerName.toLowerCase()) || student.nickname?.toLowerCase().includes(filterPlayerName.toLowerCase())) : true;
+              const matchTurma = filterPlayerTurma ? student.turma?.nome?.toLowerCase().includes(filterPlayerTurma.toLowerCase()) : true;
+              return matchYear && matchName && matchTurma;
+            });
+
+            if (filteredStudents.length === 0) {
+              return <Text className="text-white/30 text-center text-sm py-4">Nenhum aluno encontrado com esses filtros.</Text>;
+            }
+
+            return filteredStudents.map((student) => (
               <View key={student.id} className="bg-black/50 border border-neonBlue/20 p-4 rounded-sm mb-3 flex-row justify-between items-center">
                 <View className="flex-1 pr-2">
                   <Text className="text-white font-bold text-sm" numberOfLines={1}>{student.nome}</Text>
@@ -432,8 +504,8 @@ export function ArquitetoTab({
                   </TouchableOpacity>
                 </View>
               </View>
-            ))
-          )}
+            ));
+          })()}
         </View>
       )}
 

@@ -2,12 +2,18 @@ import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-let globalMuted = false;
+let globalMusicMuted = false;
+let globalSfxMuted = false;
 
 // Async load once when the module imports
-AsyncStorage.getItem('@Solen:muted').then(val => {
+AsyncStorage.getItem('@Solen:musicMuted').then(val => {
   if (val === 'true') {
-    globalMuted = true;
+    globalMusicMuted = true;
+  }
+});
+AsyncStorage.getItem('@Solen:sfxMuted').then(val => {
+  if (val === 'true') {
+    globalSfxMuted = true;
   }
 });
 
@@ -43,24 +49,25 @@ export function useSolenSounds() {
   const introMusicVolRef  = useRef<number>(1.0);
   const fadeIntervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [localMuted, setLocalMuted] = useState(globalMuted);
+  const [localMusicMuted, setLocalMusicMuted] = useState(globalMusicMuted);
+  const [localSfxMuted, setLocalSfxMuted] = useState(globalSfxMuted);
 
   // Sync initial state
   useEffect(() => {
-    setLocalMuted(globalMuted);
+    setLocalMusicMuted(globalMusicMuted);
+    setLocalSfxMuted(globalSfxMuted);
   }, []);
 
-  const getMuted = useCallback(() => {
-    return globalMuted;
-  }, []);
+  const getMusicMuted = useCallback(() => globalMusicMuted, []);
+  const getSfxMuted = useCallback(() => globalSfxMuted, []);
 
-  const changeMuted = useCallback(async (mute: boolean) => {
-    globalMuted = mute;
-    setLocalMuted(mute);
-    await AsyncStorage.setItem('@Solen:muted', String(mute));
+  const changeMusicMuted = useCallback(async (mute: boolean) => {
+    globalMusicMuted = mute;
+    setLocalMusicMuted(mute);
+    await AsyncStorage.setItem('@Solen:musicMuted', String(mute));
 
     if (mute) {
-      // Interrompe sons contínuos
+      // Interrompe músicas contínuas
       try {
         if (loginSoundRef.current) {
           await loginSoundRef.current.stopAsync();
@@ -72,10 +79,21 @@ export function useSolenSounds() {
           await introMusicRef.current.unloadAsync();
           introMusicRef.current = null;
         }
+        if (bossArenaSoundRef.current) {
+          await bossArenaSoundRef.current.stopAsync();
+          await bossArenaSoundRef.current.unloadAsync();
+          bossArenaSoundRef.current = null;
+        }
       } catch (err) {
-        console.warn('[SolenSounds] Erro ao silenciar sons ativos:', err);
+        console.warn('[SolenSounds] Erro ao silenciar músicas ativas:', err);
       }
     }
+  }, []);
+
+  const changeSfxMuted = useCallback(async (mute: boolean) => {
+    globalSfxMuted = mute;
+    setLocalSfxMuted(mute);
+    await AsyncStorage.setItem('@Solen:sfxMuted', String(mute));
   }, []);
 
   /** Helper: cria e toca um som de uso único (descarrega ao terminar) */
@@ -84,7 +102,7 @@ export function useSolenSounds() {
     source: any,
     volume = 0.85
   ) => {
-    if (globalMuted) return;
+    if (globalSfxMuted) return;
     try {
       if (ref.current) {
         await ref.current.unloadAsync();
@@ -105,7 +123,7 @@ export function useSolenSounds() {
 
   /** Toca o som de login em loop enquanto o loading roda */
   const playLogin = useCallback(async () => {
-    if (globalMuted) return;
+    if (globalMusicMuted) return;
     try {
       if (loginSoundRef.current) {
         await loginSoundRef.current.unloadAsync();
@@ -188,7 +206,7 @@ export function useSolenSounds() {
 
   /** Toca boss_arena.mp3 em loop enquanto a missão de boss estiver aberta */
   const playBossArena = useCallback(async (volume = 0.7) => {
-    if (globalMuted) return;
+    if (globalMusicMuted) return;
     try {
       if (bossArenaSoundRef.current) return; // já tocando
       const { sound } = await Audio.Sound.createAsync(
@@ -220,7 +238,7 @@ export function useSolenSounds() {
    * volume: volume inicial (0.0 – 1.0)
    */
   const playIntroMusic = useCallback(async (volume = 0.8) => {
-    if (globalMuted) return;
+    if (globalMusicMuted) return;
     try {
       // Cancela qualquer fade em andamento
       if (fadeIntervalRef.current) {
@@ -307,9 +325,12 @@ export function useSolenSounds() {
     playBurnArtefact,
     playBossArena,
     stopBossArena,
-    isMuted: getMuted,
-    setMuted: changeMuted,
-    muted: localMuted
+    isMusicMuted: getMusicMuted,
+    setMusicMuted: changeMusicMuted,
+    musicMuted: localMusicMuted,
+    isSfxMuted: getSfxMuted,
+    setSfxMuted: changeSfxMuted,
+    sfxMuted: localSfxMuted
   }), [
     playLogin,
     stopLogin,
@@ -326,8 +347,11 @@ export function useSolenSounds() {
     playBurnArtefact,
     playBossArena,
     stopBossArena,
-    getMuted,
-    changeMuted,
-    localMuted
+    getMusicMuted,
+    changeMusicMuted,
+    localMusicMuted,
+    getSfxMuted,
+    changeSfxMuted,
+    localSfxMuted
   ]);
 }

@@ -27,7 +27,7 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
 
     try {
       const model = genAI.getGenerativeModel({ 
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.0-flash',
         systemInstruction: ordinatorPersona,
         tools: [
           {

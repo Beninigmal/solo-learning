@@ -237,14 +237,14 @@ export default function AnimatedSplashScreen() {
 
         {/* Header do Sistema Solo Leveling */}
         <View style={styles.boxHeader}>
-          <Text style={styles.headerText}>[ AVISO DO SISTEMA ]</Text>
+          <Text style={styles.headerText}>[ GUILDA DO APRENDIZ ]</Text>
         </View>
 
         {/* Conteúdo Principal */}
         <View style={styles.boxContent}>
-          <Text style={styles.mainTitle}>O</Text>
-          <Animated.Text style={[styles.subTitle, { opacity: glowOpacity }]}>
-            SISTEMA
+          <Text style={[styles.mainTitle, { fontSize: 28 }]}>COLLEGIUM:</Text>
+          <Animated.Text style={[styles.subTitle, { opacity: glowOpacity, fontSize: 24, marginTop: 5 }]}>
+            A GUILDA DO APRENDIZ
           </Animated.Text>
           
           <View style={styles.divider} />
