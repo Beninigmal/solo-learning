@@ -19,7 +19,6 @@ import { useSolenSounds } from '../../hooks/useSolenSounds';
 import { useAdminState } from '../../hooks/useAdminState';
 
 // Modular Tab Components
-import { SistemaTab } from '../../components/admin/SistemaTab';
 import { TurmasTab } from '../../components/admin/TurmasTab';
 import { MateriasTab } from '../../components/admin/MateriasTab';
 import { ArquitetoTab } from '../../components/admin/ArquitetoTab';
@@ -101,7 +100,7 @@ export default function AdminDashboard() {
           <View className="flex-row items-center mb-6">
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="max-h-12 flex-1">
               <View className="flex-row bg-black/40 border border-neonBlue/20 rounded-sm p-1">
-                {['SISTEMA', 'TURMAS', 'MATÉRIAS', 'ARQUITETO', 'RECRUTAR', 'GRADE', 'ORDINATOR'].map((tab) => (
+                {['RECRUTAR', 'TURMAS', 'MATÉRIAS', 'ARQUITETO', 'GRADE', 'ORDINATOR'].map((tab) => (
                   <TouchableOpacity
                     key={tab}
                     className={`px-6 py-2 items-center rounded-sm ${
@@ -150,56 +149,6 @@ export default function AdminDashboard() {
               />
             }
           >
-            {state.activeTab === 'SISTEMA' && (
-              <SistemaTab
-                editingMasterId={state.editingMasterId}
-                nome={state.nome}
-                setNome={state.setNome}
-                nickname={state.nickname}
-                setNickname={state.setNickname}
-                matricula={state.matricula}
-                setMatricula={state.setMatricula}
-                loading={state.loading}
-                handleRegisterOrUpdateMaster={state.handleRegisterOrUpdateMaster}
-                cancelEditMaster={state.cancelEditMaster}
-                masters={state.masters}
-                loadingMasters={state.loadingMasters}
-                fetchMasters={state.fetchMasters}
-                handleEditMasterPress={state.handleEditMasterPress}
-                selectedTurmaId={state.selectedTurmaId}
-                setSelectedTurmaId={state.setSelectedTurmaId}
-                turmas={state.turmas}
-                sounds={sounds}
-                loadingStudents={state.loadingStudents}
-                students={state.students}
-                editingStudentId={state.editingStudentId}
-                setEditingStudentId={state.setEditingStudentId}
-                studentNome={state.studentNome}
-                setStudentNome={state.setStudentNome}
-                studentNickname={state.studentNickname}
-                setStudentNickname={state.setStudentNickname}
-                studentTurmaId={state.studentTurmaId}
-                setStudentTurmaId={state.setStudentTurmaId}
-                handleUpdateStudent={state.handleUpdateStudent}
-                handleEditStudentPress={state.handleEditStudentPress}
-                handleResetStudentAccess={state.handleResetStudentAccess}
-                handleResetMasterAccess={state.handleResetMasterAccess}
-                // Monarch Engine v3
-                maxAulasSemanais={state.maxAulasSemanais}
-                setMaxAulasSemanais={state.setMaxAulasSemanais}
-                handleSelectExcel={state.handleSelectExcel}
-                excelData={state.excelData}
-                handleBatchRegisterMastersExcel={state.handleBatchRegisterMastersExcel}
-                categoria={state.categoria}
-                setCategoria={state.setCategoria}
-                currentUser={state.currentUser}
-                deleteRequests={state.deleteRequests}
-                loadingDeleteRequests={state.loadingDeleteRequests}
-                handleConfirmDeleteRequest={state.handleConfirmDeleteRequest}
-                handleRejectDeleteRequest={state.handleRejectDeleteRequest}
-              />
-            )}
-
              {state.activeTab === 'TURMAS' && (
               <TurmasTab
                 turmaNome={state.turmaNome}
@@ -273,6 +222,20 @@ export default function AdminDashboard() {
                 expandedQuestionId={state.expandedQuestionId}
                 setExpandedQuestionId={state.setExpandedQuestionId}
                 sounds={sounds}
+                masters={state.masters}
+                loadingMasters={state.loadingMasters}
+                fetchMasters={state.fetchMasters}
+                handleEditMasterPress={state.handleEditMasterPress}
+                handleResetMasterAccess={state.handleResetMasterAccess}
+                students={state.students}
+                loadingStudents={state.loadingStudents}
+                handleEditStudentPress={state.handleEditStudentPress}
+                handleResetStudentAccess={state.handleResetStudentAccess}
+                deleteRequests={state.deleteRequests}
+                loadingDeleteRequests={state.loadingDeleteRequests}
+                handleConfirmDeleteRequest={state.handleConfirmDeleteRequest}
+                handleRejectDeleteRequest={state.handleRejectDeleteRequest}
+                handleDeleteUser={state.handleDeleteUser}
               />
             )}
 
@@ -295,6 +258,20 @@ export default function AdminDashboard() {
                 excelData={state.excelData}
                 handleBatchRecrutarExcel={state.handleBatchRecrutarExcel}
                 sounds={sounds}
+                editingMasterId={state.editingMasterId}
+                nome={state.nome}
+                setNome={state.setNome}
+                matricula={state.matricula}
+                setMatricula={state.setMatricula}
+                maxAulasSemanais={state.maxAulasSemanais}
+                setMaxAulasSemanais={state.setMaxAulasSemanais}
+                categoria={state.categoria}
+                setCategoria={state.setCategoria}
+                currentUser={state.currentUser}
+                loading={state.loading}
+                handleRegisterOrUpdateMaster={state.handleRegisterOrUpdateMaster}
+                cancelEditMaster={state.cancelEditMaster}
+                handleBatchRegisterMastersExcel={state.handleBatchRegisterMastersExcel}
               />
             )}
 

@@ -105,6 +105,7 @@ export function useSolenSounds() {
 
   /** Toca o som de login em loop enquanto o loading roda */
   const playLogin = useCallback(async () => {
+    if (globalMuted) return;
     try {
       if (loginSoundRef.current) {
         await loginSoundRef.current.unloadAsync();
@@ -187,6 +188,7 @@ export function useSolenSounds() {
 
   /** Toca boss_arena.mp3 em loop enquanto a missão de boss estiver aberta */
   const playBossArena = useCallback(async (volume = 0.7) => {
+    if (globalMuted) return;
     try {
       if (bossArenaSoundRef.current) return; // já tocando
       const { sound } = await Audio.Sound.createAsync(
@@ -218,6 +220,7 @@ export function useSolenSounds() {
    * volume: volume inicial (0.0 – 1.0)
    */
   const playIntroMusic = useCallback(async (volume = 0.8) => {
+    if (globalMuted) return;
     try {
       // Cancela qualquer fade em andamento
       if (fadeIntervalRef.current) {

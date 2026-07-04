@@ -744,6 +744,33 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
 
   // ─── SOLICITAÇÕES DE EXCLUSÃO DE CONTA ────────────────────────────────────
 
+  fastify.delete<{ Params: { id: string } }>('/users/:id', async (request, reply) => {
+    const { id } = request.params;
+    const instituicao = request.user.instituicao!;
+
+    try {
+      const targetUser = await prisma.user.findUnique({
+        where: { id }
+      });
+      
+      if (!targetUser) {
+        return reply.status(404).send({ error: 'Usuário não encontrado.' });
+      }
+      
+      if (targetUser.instituicao !== instituicao) {
+        return reply.status(403).send({ error: 'Acesso negado. Usuário pertence a outra instituição.' });
+      }
+
+      const userRepository = new PrismaUserRepository();
+      await userRepository.delete(id);
+
+      return reply.status(200).send({ message: 'Usuário excluído com sucesso.' });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao excluir usuário.' });
+    }
+  });
+
   fastify.get('/delete-requests', async (request, reply) => {
     const instituicao = request.user.instituicao!;
     try {

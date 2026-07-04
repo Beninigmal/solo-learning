@@ -669,3 +669,8 @@ export const getGiftedArtifactsHistory = async (page: number = 1, limit: number 
   const response = await api.get('/quests/mestre/gift-history', { params });
   return response.data;
 };
+
+export const deleteUser = async (id: string): Promise<any> => {
+  const response = await api.delete(`/admin/users/${id}`);
+  return response.data;
+};
