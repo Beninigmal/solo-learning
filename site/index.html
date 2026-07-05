@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Solen — Sistema de Gestão Educacional Gamificado inspirado em Solo Leveling. Ranks, artefatos mágicos, IA generativa e administração escolar completa.">
+    <meta name="keywords" content="solen, solo learning, gestão educacional, gamificação, RPG, solo leveling, educação, escola, sistema escolar">
+    <meta name="author" content="Lucas Araújo">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#0a0a0f">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔮</text></svg>">
+    <title>Solen — Solo Learning | Sistema de Gestão Educacional Gamificado</title>
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Solen — Solo Learning">
+    <meta property="og:description" content="Sistema de Gestão Educacional Gamificado. Ranks, artefatos mágicos e IA generativa para transformar a educação.">
+    <meta property="og:url" content="https://solen.app">
+    <meta property="og:site_name" content="Solen">
+    <meta property="og:locale" content="pt_BR">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Solen — Solo Learning">
+    <meta name="twitter:description" content="Sistema de Gestão Educacional Gamificado inspirado em Solo Leveling.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Rajdhani:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <a href="#home" class="skip-link">Pular para o conteúdo</a>
+
+    <nav class="navbar" role="navigation" aria-label="Navegação principal">
+        <div class="container">
+            <a href="#home" class="logo" aria-label="Solen - Página inicial">
+                <span class="logo-icon" aria-hidden="true">🔮</span>
+                <span class="logo-text">SOLEN</span>
+            </a>
+            <ul class="nav-links" role="menubar">
+                <li role="none"><a href="#features" role="menuitem">Recursos</a></li>
+                <li role="none"><a href="#roles" role="menuitem">Perfis</a></li>
+                <li role="none"><a href="#artifacts" role="menuitem">Artefatos</a></li>
+                <li role="none"><a href="#tech" role="menuitem">Tecnologia</a></li>
+                <li role="none"><a href="#contact" role="menuitem">Contato</a></li>
+            </ul>
+            <button class="nav-toggle" aria-label="Abrir menu de navegação" aria-expanded="false" aria-controls="nav-links">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <header class="hero" id="home">
+        <div class="hero-bg" aria-hidden="true">
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+        </div>
+        <div class="hero-glow" aria-hidden="true"></div>
+        <div class="container">
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    <span class="hero-title-main">SOLEN</span>
+                    <span class="hero-title-sub">Solo Learning</span>
+                </h1>
+                <p class="hero-tagline" data-text="Apenas os caçadores mais dedicados conseguirão alcançar o Rank S do conhecimento.">"Apenas os caçadores mais dedicados conseguirão alcançar o Rank S do conhecimento."</p>
+                <p class="hero-description">Sistema de gestão educacional gamificado que une administração escolar completa com mecânicas de RPG inspiradas no Manhwa <em>"Solo Leveling"</em>.</p>
+                <div class="hero-cta">
+                    <a href="#features" class="btn btn-primary">Explorar Recursos</a>
+                    <a href="#roles" class="btn btn-secondary">Conhecer Perfis</a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat">
+                        <span class="stat-number" data-target="3" aria-label="3 Perfis de Acesso">0</span>
+                        <span class="stat-label">Perfis de Acesso</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number" data-target="5" aria-label="5 Ranks de Progressão">0</span>
+                        <span class="stat-label">Ranks de Progressão</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-number" data-target="22" aria-label="22 Artefatos Mágicos">0</span>
+                        <span class="stat-label">Artefatos Mágicos</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section class="features" id="features" aria-labelledby="features-title">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title" id="features-title">Recursos Principais</h2>
+                <p class="section-subtitle">Uma plataforma completa que transforma a gestão escolar em uma experiência imersiva</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon" aria-hidden="true">🏛️</div>
+                    <h3>Gestão Escolar Completa</h3>
+                    <p>Cadastro multi-tenant de instituições, turmas, professores, alunos e disciplinas com conformidade legal (LDB, CLT, REDA).</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon" aria-hidden="true">🧠</div>
+                    <h3>Monarch Engine v3</h3>
+                    <p>Algoritmo de Constraint Satisfaction Problem (CSP) para alocação automática de grade horária inteligente.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon" aria-hidden="true">⚡</div>
+                    <h3>IA Generativa</h3>
+                    <p>Geração de missões contextualizadas via Google Gemini com complexidade cognitiva progressiva para cada série.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon" aria-hidden="true">🎮</div>
+                    <h3>Gamificação Profunda</h3>
+                    <p>Sistema de Ranks (E a S), quests diárias, raids cooperativas, baú de revisão e inventário de artefatos mágicos.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon" aria-hidden="true">🔒</div>
+                    <h3>Segurança & LGPD</h3>
+                    <p>Autenticação JWT, biometria, isolamento multi-tenant, fluxo de consentimento LGPD e prevenção IDOR.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon" aria-hidden="true">📱</div>
+                    <h3>Multiplataforma</h3>
+                    <p>Aplicativo mobile e web desenvolvido com React Native e Expo, acessível em qualquer dispositivo.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="roles" id="roles" aria-labelledby="roles-title">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title" id="roles-title">Perfis de Acesso</h2>
+                <p class="section-subtitle">Cada personagem tem seu papel na jornada do conhecimento</p>
+            </div>
+            <div class="roles-grid">
+                <div class="role-card" data-role="architect">
+                    <div class="role-badge" aria-label="Role Arquiteto">🏛️ ARQUITETO</div>
+                    <h3>Coordenação</h3>
+                    <p>Cadastro de turmas, professores e disciplinas. Configuração da grade curricular inteligente.</p>
+                    <ul class="role-features">
+                        <li>Importação de alunos em lote (CSV)</li>
+                        <li>Configuração de grades horárias</li>
+                        <li>Gestão de currículo</li>
+                    </ul>
+                </div>
+                <div class="role-card" data-role="teacher">
+                    <div class="role-badge" aria-label="Role Mestre">⚔️ MESTRE</div>
+                    <h3>Professor</h3>
+                    <p>Forja de missões via IA com rascunho e aprovação. Monitoramento em tempo real do progresso dos alunos.</p>
+                    <ul class="role-features">
+                        <li>Geração de quests com Gemini AI</li>
+                        <li>Radar de XP da turma</li>
+                        <li>Alerta de risco de reprovação</li>
+                    </ul>
+                </div>
+                <div class="role-card" data-role="student">
+                    <div class="role-badge" aria-label="Role Caçador">🧑‍🚀 CAÇADOR</div>
+                    <h3>Aluno</h3>
+                    <p>Quests diárias com progressão de dificuldade. Sistema de Ranks, raids cooperativas e inventário de artefatos.</p>
+                    <ul class="role-features">
+                        <li>Missões com XP progressivo</li>
+                        <li>Party e raids em grupo</li>
+                        <li>Baú de recuperação de XP</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="artifacts" id="artifacts" aria-labelledby="artifacts-title">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title" id="artifacts-title">Artefatos Mágicos</h2>
+                <p class="section-subtitle">Obtenha artefatos ao derrotar Mini Bosses, subir de Rank ou concluir Missões Diárias. Cada um possui mecânicas únicas para transformar sua jornada.</p>
+            </div>
+
+            <div class="artifact-rarity-section">
+                <div class="rarity-header">
+                    <span class="rarity-dot legendary"></span>
+                    <h3 class="rarity-title legendary-text">Lendários</h3>
+                    <span class="rarity-drop">Drop: 0.5%</span>
+                </div>
+                <p class="rarity-desc">Obtidos ao derrotar Mini Bosses em grupo ou ao subir para os Ranks B, A e S.</p>
+                <div class="artifact-grid">
+                    <div class="artifact-card legendary">
+                        <img class="artifact-img" src="assets/artifacts/sussurros_sabios.png" alt="Sussurros Sábios" loading="lazy">
+                        <h4>Sussurros Sábios</h4>
+                        <p class="artifact-summary">Solicite ajuda pedagógica direta ao professor em uma missão. A missão é sinalizada como "Pergunta Dourada" no Painel do Mestre, que pode redigir uma dica ou usar a IA (Gemini) para gerar um scaffolding.</p>
+                        <ul class="artifact-mechanics">
+                            <li>Garante uma tentativa extra</li>
+                            <li><strong class="legendary-text">+50% de XP</strong> ao acertar usando a dica</li>
+                        </ul>
+                    </div>
+                    <div class="artifact-card legendary">
+                        <img class="artifact-img" src="assets/artifacts/becker_alquimista.png" alt="Becker do Alquimista" loading="lazy">
+                        <h4>Becker do Alquimista</h4>
+                        <p class="artifact-summary">Um frasco cintilante contendo energia destilada. Ao ser consumido na bolsa, concede instantaneamente <strong class="legendary-text">+500 XP flat</strong> ao caçador.</p>
+                        <ul class="artifact-mechanics">
+                            <li>Não dropa em missões comuns</li>
+                            <li>Uso único na bolsa</li>
+                        </ul>
+                    </div>
+                    <div class="artifact-card legendary">
+                        <img class="artifact-img" src="assets/artifacts/olhar_monarca.png" alt="Olhar do Monarca" loading="lazy">
+                        <h4>Olhar do Monarca</h4>
+                        <p class="artifact-summary">Decifra as fraquezas dos inimigos antes do combate. Revela os tópicos conceituais e fórmulas que serão exigidos nas próximas missões do Mini Boss ou Boss Geral.</p>
+                        <ul class="artifact-mechanics">
+                            <li>Permite estudo direcionado da Party</li>
+                            <li>Visibilidade dos tópicos antes do desafio</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="artifact-rarity-section">
+                <div class="rarity-header">
+                    <span class="rarity-dot epic"></span>
+                    <h3 class="rarity-title epic-text">Épicos</h3>
+                    <span class="rarity-drop">Drop: 5%</span>
+                </div>
+                <p class="rarity-desc">Encontrados em Mini Bosses e Bosses. Também podem ser transmutados a partir de artefatos Mágicos.</p>
+                <div class="artifact-grid">
+                    <div class="artifact-card epic">
+                        <img class="artifact-img" src="assets/artifacts/elixir_dourado.png" alt="Elixir Dourado" loading="lazy">
+                        <h4>Elixir Dourado</h4>
+                        <p class="artifact-summary">Um líquido viscoso de pura energia dourada. <strong>Dobra o XP ganho na missão em que é aplicado</strong>. Ideal para missões do tipo Boss ou Mini Boss.</p>
+                    </div>
+                    <div class="artifact-card epic">
+                        <img class="artifact-img" src="assets/artifacts/relogio_tempo.png" alt="Relógio Ganha Tempo" loading="lazy">
+                        <h4>Relógio Ganha Tempo</h4>
+                        <p class="artifact-summary">Estende o prazo de expiração de uma missão ativa (diária ou do Baú) por mais <strong>24 horas</strong>, evitando que se torne uma Penalty Quest.</p>
+                    </div>
+                    <div class="artifact-card epic">
+                        <img class="artifact-img" src="assets/artifacts/anel_serpente.png" alt="Anel da Serpente" loading="lazy">
+                        <h4>Anel da Serpente</h4>
+                        <p class="artifact-summary">Aumenta a taxa de drop de artefatos em Mini Bosses em <strong>+35%</strong> para toda a Party durante <strong>7 dias</strong>. Não acumulativo com outro Anel da Serpente.</p>
+                    </div>
+                    <div class="artifact-card epic">
+                        <img class="artifact-img" src="assets/artifacts/lagrima_fenix.png" alt="Lágrima da Fênix" loading="lazy">
+                        <h4>Lágrima da Fênix</h4>
+                        <p class="artifact-summary">Se a Party falhar em derrotar um Mini Boss, permite "reviver" a missão resetando as tentativas e o temporizador para uma nova investida imediata sem penalidades.</p>
+                    </div>
+                    <div class="artifact-card epic">
+                        <img class="artifact-img" src="assets/artifacts/pocao_cura.png" alt="Poção de Cura" loading="lazy">
+                        <h4>Poção de Cura</h4>
+                        <p class="artifact-summary">Restaura o XP base de uma missão acumulada no <strong>Baú de Quests Perdidas</strong> de volta a 100%, removendo todas as camadas de maldição (-25% por erro) daquela missão.</p>
+                    </div>
+                    <div class="artifact-card epic">
+                        <img class="artifact-img" src="assets/artifacts/bandeira_guerra.png" alt="Bandeira de Guerra da Guilda" loading="lazy">
+                        <h4>Bandeira de Guerra da Guilda</h4>
+                        <p class="artifact-summary">Concede um buff passivo que aumenta o XP ganho por <strong>todos os membros do grupo</strong> em <strong>+20%</strong> em qualquer missão respondida corretamente nas próximas 24 horas. Só pode ser usado em party.</p>
+                    </div>
+                    <div class="artifact-card epic">
+                        <img class="artifact-img" src="assets/artifacts/orbe_perspicacia.png" alt="Orbe de Perspicácia" loading="lazy">
+                        <h4>Orbe de Perspicácia</h4>
+                        <p class="artifact-summary">Revela o <strong>próximo tópico</strong> que será abordado no caminho de missões da Party ou Guilda, dando vantagem estratégica para estudar antes do desafio.</p>
+                    </div>
+                    <div class="artifact-card epic">
+                        <img class="artifact-img" src="assets/artifacts/chave_mestra.png" alt="Chave Mestra" loading="lazy">
+                        <h4>Chave Mestra</h4>
+                        <p class="artifact-summary">Permite abrir <strong>qualquer party ativa da sua própria Turma</strong> e entrar como invasor, mesmo com limite de membros atingido. Integrantes não podem sair. Dura 48 horas. Bloqueado para parties de outras turmas.</p>
+                    </div>
+                    <div class="artifact-card epic">
+                        <img class="artifact-img" src="assets/artifacts/cetro_exilio.png" alt="Cetro do Exílio" loading="lazy">
+                        <h4>Cetro do Exílio</h4>
+                        <p class="artifact-summary">Expulsa um invasor indesejado de uma party ativa, revertendo o XP roubado e limpando a corrupção.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="artifact-rarity-section">
+                <div class="rarity-header">
+                    <span class="rarity-dot magic"></span>
+                    <h3 class="rarity-title magic-text">Mágicos</h3>
+                    <span class="rarity-drop">Drop: 5% a 1%</span>
+                </div>
+                <p class="rarity-desc">Exclusivos de Missões Diárias Normais. Cada um possui um efeito tático no dia a dia do caçador.</p>
+                <div class="artifact-grid">
+                    <div class="artifact-card magic">
+                        <img class="artifact-img" src="assets/artifacts/sapatilhas_veloz.png" alt="Sapatilhas do Mundo Lento" loading="lazy">
+                        <h4>Sapatilhas do Mundo Lento</h4>
+                        <p class="artifact-summary">Reduz a dificuldade da missão diária ativa em <strong>1 nível</strong> (ex: Difícil → Médio), gerando um enunciado mais simples via IA. Não funciona em Bosses Gerais.</p>
+                    </div>
+                    <div class="artifact-card magic">
+                        <img class="artifact-img" src="assets/artifacts/martelo_magico.png" alt="Martelo Mágico" loading="lazy">
+                        <h4>Martelo Mágico</h4>
+                        <p class="artifact-summary">Descompõe o enunciado da missão em passos pedagógicos sequenciais para a resolução. Ideal para questões de matemática e cálculo.</p>
+                    </div>
+                    <div class="artifact-card magic">
+                        <img class="artifact-img" src="assets/artifacts/poeira_estelar.png" alt="Poeira Estelar" loading="lazy">
+                        <h4>Poeira Estelar</h4>
+                        <p class="artifact-summary">Em Quests de Múltipla Escolha, <strong>elimina uma das alternativas incorretas</strong>, facilitando a escolha.</p>
+                    </div>
+                    <div class="artifact-card magic">
+                        <img class="artifact-img" src="assets/artifacts/pergaminho_oraculo.png" alt="Pergaminho do Oráculo" loading="lazy">
+                        <h4>Pergaminho do Oráculo</h4>
+                        <p class="artifact-summary">Concede uma <strong>dica prática e educativa</strong> focada no conceito da matéria para guiar o aluno em direção à resposta correta, sem dá-la diretamente.</p>
+                    </div>
+                    <div class="artifact-card magic">
+                        <img class="artifact-img" src="assets/artifacts/escudo_arcano.png" alt="Escudo Arcano" loading="lazy">
+                        <h4>Escudo Arcano</h4>
+                        <p class="artifact-summary">Um escudo mágico translúcido que absorve falhas. <strong>Cancela a penalidade de -25% de XP</strong> na próxima tentativa incorreta de uma missão ativa diária ou do Baú.</p>
+                    </div>
+                    <div class="artifact-card magic">
+                        <img class="artifact-img" src="assets/artifacts/bracelete_cristal.png" alt="Bracelete de Cristal" loading="lazy">
+                        <h4>Bracelete de Cristal</h4>
+                        <p class="artifact-summary">Absorve a maldição (-25% de XP) de uma tentativa incorreta na missão diária ou do Baú. Possui <strong>2 cargas</strong> de uso antes de quebrar.</p>
+                    </div>
+                    <div class="artifact-card magic">
+                        <img class="artifact-img" src="assets/artifacts/bolsa_sorte.png" alt="Bolsa da Sorte" loading="lazy">
+                        <h4>Bolsa da Sorte</h4>
+                        <p class="artifact-summary">Aumenta a taxa de drop de artefatos em missões diárias comuns em <strong>+15% por 7 dias</strong>. Cumulativo de forma aditiva com o Anel da Serpente.</p>
+                    </div>
+                    <div class="artifact-card magic">
+                        <img class="artifact-img" src="assets/artifacts/mao_midas.png" alt="Mão de Midas" loading="lazy">
+                        <h4>Mão de Midas</h4>
+                        <p class="artifact-summary">Escolhe outro artefato Mágico do inventário e dá <strong>50% de chance</strong> de transmutá-lo em um Épico aleatório. Se falhar, gera 50 XP de consolação.</p>
+                    </div>
+                    <div class="artifact-card magic">
+                        <img class="artifact-img" src="assets/artifacts/pena_escriba.png" alt="Pena do Escriba" loading="lazy">
+                        <h4>Pena do Escriba</h4>
+                        <p class="artifact-summary">Em perguntas teóricas dissertativas, revela as <strong>3 principais palavras-chave</strong> que o validador da IA espera para aprovar a resposta. Exibido como tags azuis dinâmicas.</p>
+                    </div>
+                    <div class="artifact-card magic">
+                        <img class="artifact-img" src="assets/artifacts/varinha_pinheiro.png" alt="Varinha de Pinheiro" loading="lazy">
+                        <h4>Varinha de Pinheiro</h4>
+                        <p class="artifact-summary">Transforma uma missão de cálculo discursiva (que exigiria foto da resolução) em uma <strong>questão de múltipla escolha</strong> com alternativas geradas pela IA.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="tech" id="tech" aria-labelledby="tech-title">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title" id="tech-title">Stack Tecnológica</h2>
+                <p class="section-subtitle">Tecnologias modernas para uma plataforma robusta e escalável</p>
+            </div>
+            <div class="tech-grid">
+                <div class="tech-card">
+                    <div class="tech-icon" aria-hidden="true">⚛️</div>
+                    <h3>Frontend</h3>
+                    <p>React Native com Expo</p>
+                    <span class="tech-detail">TypeScript + NativeWind/TailwindCSS</span>
+                </div>
+                <div class="tech-card">
+                    <div class="tech-icon" aria-hidden="true">🚀</div>
+                    <h3>Backend</h3>
+                    <p>Node.js com Fastify</p>
+                    <span class="tech-detail">Clean Architecture & SOLID</span>
+                </div>
+                <div class="tech-card">
+                    <div class="tech-icon" aria-hidden="true">🗄️</div>
+                    <h3>Banco de Dados</h3>
+                    <p>PostgreSQL</p>
+                    <span class="tech-detail">Prisma ORM</span>
+                </div>
+                <div class="tech-card">
+                    <div class="tech-icon" aria-hidden="true">🤖</div>
+                    <h3>Motor de IA</h3>
+                    <p>Google Gemini</p>
+                    <span class="tech-detail">Generative AI API</span>
+                </div>
+                <div class="tech-card">
+                    <div class="tech-icon" aria-hidden="true">☁️</div>
+                    <h3>Hospedagem</h3>
+                    <p>Vercel + Render</p>
+                    <span class="tech-detail">Frontend + Backend</span>
+                </div>
+                <div class="tech-card">
+                    <div class="tech-icon" aria-hidden="true">🔐</div>
+                    <h3>Segurança</h3>
+                    <p>JWT + Biometria</p>
+                    <span class="tech-detail">LGPD Compliance</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section" id="cta" aria-labelledby="cta-title">
+        <div class="container">
+            <div class="cta-section-content">
+                <h2 class="cta-section-title" id="cta-title">Pronto para Começar?</h2>
+                <p class="cta-section-subtitle">Acesse o Solen agora e transforme sua escola em uma dungeon de conhecimento</p>
+                <div class="cta-section-buttons">
+                    <a href="https://solen.app" class="btn btn-primary btn-lg">Acessar Plataforma</a>
+                    <a href="#contact" class="btn btn-secondary btn-lg">Fale Conosco</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="contact" id="contact" aria-labelledby="contact-title">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title" id="contact-title">Comece Sua Jornada</h2>
+                <p class="section-subtitle">Junte-se a nós na revolução da educação gamificada</p>
+            </div>
+            <div class="contact-content">
+                <div class="contact-info">
+                    <h3>Pronto para evoluir?</h3>
+                    <p>O Solen está transformando a gestão educacional no Brasil. Seja parte desta revolução que une tecnologia, gamificação e educação de qualidade.</p>
+                    <div class="contact-details">
+                        <div class="contact-item">
+                            <span class="contact-icon" aria-hidden="true">📧</span>
+                            <span>beninigmal<span>[at]</span>gmail.com</span>
+                        </div>
+                        <div class="contact-item">
+                            <span class="contact-icon" aria-hidden="true">👨‍💻</span>
+                            <span>Lucas Araújo (Beni)</span>
+                        </div>
+                    </div>
+                </div>
+                <form class="contact-form" action="https://formspree.io/f/xformid" method="POST" aria-label="Formulário de contato">
+                    <div class="form-group">
+                        <label for="name">Nome</label>
+                        <input type="text" id="name" name="name" placeholder="Seu nome completo" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">E-mail</label>
+                        <input type="email" id="email" name="email" placeholder="seu@email.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="message">Mensagem</label>
+                        <textarea id="message" name="message" rows="4" placeholder="Como o Solen pode ajudar sua escola?" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">Enviar Mensagem</button>
+                    <p class="form-status" aria-live="polite"></p>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <a href="#home" class="footer-logo" aria-label="Solen - Página inicial">
+                    <span class="logo-icon" aria-hidden="true">🔮</span>
+                    <span class="logo-text">SOLEN</span>
+                </a>
+                <p class="footer-text">Solo Learning — Sistema de Gestão Educacional Gamificado</p>
+                <p class="footer-copyright">&copy; <span id="footer-year">2026</span> Solen. Todos os direitos reservados.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="js/script.js"></script>
+</body>
+</html>

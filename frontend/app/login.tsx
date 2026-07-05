@@ -325,14 +325,7 @@ export default function LoginScreen() {
           >
             {/* Header */}
             <View className="border-b border-neonBlue/30 w-full pb-3 mb-6 items-center relative">
-              <Text className="text-neonBlue text-2xl font-bold uppercase tracking-[0.3em]">Autenticação</Text>
-              <Text className="text-neonBlue/50 text-xs mt-1 tracking-widest uppercase">Sistema Solo Learning</Text>
-              <TouchableOpacity
-                className="absolute right-0 top-1 p-1"
-                onPress={() => { sounds.playSelect(); setShowServerModal(true); }}
-              >
-                <Feather name="settings" size={20} color="#00f3ffb0" />
-              </TouchableOpacity>
+              <Text className="text-neonBlue text-2xl font-bold uppercase tracking-[0.1em] font-mono shadow-lg text-center">Collegium: A Guilda do Aprendiz</Text>
             </View>
 
 
@@ -428,11 +421,11 @@ export default function LoginScreen() {
 
           {/* Centralized Branding Title & Subtitle below card */}
           <View className="mt-8 items-center w-full pb-4">
-            <Text className="text-white text-3xl font-black tracking-[0.25em] text-center" style={{ textShadowColor: '#00f3ff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 12 }}>
-              SOLO LEARNING
+            <Text className="text-white text-2xl font-black tracking-[0.1em] text-center px-4 uppercase" style={{ textShadowColor: '#00f3ff', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 12 }}>
+              Gamifique seus estudos
             </Text>
             <Text className="text-neonBlue/70 text-xs font-bold tracking-[0.18em] uppercase mt-2 text-center">
-              ATUALIZE O SEU CONHECIMENTO
+              e gerencie sua instituição
             </Text>
           </View>
         </ScrollView>
@@ -463,20 +456,39 @@ export default function LoginScreen() {
             {/* SEÇÃO ÁUDIO */}
             <View className="mb-6 bg-black/30 border border-neonBlue/10 p-3 rounded-sm">
               <Text className="text-neonBlue/40 text-[10px] font-mono mb-2 uppercase tracking-widest">Áudio & Multimídia</Text>
-              <View className="flex-row items-center justify-between">
+              
+              <View className="flex-row items-center justify-between mb-3">
                 <View>
-                  <Text className="text-white text-sm font-bold">Música & Efeitos</Text>
-                  <Text className="text-neonBlue/50 text-[11px]">Silenciar áudio do despertar</Text>
+                  <Text className="text-white text-sm font-bold">Música de Fundo</Text>
+                  <Text className="text-neonBlue/50 text-[11px]">Silenciar músicas contínuas</Text>
                 </View>
                 <TouchableOpacity
-                  className={`px-4 py-2 rounded-sm border ${sounds.muted ? 'bg-red-500/10 border-red-500/40' : 'bg-neonBlue/10 border-neonBlue/50'}`}
+                  className={`px-4 py-2 rounded-sm border ${sounds.musicMuted ? 'bg-red-500/10 border-red-500/40' : 'bg-neonBlue/10 border-neonBlue/50'}`}
                   onPress={async () => {
-                    await sounds.setMuted(!sounds.muted);
-                    sounds.playSelect();
+                    await sounds.setMusicMuted(!sounds.musicMuted);
+                    if (!sounds.sfxMuted) sounds.playSelect();
                   }}
                 >
-                  <Text className={`font-mono text-xs font-bold ${sounds.muted ? 'text-red-400' : 'text-neonBlue'}`}>
-                    {sounds.muted ? '🔇 MUTADO' : '🔊 ATIVO'}
+                  <Text className={`font-mono text-xs font-bold ${sounds.musicMuted ? 'text-red-400' : 'text-neonBlue'}`}>
+                    {sounds.musicMuted ? '🔇 MUTADO' : '🔊 ATIVO'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View className="flex-row items-center justify-between">
+                <View>
+                  <Text className="text-white text-sm font-bold">Efeitos Sonoros</Text>
+                  <Text className="text-neonBlue/50 text-[11px]">Silenciar cliques e ações</Text>
+                </View>
+                <TouchableOpacity
+                  className={`px-4 py-2 rounded-sm border ${sounds.sfxMuted ? 'bg-red-500/10 border-red-500/40' : 'bg-neonBlue/10 border-neonBlue/50'}`}
+                  onPress={async () => {
+                    await sounds.setSfxMuted(!sounds.sfxMuted);
+                    if (!sounds.sfxMuted) sounds.playSelect();
+                  }}
+                >
+                  <Text className={`font-mono text-xs font-bold ${sounds.sfxMuted ? 'text-red-400' : 'text-neonBlue'}`}>
+                    {sounds.sfxMuted ? '🔇 MUTADO' : '🔊 ATIVO'}
                   </Text>
                 </TouchableOpacity>
               </View>
