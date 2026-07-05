@@ -6,6 +6,7 @@ import { professorRoutes } from './routes/professor';
 import { superadminRoutes } from './routes/superadmin';
 import { ordinatorRoutes } from './routes/ordinator';
 import { webhookRoutes } from './routes/webhooks';
+import { logsRoutes } from './routes/logs';
 
 import cors from '@fastify/cors';
 import authPlugin from './plugins/auth';
@@ -34,6 +35,7 @@ server.register(professorRoutes, { prefix: '/professor' });
 server.register(ordinatorRoutes, { prefix: '/ordinator' });
 server.register(superadminRoutes, { prefix: '/superadmin' });
 server.register(webhookRoutes, { prefix: '/webhooks' });
+server.register(logsRoutes, { prefix: '/logs' });
 
 import { autoMigrateInstitutions } from './utils/autoMigrate';
 

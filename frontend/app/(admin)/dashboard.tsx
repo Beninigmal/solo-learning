@@ -25,6 +25,7 @@ import { ArquitetoTab } from '../../components/admin/ArquitetoTab';
 import { RecrutarTab } from '../../components/admin/RecrutarTab';
 import { GradeTab } from '../../components/admin/GradeTab';
 import { OrdinatorTab } from '../../components/admin/OrdinatorTab';
+import { LogsTab } from '../../components/admin/LogsTab';
 
 export default function AdminDashboard() {
   const sounds = useSolenSounds();
@@ -100,7 +101,7 @@ export default function AdminDashboard() {
           <View className="flex-row items-center mb-6">
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="max-h-12 flex-1">
               <View className="flex-row bg-black/40 border border-neonBlue/20 rounded-sm p-1">
-                {['RECRUTAR', 'TURMAS', 'MATÉRIAS', 'ARQUITETO', 'GRADE', 'ORDINATOR'].map((tab) => (
+                {['RECRUTAR', 'TURMAS', 'MATÉRIAS', 'ARQUITETO', 'GRADE', 'ORDINATOR', 'LOGS'].map((tab) => (
                   <TouchableOpacity
                     key={tab}
                     className={`px-6 py-2 items-center rounded-sm ${
@@ -314,6 +315,10 @@ export default function AdminDashboard() {
             <View style={{ display: state.activeTab === 'ORDINATOR' ? 'flex' : 'none', flex: 1 }}>
               <OrdinatorTab onDataChanged={state.onRefresh} />
             </View>
+
+            {state.activeTab === 'LOGS' && (
+              <LogsTab />
+            )}
           </ScrollView>
         </Animated.View>
 

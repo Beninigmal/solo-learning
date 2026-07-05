@@ -9,6 +9,7 @@ import { ExpoNotificationProvider } from '../infra/providers/expo/ExpoNotificati
 import { GenerateAIQuestsUseCase } from '../core/use-cases/quests/GenerateAIQuestsUseCase';
 import { ApproveQuestBatchUseCase } from '../core/use-cases/quests/ApproveQuestBatchUseCase';
 import { QuestController } from '../presentation/controllers/QuestController';
+import { analyzePrompt } from '../services/defensor';
 
 const WINDOW_MINUTES = 120;
 const WAIT_TTL_MINUTES = 40;
@@ -1343,6 +1344,15 @@ function getGradeDifficultyPrompt(turma?: { nome: string; ano?: string | null; n
       const checkUser = await prisma.user.findUnique({ where: { id: userId }, select: { partyCooldownUntil: true } });
       if (checkUser?.partyCooldownUntil && checkUser.partyCooldownUntil > now) {
         return reply.status(403).send({ error: 'Sua alma está fragilizada por uma falha em grupo (Party Wipe)! Você está em cooldown de 30 minutos e não pode participar de masmorras.' });
+      }
+
+      // Passa a resposta do aluno pelo Agente Defensor (Anti-Prompt Injection para Aluno)
+      // Se não for 'Cálculo na imagem', validamos o texto.
+      if (answer && answer !== 'Cálculo na imagem') {
+        const defensorResult = await analyzePrompt(answer, 'ALUNO', { questNivel: delivery.quest.nivel, questTema: delivery.quest.tema });
+        if (!defensorResult.allowed) {
+          return reply.status(403).send({ error: `Sua resposta foi bloqueada por violar as regras da guilda: ${defensorResult.reason}` });
+        }
       }
       
       let prompt = answer === 'Cálculo na imagem'

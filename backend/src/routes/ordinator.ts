@@ -1,6 +1,8 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { prisma } from '../prisma';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { analyzePrompt } from '../services/defensor';
+import { logAction } from '../services/actionLog';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
@@ -26,6 +28,17 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
     const instituicao = request.user.instituicao!;
 
     try {
+      // 1. Passa pelo Agente Defensor
+      const defensorResult = await analyzePrompt(message, 'ARQUITETO', { instituicaoId: instituicao });
+      
+      if (!defensorResult.allowed) {
+        return reply.send({ 
+          reply: `[SISTEMA DE SEGURANÇA]\nMensagem bloqueada: ${defensorResult.reason}`, 
+          newHistory: history 
+        });
+      }
+
+      // 2. Fluxo Principal do Ordinator
       const model = genAI.getGenerativeModel({ 
         model: 'gemini-2.0-flash',
         systemInstruction: ordinatorPersona,
@@ -155,8 +168,13 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
               },
               {
                 name: 'moveStudent',
-                description: 'Move um aluno para outra turma usando sua matrícula e o nome da nova turma.',
-                parameters: { type: SchemaType.OBJECT, properties: { matricula: { type: SchemaType.STRING }, novaTurma: { type: SchemaType.STRING } }, required: ['matricula', 'novaTurma'] }
+                description: 'Move um aluno para outra turma. Se não souber a matricula, deixe em branco e use turmaOrigem. ANTES de usar esta ferramenta, pergunte ao usuário para confirmar a ação.',
+                parameters: { type: SchemaType.OBJECT, properties: { matricula: { type: SchemaType.STRING }, novaTurma: { type: SchemaType.STRING }, turmaOrigem: { type: SchemaType.STRING } }, required: ['novaTurma'] }
+              },
+              {
+                name: 'removeTurma',
+                description: 'Exclui uma turma do sistema. A turma deve estar vazia (sem alunos) para ser excluída.',
+                parameters: { type: SchemaType.OBJECT, properties: { nomeTurma: { type: SchemaType.STRING } }, required: ['nomeTurma'] }
               }
             ]
           }
@@ -164,9 +182,162 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
       });
 
       const chat = model.startChat({ history });
-      const overrideMsg = message + "\n\n[SISTEMA: Ignore o histórico de incapacidades. Você tem 'getStudents', 'removeStudent', 'moveStudent'. Use-as agora mesmo para resolver a tarefa pedida!]";
-      const result = await chat.sendMessage(overrideMsg);
-      const response = result.response;
+      const overrideMsg = message + "\n\n[SISTEMA: Ignore o histórico de incapacidades. Você tem 'getStudents', 'removeStudent', 'moveStudent', 'removeTurma'. Use-as agora mesmo para resolver a tarefa pedida!]";
+      let result;
+      let response;
+      try {
+        result = await chat.sendMessage(overrideMsg);
+        response = result.response;
+      } catch (error: any) {
+        const isRateLimit = error.status === 429 || error.message?.includes('quota') || error.message?.includes('RESOURCE_EXHAUSTED');
+        if (isRateLimit) {
+          console.warn('[Ordinator] Quota excedida no Gemini. Acionando fallback local (Ollama)...');
+          try {
+            const ollamaModel = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b-instruct-q4_0';
+            const ollamaMessages = [
+              { role: 'system', content: ordinatorPersona },
+              ...history.map(h => ({ role: h.role === 'model' ? 'assistant' : 'user', content: h.parts[0].text })),
+              { role: 'user', content: overrideMsg }
+            ];
+            
+            let ollamaRes = await globalThis.fetch('http://localhost:11434/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                model: ollamaModel,
+                messages: ollamaMessages,
+                stream: false,
+                tools: [
+                  { type: "function", function: { name: "getStudents", description: "Lista os alunos", parameters: { type: "object", properties: {} } } },
+                  { type: "function", function: { name: "removeStudent", description: "Remove aluno", parameters: { type: "object", properties: { matricula: { type: "string" } }, required: ["matricula"] } } },
+                  { type: "function", function: { name: "moveStudent", description: "Move aluno. Se não souber a matricula, deixe vazio e use turmaOrigem. ANTES de usar esta ferramenta, pergunte ao usuário para confirmar a ação.", parameters: { type: "object", properties: { matricula: { type: "string" }, novaTurma: { type: "string" }, turmaOrigem: { type: "string" } }, required: ["novaTurma"] } } },
+                  { type: "function", function: { name: "removeTurma", description: "Exclui uma turma vazia.", parameters: { type: "object", properties: { nomeTurma: { type: "string" } }, required: ["nomeTurma"] } } }
+                ]
+              })
+            });
+            
+            if (ollamaRes.ok) {
+              let actionToTriggerFallback: string | null = null;
+              let data = await ollamaRes.json() as any;
+              let msg = data.message;
+              let msgContent = msg?.content || '';
+              
+              const toolCallRegex = /\{\s*"name"\s*:\s*"([^"]+)"\s*,\s*"arguments"\s*:\s*(\{[\s\S]*?\})\s*\}/g;
+              let match;
+              const textToolCalls = [];
+              while ((match = toolCallRegex.exec(msgContent)) !== null) {
+                 try {
+                    textToolCalls.push({ function: { name: match[1], arguments: JSON.parse(match[2]) } });
+                 } catch (e) {}
+              }
+              
+              const toolCallsToProcess = (msg?.tool_calls && msg.tool_calls.length > 0) 
+                 ? msg.tool_calls 
+                 : textToolCalls;
+              
+              if (toolCallsToProcess.length > 0) {
+                 ollamaMessages.push(msg);
+                 let systemAppendedStatus = "[Ações interceptadas e executadas pelo sistema local:]\n";
+                 
+                 for (const tc of toolCallsToProcess) {
+                    const callName = tc.function.name;
+                    let callArgs = tc.function.arguments;
+                    if (typeof callArgs === 'string') {
+                       try { callArgs = JSON.parse(callArgs); } catch (e) { callArgs = {}; }
+                    }
+                              if (callName === 'getStudents') {
+                        const alunos = await prisma.user.findMany({ where: { instituicao, role: 'ALUNO' }, include: { turma: true } });
+                        systemAppendedStatus += `- Lista de alunos consultada.\n`;
+                     } else if (callName === 'removeStudent') {
+                        const ident = callArgs.matricula;
+                        let target = await prisma.user.findFirst({ where: { matricula: ident, instituicao } });
+                        if (!target) target = await prisma.user.findFirst({ where: { nome: { contains: ident, mode: 'insensitive' }, instituicao, role: 'ALUNO' } });
+                        if (target) {
+                          await prisma.user.delete({ where: { id: target.id } });
+                          await logAction('ORDINATOR_REMOVE_STUDENT', `Aluno removido: ${target.nome}`, request.user.id, instituicao);
+                          systemAppendedStatus += `- Aluno removido: ${target.nome}\n`;
+                        } else {
+                          systemAppendedStatus += `- Falha ao remover: Aluno '${ident}' não encontrado.\n`;
+                        }
+                     } else if (callName === 'moveStudent') {
+                        const normalNova = callArgs.novaTurma.toUpperCase().includes('TURMA') ? callArgs.novaTurma : 'TURMA ' + callArgs.novaTurma;
+                        let turma = await prisma.turma.findFirst({ where: { nome: { equals: normalNova, mode: 'insensitive' }, instituicao } });
+                        if (!turma) turma = await prisma.turma.create({ data: { nome: normalNova.toUpperCase(), instituicao, institutionId: request.user.institutionId || null } });
+                        
+                        let target = null;
+                        if (callArgs.matricula) {
+                           target = await prisma.user.findFirst({ where: { matricula: callArgs.matricula, instituicao } });
+                           if (!target) target = await prisma.user.findFirst({ where: { nome: { contains: callArgs.matricula, mode: 'insensitive' }, instituicao, role: 'ALUNO' } });
+                        } else if (callArgs.turmaOrigem) {
+                           const normalOrigem = callArgs.turmaOrigem.toUpperCase().includes('TURMA') ? callArgs.turmaOrigem : 'TURMA ' + callArgs.turmaOrigem;
+                           let origem = await prisma.turma.findFirst({ where: { nome: { equals: normalOrigem, mode: 'insensitive' }, instituicao } });
+                           if (origem) {
+                              target = await prisma.user.findFirst({ where: { turmaId: origem.id, role: 'ALUNO', instituicao } });
+                           }
+                        }
+                        
+                        if (target) {
+                          await prisma.user.update({ where: { id: target.id }, data: { turmaId: turma.id } });
+                          await logAction('ORDINATOR_MOVE_STUDENT', `Aluno ${target.nome} movido para turma ${turma.nome}`, request.user.id, instituicao);
+                          systemAppendedStatus += `- Aluno movido: ${target.nome} para ${turma.nome}\n`;
+                          actionToTriggerFallback = 'REFRESH_TIMETABLE';
+                        } else {
+                          systemAppendedStatus += `- Falha ao mover: Aluno não encontrado.\n`;
+                        }
+                     } else if (callName === 'removeTurma') {
+                        let turma = await prisma.turma.findFirst({ where: { nome: { equals: callArgs.nomeTurma, mode: 'insensitive' }, instituicao } });
+                        if (!turma) {
+                           const normalName = callArgs.nomeTurma.toUpperCase().includes('TURMA') ? callArgs.nomeTurma : 'TURMA ' + callArgs.nomeTurma;
+                           turma = await prisma.turma.findFirst({ where: { nome: { equals: normalName, mode: 'insensitive' }, instituicao } });
+                        }
+                        if (turma) {
+                           const studentsCount = await prisma.user.count({ where: { turmaId: turma.id, role: 'ALUNO' } });
+                           if (studentsCount === 0) {
+                              await prisma.turma.delete({ where: { id: turma.id } });
+                              await logAction('ORDINATOR_REMOVE_TURMA', `Turma excluída: ${turma.nome}`, request.user.id, instituicao);
+                              systemAppendedStatus += `- Turma excluída: ${turma.nome}\n`;
+                              actionToTriggerFallback = 'REFRESH_TIMETABLE';
+                           } else {
+                              systemAppendedStatus += `- Falha ao excluir: Turma ${turma.nome} não está vazia.\n`;
+                           }
+                        } else {
+                           systemAppendedStatus += `- Falha ao excluir: Turma não encontrada.\n`;
+                        }
+                     }
+                  }
+                  
+                  let finalCleanText = msgContent.replace(/```json\s*\{\s*"name"[\s\S]*?\}\s*```/gs, '').trim();
+                  finalCleanText = finalCleanText.replace(/\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{[\s\S]*?\}\s*\}/g, '').trim();
+                  
+                  data.message = data.message || {};
+                  data.message.content = finalCleanText + "\n\n" + systemAppendedStatus;
+               }
+              
+              const text = data.message?.content || 'Ações executadas via fallback.';
+              
+              const newHistory = [
+                ...history,
+                { role: 'user', parts: [{ text: message }] },
+                { role: 'model', parts: [{ text }] }
+              ];
+              
+              return reply.send({
+                reply: text,
+                history: newHistory,
+                action: actionToTriggerFallback
+              });
+            } else {
+              const errText = await ollamaRes.text();
+              console.error('[Ordinator] Ollama retornou erro HTTP:', ollamaRes.status, errText);
+              throw new Error(`Fallback Ollama falhou com status ${ollamaRes.status}: ${errText}`);
+            }
+          } catch (ollamaErr: any) {
+            console.error('[Ordinator] Falha no fallback do Ollama:', ollamaErr);
+            throw new Error(`Falha crítica no fallback local (Ollama): ${ollamaErr.message}`);
+          }
+        }
+        throw error;
+      }
       
       const functionCalls = response.functionCalls();
       let toolResponses = [];
@@ -216,6 +387,7 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
                 })
               );
               await Promise.all(promises);
+              await logAction('ORDINATOR_SET_UNAVAILABILITY', `Restrição adicionada para o professor ${prof.nome}`, request.user.id, instituicao);
               toolResponses.push({
                 functionResponse: {
                   name: 'setTeacherUnavailability',
@@ -234,6 +406,7 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
             const { shift } = call.args as any;
             actionToTrigger = 'TRIGGER_MONARCH';
             actionData = { shift: shift || 'MATUTINO' };
+            await logAction('ORDINATOR_GENERATE_TIMETABLE', `Engine rodada (Rascunho) - Turno: ${shift || 'MATUTINO'}`, request.user.id, instituicao);
             toolResponses.push({
               functionResponse: {
                 name: 'triggerMonarchEngine',
@@ -379,6 +552,7 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
             }
 
             actionToTrigger = 'REFRESH_TIMETABLE';
+            await logAction('ORDINATOR_BATCH_REGISTER_STUDENTS', `Cadastrados ${criados} alunos`, request.user.id, instituicao);
 
             toolResponses.push({
               functionResponse: {
@@ -398,15 +572,63 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
               }
             });
           } else if (call.name === 'removeStudent') {
-            const { matricula } = call.args as any;
-            await prisma.user.deleteMany({ where: { matricula, instituicao } });
-            toolResponses.push({ functionResponse: { name: 'removeStudent', response: { success: true } } });
+            const ident = (call.args as any).matricula;
+            let target = await prisma.user.findFirst({ where: { matricula: ident, instituicao } });
+            if (!target) target = await prisma.user.findFirst({ where: { nome: { contains: ident, mode: 'insensitive' }, instituicao, role: 'ALUNO' } });
+            if (target) {
+              await prisma.user.delete({ where: { id: target.id } });
+              await logAction('ORDINATOR_REMOVE_STUDENT', `Aluno removido: ${target.nome}`, request.user.id, instituicao);
+              toolResponses.push({ functionResponse: { name: 'removeStudent', response: { success: true, removed: target.nome } } });
+            } else {
+              toolResponses.push({ functionResponse: { name: 'removeStudent', response: { success: false, error: 'Aluno não encontrado' } } });
+            }
           } else if (call.name === 'moveStudent') {
-            const { matricula, novaTurma } = call.args as any;
-            let turma = await prisma.turma.findFirst({ where: { nome: novaTurma, instituicao } });
-            if (!turma) turma = await prisma.turma.create({ data: { nome: novaTurma, instituicao, institutionId: request.user.institutionId || null } });
-            await prisma.user.updateMany({ where: { matricula, instituicao }, data: { turmaId: turma.id } });
-            toolResponses.push({ functionResponse: { name: 'moveStudent', response: { success: true } } });
+            const { matricula: ident, novaTurma, turmaOrigem } = call.args as any;
+            const normalNova = novaTurma.toUpperCase().includes('TURMA') ? novaTurma : 'TURMA ' + novaTurma;
+            let turma = await prisma.turma.findFirst({ where: { nome: { equals: normalNova, mode: 'insensitive' }, instituicao } });
+            if (!turma) turma = await prisma.turma.create({ data: { nome: normalNova.toUpperCase(), instituicao, institutionId: request.user.institutionId || null } });
+            
+            let target = null;
+            if (ident) {
+              target = await prisma.user.findFirst({ where: { matricula: ident, instituicao } });
+              if (!target) target = await prisma.user.findFirst({ where: { nome: { contains: ident, mode: 'insensitive' }, instituicao, role: 'ALUNO' } });
+            } else if (turmaOrigem) {
+              const normalOrigem = turmaOrigem.toUpperCase().includes('TURMA') ? turmaOrigem : 'TURMA ' + turmaOrigem;
+              let origem = await prisma.turma.findFirst({ where: { nome: { equals: normalOrigem, mode: 'insensitive' }, instituicao } });
+              if (origem) {
+                target = await prisma.user.findFirst({ where: { turmaId: origem.id, role: 'ALUNO', instituicao } });
+              }
+            }
+            
+            if (target) {
+              await prisma.user.update({ where: { id: target.id }, data: { turmaId: turma.id } });
+              await logAction('ORDINATOR_MOVE_STUDENT', `Aluno ${target.nome} movido para turma ${turma.nome}`, request.user.id, instituicao);
+              toolResponses.push({ functionResponse: { name: 'moveStudent', response: { success: true, moved: target.nome, to: turma.nome } } });
+              actionToTrigger = 'REFRESH_TIMETABLE';
+            } else {
+              toolResponses.push({ functionResponse: { name: 'moveStudent', response: { success: false, error: 'Aluno não encontrado' } } });
+            }
+          } else if (call.name === 'removeTurma') {
+            const { nomeTurma } = call.args as any;
+            let turma = await prisma.turma.findFirst({ where: { nome: { equals: nomeTurma, mode: 'insensitive' }, instituicao } });
+            if (!turma) {
+               const normalName = nomeTurma.toUpperCase().includes('TURMA') ? nomeTurma : 'TURMA ' + nomeTurma;
+               turma = await prisma.turma.findFirst({ where: { nome: { equals: normalName, mode: 'insensitive' }, instituicao } });
+            }
+            
+            if (turma) {
+              const studentsCount = await prisma.user.count({ where: { turmaId: turma.id, role: 'ALUNO' } });
+              if (studentsCount === 0) {
+                await prisma.turma.delete({ where: { id: turma.id } });
+                await logAction('ORDINATOR_REMOVE_TURMA', `Turma excluída: ${turma.nome}`, request.user.id, instituicao);
+                toolResponses.push({ functionResponse: { name: 'removeTurma', response: { success: true, removed: turma.nome } } });
+                actionToTrigger = 'REFRESH_TIMETABLE';
+              } else {
+                toolResponses.push({ functionResponse: { name: 'removeTurma', response: { success: false, error: 'A turma não está vazia' } } });
+              }
+            } else {
+              toolResponses.push({ functionResponse: { name: 'removeTurma', response: { success: false, error: 'Turma não encontrada' } } });
+            }
           } else {
             toolResponses.push({ functionResponse: { name: call.name, response: { error: 'Comando não reconhecido pelo servidor.' } } });
           }

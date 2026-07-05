@@ -61,6 +61,7 @@ model User {
   categoria        String?  @default("CONCURSADO") // CONCURSADO, REDA
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  actionLogs ActionLog[]
 }
 
 model Turma {
@@ -326,6 +327,7 @@ model Institution {
   status          String       @default("ATIVO") // ATIVO, INADIMPLENTE, CANCELADO
   trialExpiration DateTime?
   maxTurmasMonarch Int         @default(2)
+  actionLogs      ActionLog[]
 }
 
 model InstitutionShiftSetting {
@@ -394,3 +396,13 @@ model GiftedArtifactHistory {
   student User @relation("StudentGifts", fields: [studentId], references: [id], onDelete: Cascade)
 }
 
+model ActionLog {
+  id            String       @id @default(uuid())
+  userId        String?
+  user          User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  action        String
+  details       String?
+  createdAt     DateTime     @default(now())
+}

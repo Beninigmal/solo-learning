@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { IQuestRepository } from '../../repositories/IQuestRepository';
 import { IUserRepository } from '../../repositories/IUserRepository';
 import { IAIProvider } from '../../providers/IAIProvider';
+import { analyzePrompt } from '../../../services/defensor';
 
 interface GenerateQuestRequest {
   semana: string;
@@ -47,6 +48,12 @@ export class GenerateAIQuestsUseCase {
       if (!vinculo) {
         throw new Error('Você não tem permissão para criar quests desta disciplina para esta turma.');
       }
+    }
+
+    // Passa o tema pelo Agente Defensor (Anti-Prompt Injection para Professor)
+    const defensorResult = await analyzePrompt(tema, 'PROFESSOR', { turmaId, disciplinaId });
+    if (!defensorResult.allowed) {
+      throw new Error(`Tema bloqueado pelas políticas de segurança: ${defensorResult.reason}`);
     }
 
     let tipoRule = '';
