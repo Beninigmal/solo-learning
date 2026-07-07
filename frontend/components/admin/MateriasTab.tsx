@@ -7,6 +7,8 @@ interface MateriasTabProps {
   newDisciplinaNome: string;
   setNewDisciplinaNome: (val: string) => void;
   loadingDisciplinas: boolean;
+  loadingCreateDisciplina: boolean;
+  loadingLinkProfessor: boolean;
   handleCreateDisciplina: () => void;
   masters: any[];
   selectedProfessorId: string;
@@ -37,6 +39,8 @@ export function MateriasTab({
   newDisciplinaNome,
   setNewDisciplinaNome,
   loadingDisciplinas,
+  loadingCreateDisciplina,
+  loadingLinkProfessor,
   handleCreateDisciplina,
   masters,
   selectedProfessorId,
@@ -124,7 +128,7 @@ export function MateriasTab({
         <CyberSubmitButton
           title="Criar Disciplina"
           loadingTitle="Criando..."
-          loading={loadingDisciplinas}
+          loading={loadingCreateDisciplina}
           onPress={handleCreateDisciplina}
           textClassName="text-xs"
         />
@@ -288,7 +292,7 @@ export function MateriasTab({
         <CyberSubmitButton
           title="Salvar Vínculo"
           loadingTitle="Vinculando..."
-          loading={loadingDisciplinas}
+          loading={loadingLinkProfessor}
           onPress={handleLinkProfessor}
           textClassName="text-xs"
         />

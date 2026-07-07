@@ -46,6 +46,8 @@ export function useSolenSounds() {
   const rankUpSoundRef    = useRef<Audio.Sound | null>(null);
   const burnArtefactSoundRef = useRef<Audio.Sound | null>(null);
   const bossArenaSoundRef  = useRef<Audio.Sound | null>(null);
+  const isLoginPlayingRef = useRef<boolean>(false);
+  const isBossArenaPlayingRef = useRef<boolean>(false);
   const introMusicVolRef  = useRef<number>(1.0);
   const fadeIntervalRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -124,6 +126,7 @@ export function useSolenSounds() {
   /** Toca o som de login em loop enquanto o loading roda */
   const playLogin = useCallback(async () => {
     if (globalMusicMuted) return;
+    isLoginPlayingRef.current = true;
     try {
       if (loginSoundRef.current) {
         await loginSoundRef.current.unloadAsync();
@@ -133,6 +136,10 @@ export function useSolenSounds() {
         require('../assets/login.wav'),
         { shouldPlay: true, isLooping: true, volume: 0.7 }
       );
+      if (!isLoginPlayingRef.current) {
+        await sound.unloadAsync();
+        return;
+      }
       loginSoundRef.current = sound;
     } catch (e) {
       console.warn('[SolenSounds] Erro ao tocar login.wav:', e);
@@ -141,6 +148,7 @@ export function useSolenSounds() {
 
   /** Para e descarrega o som de login */
   const stopLogin = useCallback(async () => {
+    isLoginPlayingRef.current = false;
     try {
       if (loginSoundRef.current) {
         await loginSoundRef.current.stopAsync();
@@ -207,12 +215,17 @@ export function useSolenSounds() {
   /** Toca boss_arena.mp3 em loop enquanto a missão de boss estiver aberta */
   const playBossArena = useCallback(async (volume = 0.7) => {
     if (globalMusicMuted) return;
+    isBossArenaPlayingRef.current = true;
     try {
       if (bossArenaSoundRef.current) return; // já tocando
       const { sound } = await Audio.Sound.createAsync(
         require('../assets/boss_arena.mp3'),
         { shouldPlay: true, isLooping: true, volume }
       );
+      if (!isBossArenaPlayingRef.current) {
+        await sound.unloadAsync();
+        return;
+      }
       bossArenaSoundRef.current = sound;
     } catch (e) {
       console.warn('[SolenSounds] Erro ao tocar boss_arena.mp3:', e);
@@ -221,6 +234,7 @@ export function useSolenSounds() {
 
   /** Para e descarrega a música de boss arena */
   const stopBossArena = useCallback(async () => {
+    isBossArenaPlayingRef.current = false;
     try {
       if (bossArenaSoundRef.current) {
         await bossArenaSoundRef.current.stopAsync();

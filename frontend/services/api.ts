@@ -216,6 +216,11 @@ export const createTurma = async (nome: string, ano: string, codigoInvocacao?: s
   return response.data;
 };
 
+export const updateAdminTurma = async (id: string, data: { nome?: string; ano?: string; codigoInvocacao?: string; nivel?: string }) => {
+  const response = await api.put(`/admin/turmas/${id}`, data);
+  return response.data;
+};
+
 export const createVinculo = async (professorId: string, disciplinaId: string, turmaId: string) => {
   const response = await api.post('/admin/vinculos', { professorId, disciplinaId, turmaId });
   return response.data;

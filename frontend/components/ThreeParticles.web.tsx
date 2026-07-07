@@ -43,10 +43,10 @@ export function ThreeParticles() {
       baseColor: THREE.Color;
     }> = [];
 
-    const colorOrange = new THREE.Color('#ff6a00');
+    const colorCyan = new THREE.Color('#00f3ff');
     const colorWhite = new THREE.Color('#ffffff');
-    const colorRed = new THREE.Color('#ff2a00');
-    const colorYellow = new THREE.Color('#ffcc00');
+    const colorGreen = new THREE.Color('#00ff66');
+    const colorEmerald = new THREE.Color('#10b981');
     
     const bottomLimit = -28;
     const topLimit = 28;
@@ -61,15 +61,15 @@ export function ThreeParticles() {
       positions[i * 3 + 1] = y;
       positions[i * 3 + 2] = z;
 
-      // Select random ember color
+      // Select random success color
       const mixRatio = Math.random();
       const baseColor = new THREE.Color();
       if (mixRatio < 0.2) {
-        baseColor.copy(colorWhite).lerp(colorYellow, Math.random());
+        baseColor.copy(colorWhite).lerp(colorCyan, Math.random());
       } else if (mixRatio < 0.6) {
-        baseColor.copy(colorYellow).lerp(colorOrange, Math.random());
+        baseColor.copy(colorCyan).lerp(colorGreen, Math.random());
       } else {
-        baseColor.copy(colorOrange).lerp(colorRed, Math.random());
+        baseColor.copy(colorGreen).lerp(colorEmerald, Math.random());
       }
 
       // Start particles fully invisible
@@ -98,9 +98,9 @@ export function ThreeParticles() {
     if (ctx) {
       const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
       gradient.addColorStop(0, 'rgba(255, 255, 255, 1.0)');     // White hot core
-      gradient.addColorStop(0.18, 'rgba(255, 200, 50, 0.9)');    // Yellow glow
-      gradient.addColorStop(0.45, 'rgba(255, 90, 0, 0.65)');     // Soft orange glow
-      gradient.addColorStop(0.75, 'rgba(230, 20, 0, 0.2)');      // Reddish fuzzy edge
+      gradient.addColorStop(0.18, 'rgba(0, 243, 255, 0.9)');     // Cyan glow
+      gradient.addColorStop(0.45, 'rgba(0, 255, 102, 0.65)');    // Green glow
+      gradient.addColorStop(0.75, 'rgba(16, 185, 129, 0.2)');    // Emerald fuzzy edge
       gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');              // Transparent boundary
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, 32, 32);
