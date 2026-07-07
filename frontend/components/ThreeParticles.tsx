@@ -1,13 +1,13 @@
 import React, { useRef, useEffect } from 'react';
 import { StyleSheet, Animated, Dimensions, useWindowDimensions, View } from 'react-native';
 
-const EMBER_COLORS = [
-  { color: '#ffffff', shadow: '#ffffff', scaleY: 1.3 }, // White hot, slightly stretched
-  { color: '#fff4d4', shadow: '#ffa600', scaleY: 1.4 }, // Warm cream-yellow
-  { color: '#ffcc00', shadow: '#ffa600', scaleY: 1.5 }, // Yellow gold
-  { color: '#ff7700', shadow: '#ff5500', scaleY: 1.6 }, // Vivid orange (more stretched)
-  { color: '#ff3300', shadow: '#ff3300', scaleY: 1.7 }, // Fire red-orange
-  { color: '#cc1100', shadow: '#ff3300', scaleY: 1.5 }, // Deep glow red
+const SUCCESS_COLORS = [
+  { color: '#ffffff', shadow: '#ffffff', scaleY: 1.3 }, // White
+  { color: '#e0ffff', shadow: '#00f3ff', scaleY: 1.4 }, // Light cyan
+  { color: '#00f3ff', shadow: '#00f3ff', scaleY: 1.5 }, // Neon cyan
+  { color: '#39ff14', shadow: '#00ff66', scaleY: 1.6 }, // Neon green
+  { color: '#00ff66', shadow: '#00ff66', scaleY: 1.7 }, // Emerald green
+  { color: '#10b981', shadow: '#00ff66', scaleY: 1.5 }, // Deep emerald
 ];
 
 export function ThreeParticles() {
@@ -16,7 +16,7 @@ export function ThreeParticles() {
   // 45 particles for optimal density and CPU performance
   const particles = useRef(
     Array.from({ length: 45 }).map(() => {
-      const colorInfo = EMBER_COLORS[Math.floor(Math.random() * EMBER_COLORS.length)];
+      const colorInfo = SUCCESS_COLORS[Math.floor(Math.random() * SUCCESS_COLORS.length)];
       return {
         ratioX: Math.random(),
         y: new Animated.Value(screenHeight),

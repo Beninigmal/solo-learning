@@ -18,6 +18,7 @@ import {
   createVinculo,
   deleteVinculo,
   createTurma,
+  updateAdminTurma,
   createGoldenQuestion,
   getGoldenQuestions,
   createDisciplina,
@@ -176,6 +177,8 @@ export function useAdminState() {
   const [selectedLinkTurmaIds, setSelectedLinkTurmaIds] = useState<string[]>([]);
   const [allDisciplinasList, setAllDisciplinasList] = useState<any[]>([]);
   const [loadingDisciplinas, setLoadingDisciplinas] = useState(false);
+  const [loadingCreateDisciplina, setLoadingCreateDisciplina] = useState(false);
+  const [loadingLinkProfessor, setLoadingLinkProfessor] = useState(false);
   const [aulasSemanais, setAulasSemanais] = useState('0');
   const [deleteRequests, setDeleteRequests] = useState<any[]>([]);
   const [loadingDeleteRequests, setLoadingDeleteRequests] = useState(false);
@@ -187,6 +190,7 @@ export function useAdminState() {
   const [turmaNivel, setTurmaNivel] = useState('FUNDAMENTAL');
   const [excelData, setExcelData] = useState<any[]>([]);
   const [loadingTurma, setLoadingTurma] = useState(false);
+  const [editingTurmaId, setEditingTurmaId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   // Turma accordions
@@ -752,7 +756,7 @@ export function useAdminState() {
       return;
     }
     try {
-      setLoadingDisciplinas(true);
+      setLoadingCreateDisciplina(true);
       await createDisciplina(newDisciplinaNome.trim());
       showAlert('Sucesso', 'Matéria criada com sucesso!', 'success');
       setNewDisciplinaNome('');
@@ -762,7 +766,7 @@ export function useAdminState() {
       const msg = err.response?.data?.error || 'Erro ao criar matéria.';
       showAlert('Erro', msg, 'error');
     } finally {
-      setLoadingDisciplinas(false);
+      setLoadingCreateDisciplina(false);
     }
   };
 
@@ -772,18 +776,19 @@ export function useAdminState() {
       return;
     }
     try {
-      setLoadingDisciplinas(true);
+      setLoadingLinkProfessor(true);
       await linkProfessorToDisciplina(selectedProfessorId, selectedDisciplinaId, isLinkTemp, selectedLinkTurmaIds, Number(aulasSemanais) || 0);
       showAlert('Sucesso', 'Vínculos atualizados com sucesso!', 'success');
       setIsLinkTemp(false);
       setSelectedLinkTurmaIds([]);
       setAulasSemanais('0');
       fetchDisciplinasWithProfessores();
+      fetchTurmas();
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Erro ao vincular professor.';
       showAlert('Erro', msg, 'error');
     } finally {
-      setLoadingDisciplinas(false);
+      setLoadingLinkProfessor(false);
     }
   };
 
@@ -793,6 +798,7 @@ export function useAdminState() {
       await unlinkProfessorFromDisciplina(professorId, disciplinaId);
       showAlert('Sucesso', 'Vínculo do professor removido com sucesso!', 'success');
       fetchDisciplinasWithProfessores();
+      fetchTurmas();
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Erro ao remover vínculo.';
       showAlert('Erro', msg, 'error');
@@ -868,19 +874,62 @@ export function useAdminState() {
     }
   };
 
+  const handleEditTurmaPress = (turma: any) => {
+    sounds.playSelect();
+    setEditingTurmaId(turma.id);
+    setTurmaNome(turma.nome);
+    setTurmaAno(turma.ano || '');
+    setTurmaCodigo(turma.codigoInvocacao || '');
+    setTurmaNivel(turma.nivel || 'FUNDAMENTAL');
+  };
+
+  const cancelEditTurma = () => {
+    sounds.playSelect();
+    setEditingTurmaId(null);
+    setTurmaNome('');
+    setTurmaAno('');
+    setTurmaCodigo('');
+    const tipo = currentUser?.institution?.tipo;
+    if (tipo === 'ESTADUAL') {
+      setTurmaNivel('MEDIO');
+    } else if (tipo === 'PRIVADO_LIVRE') {
+      setTurmaNivel('LIVRE');
+    } else {
+      setTurmaNivel('FUNDAMENTAL');
+    }
+  };
+
   const handleCreateTurma = async () => {
     if (!turmaNome.trim() || !turmaAno.trim()) {
       showAlert('AVISO DO SISTEMA', 'Nome e Ano são obrigatórios.', 'warning');
       return;
     }
 
+    const currentYear = new Date().getFullYear();
+    const yearNum = parseInt(turmaAno.trim());
+    if (isNaN(yearNum) || yearNum < currentYear) {
+      showAlert('ERRO DE VALIDAÇÃO', `O ano não pode ser menor que o ano corrente (${currentYear}).`, 'warning');
+      return;
+    }
+
     try {
       setLoadingTurma(true);
-      await createTurma(turmaNome.trim(), turmaAno.trim(), turmaCodigo.trim() || undefined, turmaNivel);
-      showAlert('MENSAGEM DO SISTEMA', 'Turma criada com sucesso!', 'success');
+      if (editingTurmaId) {
+        await updateAdminTurma(editingTurmaId, {
+          nome: turmaNome.trim(),
+          ano: turmaAno.trim(),
+          codigoInvocacao: turmaCodigo.trim() || undefined,
+          nivel: turmaNivel,
+        });
+        showAlert('MENSAGEM DO SISTEMA', 'Turma atualizada com sucesso!', 'success');
+      } else {
+        await createTurma(turmaNome.trim(), turmaAno.trim(), turmaCodigo.trim() || undefined, turmaNivel);
+        showAlert('MENSAGEM DO SISTEMA', 'Turma criada com sucesso!', 'success');
+      }
       setTurmaNome('');
       setTurmaAno('');
       setTurmaCodigo('');
+      setEditingTurmaId(null);
       fetchTurmas();
     } catch (error: any) {
       const msg = error.response?.data?.error || 'Falha na operação.';
@@ -931,6 +980,28 @@ export function useAdminState() {
     }
   };
 
+  const handleUploadFile = async (base64: string, type: 'alunos' | 'professores') => {
+    try {
+      setLoading(true);
+      const parsedRows = await uploadExcel(base64);
+      if (parsedRows && Array.isArray(parsedRows)) {
+        setExcelData(parsedRows);
+        showAlert(
+          'ARQUIVO CARREGADO',
+          `Planilha de ${type} processada! Detectamos ${parsedRows.length} registros. Clique em Confirmar para salvar.`,
+          'success'
+        );
+      } else {
+        showAlert('ERRO', 'Não foi possível interpretar os dados da planilha.', 'error');
+      }
+    } catch (err: any) {
+      console.error(err);
+      showAlert('ERRO', 'Falha ao processar arquivo Excel: ' + (err.response?.data?.error || err.message), 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSelectExcel = async (type: 'alunos' | 'professores') => {
     try {
       sounds.playSelect();
@@ -970,17 +1041,7 @@ export function useAdminState() {
         });
       }
 
-      const parsedRows = await uploadExcel(base64);
-      if (parsedRows && Array.isArray(parsedRows)) {
-        setExcelData(parsedRows);
-        showAlert(
-          'ARQUIVO CARREGADO',
-          `Planilha de ${type} processada! Detectamos ${parsedRows.length} registros. Clique em Confirmar para salvar.`,
-          'success'
-        );
-      } else {
-        showAlert('ERRO', 'Não foi possível interpretar os dados da planilha.', 'error');
-      }
+      await handleUploadFile(base64, type);
     } catch (err: any) {
       console.error(err);
       showAlert('ERRO', 'Falha ao processar arquivo Excel: ' + (err.response?.data?.error || err.message), 'error');
@@ -1383,6 +1444,7 @@ export function useAdminState() {
               showAlert('Sucesso', 'Matéria excluída com sucesso!', 'success');
               fetchDisciplinasWithProfessores();
               fetchDisciplinas();
+              fetchTurmas();
             } catch (e: any) {
               console.error(e);
               showAlert('Erro', e.response?.data?.error || 'Não foi possível excluir a matéria.', 'error');
@@ -1459,6 +1521,8 @@ export function useAdminState() {
     handleToggleLinkTurma,
     allDisciplinasList,
     loadingDisciplinas,
+    loadingCreateDisciplina,
+    loadingLinkProfessor,
     turmaNome,
     setTurmaNome,
     turmaAno,
@@ -1535,6 +1599,9 @@ export function useAdminState() {
     handleUnlinkProfessorFromClass,
     handleFetchStudentStats,
     handleCreateTurma,
+    editingTurmaId,
+    handleEditTurmaPress,
+    cancelEditTurma,
     handleRecrutar,
     handleCopyTemplate,
     turmaNivel,
@@ -1542,6 +1609,7 @@ export function useAdminState() {
     excelData,
     setExcelData,
     handleSelectExcel,
+    handleUploadFile,
     handleBatchRecrutarExcel,
     handleBatchRegisterMastersExcel,
     handleResetStudentAccess,

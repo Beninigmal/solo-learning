@@ -14,6 +14,9 @@ interface TurmasTabProps {
   setTurmaNivel: (val: string) => void;
   loadingTurma: boolean;
   handleCreateTurma: () => void;
+  editingTurmaId: string | null;
+  handleEditTurmaPress: (turma: any) => void;
+  cancelEditTurma: () => void;
   turmas: any[];
   fetchTurmas: () => void;
   sounds: any;
@@ -32,6 +35,9 @@ export function TurmasTab({
   setTurmaNivel,
   loadingTurma,
   handleCreateTurma,
+  editingTurmaId,
+  handleEditTurmaPress,
+  cancelEditTurma,
   turmas,
   fetchTurmas,
   sounds,
@@ -45,7 +51,9 @@ export function TurmasTab({
     <>
       {/* ─── SEÇÃO DE CRIAÇÃO DE TURMAS ────────────────────────────────── */}
       <View className="bg-[#0a1128]/90 border border-neonBlue/50 p-6 rounded-sm mb-6">
-        <Text className="text-white text-lg font-bold uppercase tracking-widest mb-6">Forjar Nova Turma</Text>
+        <Text className="text-white text-lg font-bold uppercase tracking-widest mb-6">
+          {editingTurmaId ? 'Transmutar Turma' : 'Forjar Nova Turma'}
+        </Text>
         
         <TextInput
           className="w-full bg-black/50 border border-neonBlue/50 text-white text-center text-base py-3 rounded-sm mb-4"
@@ -95,13 +103,26 @@ export function TurmasTab({
           </>
         )}
 
-        <CyberSubmitButton
-          title="Criar Turma"
-          loadingTitle="Criando..."
-          loading={loadingTurma}
-          onPress={handleCreateTurma}
-          textClassName="text-xs"
-        />
+        <View className="flex-row gap-3">
+          {editingTurmaId && (
+            <TouchableOpacity 
+              className="flex-1 border border-red-500/40 bg-red-500/10 py-3 rounded-sm items-center justify-center"
+              onPress={cancelEditTurma}
+              disabled={loadingTurma}
+            >
+              <Text className="text-red-400 font-bold uppercase tracking-widest text-xs">Cancelar</Text>
+            </TouchableOpacity>
+          )}
+          <View style={{ flex: editingTurmaId ? 2 : 1 }}>
+            <CyberSubmitButton
+              title={editingTurmaId ? 'Salvar Alterações' : 'Criar Turma'}
+              loadingTitle={editingTurmaId ? 'Salvando...' : 'Criando...'}
+              loading={loadingTurma}
+              onPress={handleCreateTurma}
+              textClassName="text-xs"
+            />
+          </View>
+        </View>
       </View>
 
       {/* Guilda de Turmas / Classes */}
@@ -125,8 +146,17 @@ export function TurmasTab({
                     Ano: {t.ano} · Código: {t.codigoInvocacao || 'sem código'} · Nível: {t.nivel || 'FUNDAMENTAL'}
                   </Text>
                 </View>
-                <View className="bg-neonBlue/10 border border-neonBlue/30 px-2 py-1 rounded-sm">
-                  <Text className="text-neonBlue font-bold text-[10px] uppercase">Unidade {t.unidade || 1}</Text>
+                <View className="flex-row items-center gap-2">
+                  <TouchableOpacity
+                    onPress={() => handleEditTurmaPress(t)}
+                    className="bg-neonBlue/10 border border-neonBlue/30 p-1.5 rounded-sm"
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="edit-2" size={12} color="#00f3ff" />
+                  </TouchableOpacity>
+                  <View className="bg-neonBlue/10 border border-neonBlue/30 px-2 py-1.5 rounded-sm">
+                    <Text className="text-neonBlue font-bold text-[10px] uppercase">Unidade {t.unidade || 1}</Text>
+                  </View>
                 </View>
               </View>
 

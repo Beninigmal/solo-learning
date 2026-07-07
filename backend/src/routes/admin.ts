@@ -194,15 +194,15 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     }
 
     try {
+      const currentYear = new Date().getFullYear();
+      const yearNum = parseInt(ano.trim());
+      if (isNaN(yearNum) || yearNum < currentYear) {
+        return reply.status(400).send({ error: `O ano não pode ser menor que o ano corrente (${currentYear}).` });
+      }
+
       const formattedNome = nome.toUpperCase().trim();
 
-      // Garantir unicidade de nome dentro da mesma instituição
-      const exists = await prisma.turma.findFirst({
-        where: { nome: formattedNome, instituicao }
-      });
-      if (exists) {
-        return reply.status(400).send({ error: 'Já existe uma turma com este nome na sua escola.' });
-      }
+      // ponytail: no class name uniqueness check is enforced because the same class name (e.g. "3º Ano B") can be created for different shifts (matutino/vespertino) in the same year.
 
       let finalNivel = nivel;
       if (request.user.institutionId) {
@@ -267,6 +267,38 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       orderBy: { nome: 'asc' }
     });
     return reply.status(200).send(turmas);
+  });
+
+  // Editar Turma na Instituição
+  fastify.put<{ Params: { id: string }; Body: { nome?: string; ano?: string; codigoInvocacao?: string; nivel?: string } }>('/turmas/:id', async (request, reply) => {
+    const { id } = request.params;
+    const { nome, ano, codigoInvocacao, nivel } = request.body;
+    const instituicao = request.user.instituicao!;
+
+    try {
+      if (ano) {
+        const currentYear = new Date().getFullYear();
+        const yearNum = parseInt(ano.trim());
+        if (isNaN(yearNum) || yearNum < currentYear) {
+          return reply.status(400).send({ error: `O ano não pode ser menor que o ano corrente (${currentYear}).` });
+        }
+      }
+
+      // ponytail: no class name uniqueness check is enforced because the same class name (e.g. "3º Ano B") can be created for different shifts (matutino/vespertino) in the same year.
+
+      const updated = await prisma.turma.update({
+        where: { id, instituicao },
+        data: {
+          ...(nome ? { nome: nome.toUpperCase().trim() } : {}),
+          ...(ano ? { ano: ano.trim() } : {}),
+          ...(codigoInvocacao ? { codigoInvocacao: codigoInvocacao.trim() } : {}),
+          nivel
+        }
+      });
+      return reply.send(updated);
+    } catch (error) {
+      return reply.status(404).send({ error: 'Turma não encontrada na sua instituição.' });
+    }
   });
 
   // Listar Disciplinas da Instituição

@@ -41,6 +41,7 @@ interface SistemaTabProps {
   maxAulasSemanais: string;
   setMaxAulasSemanais: (val: string) => void;
   handleSelectExcel: (type: 'alunos' | 'professores') => void;
+  handleUploadFile: (base64: string, type: 'alunos' | 'professores') => Promise<void>;
   excelData: any[];
   handleBatchRegisterMastersExcel: () => void;
   categoria: 'CONCURSADO' | 'REDA' | 'CLT';
@@ -89,6 +90,7 @@ export function SistemaTab({
   maxAulasSemanais,
   setMaxAulasSemanais,
   handleSelectExcel,
+  handleUploadFile,
   excelData,
   handleBatchRegisterMastersExcel,
   categoria,
@@ -99,6 +101,43 @@ export function SistemaTab({
   handleConfirmDeleteRequest,
   handleRejectDeleteRequest,
 }: SistemaTabProps) {
+
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  const handleDragOver = (e: any) => {
+    if (Platform.OS !== 'web') return;
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    if (Platform.OS !== 'web') return;
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: any) => {
+    if (Platform.OS !== 'web') return;
+    e.preventDefault();
+    setIsDragging(false);
+
+    const file = e.dataTransfer?.files?.[0] || e.nativeEvent?.dataTransfer?.files?.[0];
+    if (!file) return;
+
+    const name = file.name.toLowerCase();
+    if (!name.endsWith('.xlsx') && !name.endsWith('.xls') && !name.endsWith('.csv')) {
+      sounds.playError?.() || sounds.playSelect();
+      return;
+    }
+
+    sounds.playSelect();
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const resultStr = reader.result as string;
+      const base64 = resultStr.split(',')[1];
+      handleUploadFile(base64, 'professores');
+    };
+    reader.readAsDataURL(file);
+  };
   return (
     <>
       <View className="bg-[#0a1128]/90 border border-neonBlue/50 p-6 rounded-sm mb-6">
@@ -245,13 +284,27 @@ export function SistemaTab({
           </TouchableOpacity>
 
           <TouchableOpacity
-            className="w-full bg-neonBlue/10 border border-neonBlue/50 py-3.5 rounded-sm items-center flex-row justify-center gap-2 mb-4"
+            className={`w-full py-6 border border-dashed rounded-sm items-center justify-center flex-col gap-2.5 mb-4 ${
+              isDragging 
+                ? 'bg-yellow-500/10 border-yellow-500' 
+                : 'bg-neonBlue/10 border-neonBlue/50'
+            }`}
             onPress={() => handleSelectExcel('professores')}
+            {...({
+              onDragOver: handleDragOver,
+              onDragLeave: handleDragLeave,
+              onDrop: handleDrop
+            } as any)}
           >
-            <Feather name="file" size={16} color="#00f3ff" />
-            <Text className="text-neonBlue font-bold uppercase tracking-widest text-xs font-mono">
-              Selecionar Planilha Excel
+            <Feather name={isDragging ? "upload-cloud" : "upload"} size={20} color={isDragging ? "#eab308" : "#00f3ff"} />
+            <Text className={`font-mono text-xs uppercase tracking-widest ${isDragging ? 'text-yellow-500 font-bold' : 'text-neonBlue'}`}>
+              {isDragging ? 'Soltar Planilha Excel' : 'Importar Planilha'}
             </Text>
+            {Platform.OS === 'web' && !isDragging && (
+              <Text className="text-[9px] text-white/30 uppercase tracking-wider font-mono">
+                Ou arraste e solte o arquivo aqui
+              </Text>
+            )}
           </TouchableOpacity>
 
           {excelData && excelData.length > 0 && (

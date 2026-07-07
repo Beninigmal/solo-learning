@@ -186,6 +186,7 @@ export default function AdminDashboard() {
                 maxAulasSemanais={state.maxAulasSemanais}
                 setMaxAulasSemanais={state.setMaxAulasSemanais}
                 handleSelectExcel={state.handleSelectExcel}
+                handleUploadFile={state.handleUploadFile}
                 excelData={state.excelData}
                 handleBatchRegisterMastersExcel={state.handleBatchRegisterMastersExcel}
                 categoria={state.categoria}
@@ -210,6 +211,9 @@ export default function AdminDashboard() {
                 setTurmaNivel={state.setTurmaNivel}
                 loadingTurma={state.loadingTurma}
                 handleCreateTurma={state.handleCreateTurma}
+                editingTurmaId={state.editingTurmaId}
+                handleEditTurmaPress={state.handleEditTurmaPress}
+                cancelEditTurma={state.cancelEditTurma}
                 turmas={state.turmas}
                 fetchTurmas={state.fetchTurmas}
                 sounds={sounds}
@@ -223,6 +227,8 @@ export default function AdminDashboard() {
                 newDisciplinaNome={state.newDisciplinaNome}
                 setNewDisciplinaNome={state.setNewDisciplinaNome}
                 loadingDisciplinas={state.loadingDisciplinas}
+                loadingCreateDisciplina={state.loadingCreateDisciplina}
+                loadingLinkProfessor={state.loadingLinkProfessor}
                 handleCreateDisciplina={state.handleCreateDisciplina}
                 masters={state.masters}
                 selectedProfessorId={state.selectedProfessorId}
@@ -290,6 +296,7 @@ export default function AdminDashboard() {
                 recrutando={state.recrutando}
                 handleRecrutar={state.handleRecrutar}
                 handleSelectExcel={state.handleSelectExcel}
+                handleUploadFile={state.handleUploadFile}
                 excelData={state.excelData}
                 handleBatchRecrutarExcel={state.handleBatchRecrutarExcel}
                 sounds={sounds}

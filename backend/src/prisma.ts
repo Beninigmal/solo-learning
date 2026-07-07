@@ -6,7 +6,7 @@ import { Pool } from 'pg';
 const connectionString = process.env.DATABASE_URL || '';
 const isProduction = connectionString.includes('render.com');
 
-const pool = new Pool({ 
+const pool = new Pool({
   connectionString,
   ...(isProduction ? { ssl: { rejectUnauthorized: false } } : {})
 });
