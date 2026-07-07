@@ -1,7 +1,8 @@
 import React from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { DoomFireParticles } from './DoomFireParticles';
+import { ThreeParticles } from './ThreeParticles';
 
 interface AlertButton {
   text: string;
@@ -51,7 +52,8 @@ export function SystemAlert({ visible, title, message, type = 'info', onClose, b
   return (
     <Modal animationType="fade" transparent={true} visible={visible} onRequestClose={onClose}>
       <View className="flex-1 bg-black/80 justify-center items-center p-6 relative">
-        {type === 'BOSS' && <DoomFireParticles />}
+        {type === 'BOSS' && visible && <DoomFireParticles />}
+        {type === 'success' && visible && <ThreeParticles />}
         <View 
           className={`w-full max-w-md ${type === 'BOSS' ? 'bg-[#0a1128]/80' : 'bg-[#0a1128]/95'} rounded-sm border-2 ${getBorderColor()} p-6 items-center relative overflow-hidden`}
           style={{
