@@ -16,8 +16,8 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
   });
 
   // ─── POST /institutions ───────────────────────────────────────────────────
-  fastify.post<{ Body: { nome: string; codigo?: string; tipo?: string } }>('/institutions', async (request, reply) => {
-    const { nome, codigo, tipo } = request.body;
+  fastify.post<{ Body: { nome: string; codigo?: string; tipo?: string; plano?: string; status?: string; trialExpiration?: string; maxTurmasMonarch?: number } }>('/institutions', async (request, reply) => {
+    const { nome, codigo, tipo, plano, status, trialExpiration, maxTurmasMonarch } = request.body;
     if (!nome || !nome.trim()) {
       return reply.status(400).send({ error: 'O nome da instituição é obrigatório.' });
     }
@@ -44,7 +44,11 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
         data: { 
           nome: nome.trim(),
           codigo: finalCodigo,
-          tipo: tipo || 'MUNICIPAL'
+          tipo: tipo || 'MUNICIPAL',
+          plano: plano || 'TRIAL',
+          status: status || 'ATIVO',
+          trialExpiration: trialExpiration ? new Date(trialExpiration) : null,
+          maxTurmasMonarch: maxTurmasMonarch ?? 2
         }
       });
       return reply.status(201).send(institution);
@@ -148,9 +152,9 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
   });
 
   // ─── PUT /institutions/:id ────────────────────────────────────────────────
-  fastify.put<{ Params: { id: string }; Body: { nome: string; codigo?: string; tipo?: string } }>('/institutions/:id', async (request, reply) => {
+  fastify.put<{ Params: { id: string }; Body: { nome: string; codigo?: string; tipo?: string; plano?: string; status?: string; trialExpiration?: string; maxTurmasMonarch?: number } }>('/institutions/:id', async (request, reply) => {
     const { id } = request.params;
-    const { nome, codigo, tipo } = request.body;
+    const { nome, codigo, tipo, plano, status, trialExpiration, maxTurmasMonarch } = request.body;
 
     console.log('[PUT /institutions/:id] BODY RECEIVED:', { id, nome, codigo, tipo });
 
@@ -172,7 +176,11 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
           data: { 
             nome: newNomeClean,
             codigo: codigo ? codigo.trim() : undefined,
-            tipo: tipo !== undefined ? tipo : undefined
+            tipo: tipo !== undefined ? tipo : undefined,
+            plano: plano !== undefined ? plano : undefined,
+            status: status !== undefined ? status : undefined,
+            trialExpiration: trialExpiration !== undefined ? (trialExpiration ? new Date(trialExpiration) : null) : undefined,
+            maxTurmasMonarch: maxTurmasMonarch !== undefined ? maxTurmasMonarch : undefined
           }
         });
         console.log('[PUT /institutions/:id] DATABASE UPDATED RESULT:', inst);

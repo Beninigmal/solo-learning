@@ -617,8 +617,8 @@ export const getInstitutions = async () => {
   return response.data;
 };
 
-export const createInstitution = async (nome: string, tipo?: string) => {
-  const response = await api.post('/superadmin/institutions', { nome, tipo });
+export const createInstitution = async (nome: string, tipo?: string, plano?: string, maxTurmasMonarch?: number) => {
+  const response = await api.post('/superadmin/institutions', { nome, tipo, plano, maxTurmasMonarch });
   return response.data;
 };
 
@@ -632,8 +632,8 @@ export const createArchitect = async (matricula: string, nome: string, nickname:
   return response.data;
 };
 
-export const updateInstitution = async (id: string, nome: string, tipo?: string) => {
-  const response = await api.put(`/superadmin/institutions/${id}`, { nome, tipo });
+export const updateInstitution = async (id: string, nome: string, tipo?: string, plano?: string, maxTurmasMonarch?: number) => {
+  const response = await api.put(`/superadmin/institutions/${id}`, { nome, tipo, plano, maxTurmasMonarch });
   return response.data;
 };
 
@@ -677,5 +677,10 @@ export const getGiftedArtifactsHistory = async (page: number = 1, limit: number 
   const params: any = { page, limit };
   if (date) params.date = date;
   const response = await api.get('/quests/mestre/gift-history', { params });
+  return response.data;
+};
+
+export const deleteUser = async (id: string): Promise<any> => {
+  const response = await api.delete(`/admin/users/${id}`);
   return response.data;
 };

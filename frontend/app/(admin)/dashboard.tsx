@@ -19,12 +19,13 @@ import { useSolenSounds } from '../../hooks/useSolenSounds';
 import { useAdminState } from '../../hooks/useAdminState';
 
 // Modular Tab Components
-import { SistemaTab } from '../../components/admin/SistemaTab';
 import { TurmasTab } from '../../components/admin/TurmasTab';
 import { MateriasTab } from '../../components/admin/MateriasTab';
 import { ArquitetoTab } from '../../components/admin/ArquitetoTab';
 import { RecrutarTab } from '../../components/admin/RecrutarTab';
 import { GradeTab } from '../../components/admin/GradeTab';
+import { OrdinatorTab } from '../../components/admin/OrdinatorTab';
+import { LogsTab } from '../../components/admin/LogsTab';
 
 export default function AdminDashboard() {
   const sounds = useSolenSounds();
@@ -75,6 +76,7 @@ export default function AdminDashboard() {
                 <Text className="text-neonBlue/80 text-[10px] font-mono font-bold uppercase mt-0.5 tracking-wider leading-4" numberOfLines={2} ellipsizeMode="tail">
                   🏛️ {state.currentUser.instituicao}
                   {state.currentUser.institution?.codigo ? ` (CÓD: ${state.currentUser.institution.codigo})` : ''}
+                  {state.currentUser.institution?.plano ? ` • PLANO: ${state.currentUser.institution.plano}` : ''}
                 </Text>
               )}
               <Text className="text-white/50 text-[9px] mt-1 tracking-widest uppercase font-bold">Painel de Criação</Text>
@@ -99,7 +101,7 @@ export default function AdminDashboard() {
           <View className="flex-row items-center mb-6">
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="max-h-12 flex-1">
               <View className="flex-row bg-black/40 border border-neonBlue/20 rounded-sm p-1">
-                {['SISTEMA', 'TURMAS', 'MATÉRIAS', 'ARQUITETO', 'RECRUTAR', 'GRADE'].map((tab) => (
+                {['RECRUTAR', 'TURMAS', 'MATÉRIAS', 'ARQUITETO', 'GRADE', 'ORDINATOR', 'LOGS'].map((tab) => (
                   <TouchableOpacity
                     key={tab}
                     className={`px-6 py-2 items-center rounded-sm ${
@@ -148,57 +150,6 @@ export default function AdminDashboard() {
               />
             }
           >
-            {state.activeTab === 'SISTEMA' && (
-              <SistemaTab
-                editingMasterId={state.editingMasterId}
-                nome={state.nome}
-                setNome={state.setNome}
-                nickname={state.nickname}
-                setNickname={state.setNickname}
-                matricula={state.matricula}
-                setMatricula={state.setMatricula}
-                loading={state.loading}
-                handleRegisterOrUpdateMaster={state.handleRegisterOrUpdateMaster}
-                cancelEditMaster={state.cancelEditMaster}
-                masters={state.masters}
-                loadingMasters={state.loadingMasters}
-                fetchMasters={state.fetchMasters}
-                handleEditMasterPress={state.handleEditMasterPress}
-                selectedTurmaId={state.selectedTurmaId}
-                setSelectedTurmaId={state.setSelectedTurmaId}
-                turmas={state.turmas}
-                sounds={sounds}
-                loadingStudents={state.loadingStudents}
-                students={state.students}
-                editingStudentId={state.editingStudentId}
-                setEditingStudentId={state.setEditingStudentId}
-                studentNome={state.studentNome}
-                setStudentNome={state.setStudentNome}
-                studentNickname={state.studentNickname}
-                setStudentNickname={state.setStudentNickname}
-                studentTurmaId={state.studentTurmaId}
-                setStudentTurmaId={state.setStudentTurmaId}
-                handleUpdateStudent={state.handleUpdateStudent}
-                handleEditStudentPress={state.handleEditStudentPress}
-                handleResetStudentAccess={state.handleResetStudentAccess}
-                handleResetMasterAccess={state.handleResetMasterAccess}
-                // Monarch Engine v3
-                maxAulasSemanais={state.maxAulasSemanais}
-                setMaxAulasSemanais={state.setMaxAulasSemanais}
-                handleSelectExcel={state.handleSelectExcel}
-                handleUploadFile={state.handleUploadFile}
-                excelData={state.excelData}
-                handleBatchRegisterMastersExcel={state.handleBatchRegisterMastersExcel}
-                categoria={state.categoria}
-                setCategoria={state.setCategoria}
-                currentUser={state.currentUser}
-                deleteRequests={state.deleteRequests}
-                loadingDeleteRequests={state.loadingDeleteRequests}
-                handleConfirmDeleteRequest={state.handleConfirmDeleteRequest}
-                handleRejectDeleteRequest={state.handleRejectDeleteRequest}
-              />
-            )}
-
              {state.activeTab === 'TURMAS' && (
               <TurmasTab
                 turmaNome={state.turmaNome}
@@ -277,6 +228,20 @@ export default function AdminDashboard() {
                 expandedQuestionId={state.expandedQuestionId}
                 setExpandedQuestionId={state.setExpandedQuestionId}
                 sounds={sounds}
+                masters={state.masters}
+                loadingMasters={state.loadingMasters}
+                fetchMasters={state.fetchMasters}
+                handleEditMasterPress={state.handleEditMasterPress}
+                handleResetMasterAccess={state.handleResetMasterAccess}
+                students={state.students}
+                loadingStudents={state.loadingStudents}
+                handleEditStudentPress={state.handleEditStudentPress}
+                handleResetStudentAccess={state.handleResetStudentAccess}
+                deleteRequests={state.deleteRequests}
+                loadingDeleteRequests={state.loadingDeleteRequests}
+                handleConfirmDeleteRequest={state.handleConfirmDeleteRequest}
+                handleRejectDeleteRequest={state.handleRejectDeleteRequest}
+                handleDeleteUser={state.handleDeleteUser}
               />
             )}
 
@@ -300,6 +265,20 @@ export default function AdminDashboard() {
                 excelData={state.excelData}
                 handleBatchRecrutarExcel={state.handleBatchRecrutarExcel}
                 sounds={sounds}
+                editingMasterId={state.editingMasterId}
+                nome={state.nome}
+                setNome={state.setNome}
+                matricula={state.matricula}
+                setMatricula={state.setMatricula}
+                maxAulasSemanais={state.maxAulasSemanais}
+                setMaxAulasSemanais={state.setMaxAulasSemanais}
+                categoria={state.categoria}
+                setCategoria={state.setCategoria}
+                currentUser={state.currentUser}
+                loading={state.loading}
+                handleRegisterOrUpdateMaster={state.handleRegisterOrUpdateMaster}
+                cancelEditMaster={state.cancelEditMaster}
+                handleBatchRegisterMastersExcel={state.handleBatchRegisterMastersExcel}
               />
             )}
 
@@ -337,6 +316,14 @@ export default function AdminDashboard() {
                 fetchDisciplinaConfig={state.fetchDisciplinaConfig}
                 handleSaveDisciplinaConfig={state.handleSaveDisciplinaConfig}
               />
+            )}
+
+            <View style={{ display: state.activeTab === 'ORDINATOR' ? 'flex' : 'none', flex: 1 }}>
+              <OrdinatorTab onDataChanged={state.onRefresh} />
+            </View>
+
+            {state.activeTab === 'LOGS' && (
+              <LogsTab />
             )}
           </ScrollView>
         </Animated.View>

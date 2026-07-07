@@ -30,6 +30,8 @@ export default function SuperAdminDashboard() {
   const [schools, setSchools] = useState<any[]>([]);
   const [newSchoolNome, setNewSchoolNome] = useState('');
   const [newSchoolTipo, setNewSchoolTipo] = useState('MUNICIPAL');
+  const [newSchoolPlano, setNewSchoolPlano] = useState('TRIAL');
+  const [newSchoolMaxTurmas, setNewSchoolMaxTurmas] = useState('2');
   const [loadingSchools, setLoadingSchools] = useState(false);
   const [editingSchoolId, setEditingSchoolId] = useState<string | null>(null);
 
@@ -146,6 +148,8 @@ export default function SuperAdminDashboard() {
     setEditingSchoolId(school.id);
     setNewSchoolNome(school.nome);
     setNewSchoolTipo(school.tipo || 'MUNICIPAL');
+    setNewSchoolPlano(school.plano || 'TRIAL');
+    setNewSchoolMaxTurmas(String(school.maxTurmasMonarch ?? 2));
     
     // Smoothly scroll to the top of the terminal and focus the input for editing
     setTimeout(() => {
@@ -159,6 +163,8 @@ export default function SuperAdminDashboard() {
     setEditingSchoolId(null);
     setNewSchoolNome('');
     setNewSchoolTipo('MUNICIPAL');
+    setNewSchoolPlano('TRIAL');
+    setNewSchoolMaxTurmas('2');
   };
 
   const handleCreateSchool = async () => {
@@ -170,15 +176,17 @@ export default function SuperAdminDashboard() {
     try {
       setLoadingSchools(true);
       if (editingSchoolId) {
-        await updateInstitution(editingSchoolId, newSchoolNome.trim(), newSchoolTipo);
+        await updateInstitution(editingSchoolId, newSchoolNome.trim(), newSchoolTipo, newSchoolPlano, parseInt(newSchoolMaxTurmas) || 2);
         showAlert('SUCESSO', 'Instituição atualizada com sucesso!', 'success');
         setEditingSchoolId(null);
       } else {
-        await createInstitution(newSchoolNome, newSchoolTipo);
+        await createInstitution(newSchoolNome, newSchoolTipo, newSchoolPlano, parseInt(newSchoolMaxTurmas) || 2);
         showAlert('SUCESSO', 'Instituição cadastrada no sistema!', 'success');
       }
       setNewSchoolNome('');
       setNewSchoolTipo('MUNICIPAL');
+      setNewSchoolPlano('TRIAL');
+      setNewSchoolMaxTurmas('2');
       loadAllData();
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Erro ao processar requisição.';
@@ -397,6 +405,42 @@ export default function SuperAdminDashboard() {
                 </View>
               </ScrollView>
 
+              <Text className="text-white/50 text-[10px] uppercase font-mono mb-2 text-center">Plano SaaS:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+                <View className="flex-row gap-2">
+                  {[
+                    { id: 'TRIAL', label: 'Trial' },
+                    { id: 'RANK_B', label: 'Rank B' },
+                    { id: 'RANK_A', label: 'Rank A' },
+                    { id: 'RANK_S', label: 'Rank S' }
+                  ].map((p) => {
+                    const isSelected = newSchoolPlano === p.id;
+                    return (
+                      <TouchableOpacity
+                        key={p.id}
+                        onPress={() => { setNewSchoolPlano(p.id); sounds.playSelect(); }}
+                        className={`px-3 py-2 rounded-sm border ${isSelected ? 'bg-neonBlue/30 border-neonBlue' : 'bg-black/60 border-neonBlue/30'}`}
+                      >
+                        <Text className={`text-[10px] font-mono uppercase font-bold ${isSelected ? 'text-white' : 'text-neonBlue/60'}`}>
+                          {p.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+
+              <Text className="text-white/50 text-[10px] uppercase font-mono mb-2 text-center">Máximo de Turmas (Monarch):</Text>
+              <TextInput
+                placeholder="Ex: 2"
+                placeholderTextColor="#00f3ff80"
+                value={newSchoolMaxTurmas}
+                onChangeText={setNewSchoolMaxTurmas}
+                keyboardType="numeric"
+                className="w-full bg-black/60 border border-neonBlue text-white text-center text-sm py-3 rounded-sm mb-6 font-mono"
+                keyboardAppearance="dark"
+              />
+
               <View className={editingSchoolId ? 'flex-row gap-2' : 'w-full'}>
                 {editingSchoolId && (
                   <TouchableOpacity
@@ -435,7 +479,7 @@ export default function SuperAdminDashboard() {
                       <View className="w-2.5 h-2.5 rounded-full bg-neonBlue" style={{ shadowColor: '#00f3ff', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 4, elevation: 5 }} />
                       <View>
                         <Text className="text-white text-xs font-mono font-bold uppercase">{item.nome}</Text>
-                        <Text className="text-neonBlue/60 text-[9px] font-mono uppercase mt-0.5">{item.tipo || 'MUNICIPAL'}</Text>
+                        <Text className="text-neonBlue/60 text-[9px] font-mono uppercase mt-0.5">{item.tipo || 'MUNICIPAL'} • {item.plano || 'TRIAL'} ({item.maxTurmasMonarch ?? 2} Turmas)</Text>
                       </View>
                     </View>
                     <View className="flex-row items-center gap-2">

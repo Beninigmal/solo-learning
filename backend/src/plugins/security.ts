@@ -3,6 +3,35 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { prisma } from '../prisma';
 
 export default fp(async (fastify: FastifyInstance) => {
+  fastify.decorate('validateTenantStatus', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      if (request.user?.role === 'ADMIN') return;
+      if (request.user?.role === 'ALUNO') return; // Aluno não é bloqueado de primeira, apenas Arquitetos/Mestres
+      
+      let userInstitutionId = request.user?.institutionId;
+      if (!userInstitutionId && request.user?.instituicao) {
+        const inst = await prisma.institution.findFirst({
+          where: { nome: { equals: request.user.instituicao, mode: 'insensitive' } }
+        });
+        if (inst) {
+          userInstitutionId = inst.id;
+        }
+      }
+
+      if (userInstitutionId) {
+        const inst = await prisma.institution.findUnique({ where: { id: userInstitutionId } });
+        if (inst) {
+          if (inst.status === 'INADIMPLENTE' || inst.status === 'CANCELADO') {
+            return reply.status(403).send({ error: 'SISTEMA BLOQUEADO: Assinatura inativa ou cancelada. Contate o suporte.' });
+          }
+        }
+      }
+    } catch (err) {
+      request.log.error(err);
+      return reply.status(500).send({ error: 'Erro ao validar status da assinatura.' });
+    }
+  });
+
   fastify.decorate('validateInstitution', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       // 1. Super Admins (ADMIN role) are global and bypass all tenant checks
@@ -102,5 +131,6 @@ export default fp(async (fastify: FastifyInstance) => {
 declare module 'fastify' {
   interface FastifyInstance {
     validateInstitution: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    validateTenantStatus: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
 }

@@ -21,6 +21,9 @@ model User {
   institution   Institution? @relation(fields: [institutionId], references: [id])
   acceptedTermsAt DateTime?
   parentConsentName String?
+  maxCombo           Int      @default(0)
+
+  partyCooldownUntil DateTime?
   xp            Int      @default(0)
   level         Int      @default(1)
   blocked       Boolean  @default(false)
@@ -51,12 +54,14 @@ model User {
 
   lastActiveAt DateTime @default(now())
   restrictions ProfessorRestriction[]
+  unavailabilities TeacherUnavailability[] @relation("TeacherUnav")
   /// Limite semanal de aulas em regência (2/3 da carga). Default: 16 (contrato 20h).
   /// Para contrato 40h configure como 32. Usado pelo Monarch Engine para controle cross-turma.
   maxAulasSemanais Int? // null = usar default 16
   categoria        String?  @default("CONCURSADO") // CONCURSADO, REDA
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  actionLogs ActionLog[]
 }
 
 model Turma {
@@ -158,6 +163,7 @@ model QuestDelivery {
   erros        Int       @default(0) // Contador de erros para cálculo da penalidade 25%
 
   createdAt   DateTime @default(now())
+  cooldownUntil DateTime?
 
   helpRequested Boolean   @default(false)
   helpResponse  String?
@@ -192,6 +198,7 @@ model Raid {
   activeQuestDeliveryId String?
   currentResponderId    String?
   lastResponderId       String?
+  partyCooldownUntil    DateTime?
 }
 
 model RaidMessage {
@@ -308,12 +315,19 @@ model Institution {
   nome          String       @unique
   codigo        String?      @unique
   tipo          String       @default("MUNICIPAL") // MUNICIPAL, ESTADUAL, PRIVADO_FUNDAMENTAL, PRIVADO_MEDIO, PRIVADO_LIVRE
-  createdAt     DateTime     @default(now())
-  users         User[]
-  turmas        Turma[]
-  disciplinas   Disciplina[]
-  shiftSettings InstitutionShiftSetting[]
-  ensinoBase    Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  users           User[]
+  turmas          Turma[]
+  disciplinas     Disciplina[]
+  shiftSettings   InstitutionShiftSetting[]
+  ensinoBase      Boolean      @default(true)
+
+  // SaaS Core (Planos & Billing)
+  plano           String       @default("TRIAL") // TRIAL, RANK_B, RANK_A, RANK_S
+  status          String       @default("ATIVO") // ATIVO, INADIMPLENTE, CANCELADO
+  trialExpiration DateTime?
+  maxTurmasMonarch Int         @default(2)
+  actionLogs      ActionLog[]
 }
 
 model InstitutionShiftSetting {
@@ -338,6 +352,16 @@ model ProfessorRestriction {
   createdAt   DateTime @default(now())
 
   @@unique([professorId, diaSemana, shift, posicao])
+}
+
+model TeacherUnavailability {
+  id           String   @id @default(uuid())
+  professorId  String
+  professor    User     @relation("TeacherUnav", fields: [professorId], references: [id])
+  diaSemana    String
+  horarioIndex Int
+  
+  @@unique([professorId, diaSemana, horarioIndex])
 }
 
 model GiftedArtifact {
@@ -372,3 +396,13 @@ model GiftedArtifactHistory {
   student User @relation("StudentGifts", fields: [studentId], references: [id], onDelete: Cascade)
 }
 
+model ActionLog {
+  id            String       @id @default(uuid())
+  userId        String?
+  user          User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  action        String
+  details       String?
+  createdAt     DateTime     @default(now())
+}

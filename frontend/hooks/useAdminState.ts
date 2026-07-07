@@ -52,6 +52,7 @@ import {
   getDeleteRequests,
   confirmDeleteRequest,
   rejectDeleteRequest,
+  deleteUser,
 } from '../services/api';
 
 export function useAdminState() {
@@ -197,7 +198,7 @@ export function useAdminState() {
   const [expandedMembersId, setExpandedMembersId] = useState<string | null>(null);
   const [expandedLinkId, setExpandedLinkId] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState('SISTEMA');
+  const [activeTab, setActiveTab] = useState('RECRUTAR');
   const [showTerms, setShowTerms] = useState(false);
   const [termsLoading, setTermsLoading] = useState(false);
 
@@ -679,6 +680,23 @@ export function useAdminState() {
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Erro ao rejeitar solicitação.';
       showAlert('Erro', msg, 'error');
+    }
+  };
+
+  const handleDeleteUser = async (id: string, role: string) => {
+    try {
+      if (role === 'Aluno') setLoadingStudents(true);
+      if (role === 'Mestre') setLoadingMasters(true);
+      await deleteUser(id);
+      showAlert('Sucesso', 'Usuário removido permanentemente.', 'success');
+      if (role === 'Aluno') fetchStudents(selectedTurmaId);
+      if (role === 'Mestre') fetchMasters();
+    } catch (err: any) {
+      const msg = err.response?.data?.error || 'Erro ao excluir usuário.';
+      showAlert('Erro', msg, 'error');
+    } finally {
+      if (role === 'Aluno') setLoadingStudents(false);
+      if (role === 'Mestre') setLoadingMasters(false);
     }
   };
 
@@ -1650,5 +1668,6 @@ export function useAdminState() {
     handleConfirmDeleteRequest,
     handleRejectDeleteRequest,
     handleUpdateUnidade,
+    handleDeleteUser,
   };
 }
