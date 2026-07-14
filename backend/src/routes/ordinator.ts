@@ -191,22 +191,26 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
       } catch (error: any) {
         const isRateLimit = error.status === 429 || error.message?.includes('quota') || error.message?.includes('RESOURCE_EXHAUSTED');
         if (isRateLimit) {
-          console.warn('[Ordinator] Quota excedida no Gemini. Acionando fallback local (Ollama)...');
+          console.warn('[Ordinator] Quota excedida no Gemini. Acionando fallback (Nvidia)...');
           try {
-            const ollamaModel = process.env.OLLAMA_MODEL || 'qwen2.5-coder:7b-instruct-q4_0';
-            const ollamaMessages = [
+            const nvidiaMessages = [
               { role: 'system', content: ordinatorPersona },
               ...history.map(h => ({ role: h.role === 'model' ? 'assistant' : 'user', content: h.parts[0].text })),
               { role: 'user', content: overrideMsg }
             ];
             
-            let ollamaRes = await globalThis.fetch('http://localhost:11434/api/chat', {
+            let nvidiaRes = await globalThis.fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${process.env.NVIDIA_API_KEY}`
+              },
               body: JSON.stringify({
-                model: ollamaModel,
-                messages: ollamaMessages,
-                stream: false,
+                model: "meta/llama-3.1-70b-instruct",
+                messages: nvidiaMessages,
+                temperature: 0.2,
+                top_p: 0.7,
+                max_tokens: 1024,
                 tools: [
                   { type: "function", function: { name: "getStudents", description: "Lista os alunos", parameters: { type: "object", properties: {} } } },
                   { type: "function", function: { name: "removeStudent", description: "Remove aluno", parameters: { type: "object", properties: { matricula: { type: "string" } }, required: ["matricula"] } } },
@@ -216,10 +220,10 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
               })
             });
             
-            if (ollamaRes.ok) {
+            if (nvidiaRes.ok) {
               let actionToTriggerFallback: string | null = null;
-              let data = await ollamaRes.json() as any;
-              let msg = data.message;
+              let data = await nvidiaRes.json() as any;
+              let msg = data.choices[0]?.message;
               let msgContent = msg?.content || '';
               
               const toolCallRegex = /\{\s*"name"\s*:\s*"([^"]+)"\s*,\s*"arguments"\s*:\s*(\{[\s\S]*?\})\s*\}/g;
@@ -236,8 +240,8 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
                  : textToolCalls;
               
               if (toolCallsToProcess.length > 0) {
-                 ollamaMessages.push(msg);
-                 let systemAppendedStatus = "[Ações interceptadas e executadas pelo sistema local:]\n";
+                 nvidiaMessages.push(msg);
+                 let systemAppendedStatus = "[Ações interceptadas e executadas pelo fallback da Nvidia:]\n";
                  
                  for (const tc of toolCallsToProcess) {
                     const callName = tc.function.name;
@@ -254,7 +258,7 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
                         if (!target) target = await prisma.user.findFirst({ where: { nome: { contains: ident, mode: 'insensitive' }, instituicao, role: 'ALUNO' } });
                         if (target) {
                           await prisma.user.delete({ where: { id: target.id } });
-                          await logAction('ORDINATOR_REMOVE_STUDENT', `Aluno removido: ${target.nome}`, request.user.id, instituicao);
+                          await logAction('Exclusão de Aluno (IA)', `Aluno removido: ${target.nome}`, request.user.id, request.user.institutionId);
                           systemAppendedStatus += `- Aluno removido: ${target.nome}\n`;
                         } else {
                           systemAppendedStatus += `- Falha ao remover: Aluno '${ident}' não encontrado.\n`;
@@ -278,7 +282,7 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
                         
                         if (target) {
                           await prisma.user.update({ where: { id: target.id }, data: { turmaId: turma.id } });
-                          await logAction('ORDINATOR_MOVE_STUDENT', `Aluno ${target.nome} movido para turma ${turma.nome}`, request.user.id, instituicao);
+                          await logAction('Transferência de Aluno (IA)', `Aluno ${target.nome} movido para turma ${turma.nome}`, request.user.id, request.user.institutionId);
                           systemAppendedStatus += `- Aluno movido: ${target.nome} para ${turma.nome}\n`;
                           actionToTriggerFallback = 'REFRESH_TIMETABLE';
                         } else {
@@ -294,7 +298,7 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
                            const studentsCount = await prisma.user.count({ where: { turmaId: turma.id, role: 'ALUNO' } });
                            if (studentsCount === 0) {
                               await prisma.turma.delete({ where: { id: turma.id } });
-                              await logAction('ORDINATOR_REMOVE_TURMA', `Turma excluída: ${turma.nome}`, request.user.id, instituicao);
+                              await logAction('Exclusão de Turma (IA)', `Turma excluída: ${turma.nome}`, request.user.id, request.user.institutionId);
                               systemAppendedStatus += `- Turma excluída: ${turma.nome}\n`;
                               actionToTriggerFallback = 'REFRESH_TIMETABLE';
                            } else {
@@ -313,7 +317,7 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
                   data.message.content = finalCleanText + "\n\n" + systemAppendedStatus;
                }
               
-              const text = data.message?.content || 'Ações executadas via fallback.';
+              const text = data.choices[0]?.message?.content || 'Ações executadas via fallback da Nvidia.';
               
               const newHistory = [
                 ...history,
@@ -327,13 +331,13 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
                 action: actionToTriggerFallback
               });
             } else {
-              const errText = await ollamaRes.text();
-              console.error('[Ordinator] Ollama retornou erro HTTP:', ollamaRes.status, errText);
-              throw new Error(`Fallback Ollama falhou com status ${ollamaRes.status}: ${errText}`);
+              const errText = await nvidiaRes.text();
+              console.error('[Ordinator] Nvidia retornou erro HTTP:', nvidiaRes.status, errText);
+              throw new Error(`Fallback Nvidia falhou com status ${nvidiaRes.status}: ${errText}`);
             }
-          } catch (ollamaErr: any) {
-            console.error('[Ordinator] Falha no fallback do Ollama:', ollamaErr);
-            throw new Error(`Falha crítica no fallback local (Ollama): ${ollamaErr.message}`);
+          } catch (nvidiaErr: any) {
+            console.error('[Ordinator] Falha no fallback da Nvidia:', nvidiaErr);
+            throw new Error(`Falha crítica no fallback da Nvidia: ${nvidiaErr.message}`);
           }
         }
         throw error;
@@ -387,7 +391,7 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
                 })
               );
               await Promise.all(promises);
-              await logAction('ORDINATOR_SET_UNAVAILABILITY', `Restrição adicionada para o professor ${prof.nome}`, request.user.id, instituicao);
+              await logAction('Bloqueio de Horário (IA)', `Restrição adicionada para o professor ${prof.nome}`, request.user.id, request.user.institutionId);
               toolResponses.push({
                 functionResponse: {
                   name: 'setTeacherUnavailability',
@@ -406,7 +410,7 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
             const { shift } = call.args as any;
             actionToTrigger = 'TRIGGER_MONARCH';
             actionData = { shift: shift || 'MATUTINO' };
-            await logAction('ORDINATOR_GENERATE_TIMETABLE', `Engine rodada (Rascunho) - Turno: ${shift || 'MATUTINO'}`, request.user.id, instituicao);
+            await logAction('Geração de Grade (IA)', `Engine rodada (Rascunho) - Turno: ${shift || 'MATUTINO'}`, request.user.id, request.user.institutionId);
             toolResponses.push({
               functionResponse: {
                 name: 'triggerMonarchEngine',
@@ -552,7 +556,7 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
             }
 
             actionToTrigger = 'REFRESH_TIMETABLE';
-            await logAction('ORDINATOR_BATCH_REGISTER_STUDENTS', `Cadastrados ${criados} alunos`, request.user.id, instituicao);
+            await logAction('Cadastro em Lote (IA)', `Cadastrados ${criados} alunos`, request.user.id, request.user.institutionId);
 
             toolResponses.push({
               functionResponse: {
@@ -577,7 +581,7 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
             if (!target) target = await prisma.user.findFirst({ where: { nome: { contains: ident, mode: 'insensitive' }, instituicao, role: 'ALUNO' } });
             if (target) {
               await prisma.user.delete({ where: { id: target.id } });
-              await logAction('ORDINATOR_REMOVE_STUDENT', `Aluno removido: ${target.nome}`, request.user.id, instituicao);
+              await logAction('Exclusão de Aluno (IA)', `Aluno removido: ${target.nome}`, request.user.id, request.user.institutionId);
               toolResponses.push({ functionResponse: { name: 'removeStudent', response: { success: true, removed: target.nome } } });
             } else {
               toolResponses.push({ functionResponse: { name: 'removeStudent', response: { success: false, error: 'Aluno não encontrado' } } });
@@ -602,7 +606,7 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
             
             if (target) {
               await prisma.user.update({ where: { id: target.id }, data: { turmaId: turma.id } });
-              await logAction('ORDINATOR_MOVE_STUDENT', `Aluno ${target.nome} movido para turma ${turma.nome}`, request.user.id, instituicao);
+              await logAction('Transferência de Aluno (IA)', `Aluno ${target.nome} movido para turma ${turma.nome}`, request.user.id, request.user.institutionId);
               toolResponses.push({ functionResponse: { name: 'moveStudent', response: { success: true, moved: target.nome, to: turma.nome } } });
               actionToTrigger = 'REFRESH_TIMETABLE';
             } else {
@@ -620,7 +624,7 @@ Você NÃO deve mencionar direitos autorais, nem referenciar animes ou obras de 
               const studentsCount = await prisma.user.count({ where: { turmaId: turma.id, role: 'ALUNO' } });
               if (studentsCount === 0) {
                 await prisma.turma.delete({ where: { id: turma.id } });
-                await logAction('ORDINATOR_REMOVE_TURMA', `Turma excluída: ${turma.nome}`, request.user.id, instituicao);
+                await logAction('Exclusão de Turma (IA)', `Turma excluída: ${turma.nome}`, request.user.id, request.user.institutionId);
                 toolResponses.push({ functionResponse: { name: 'removeTurma', response: { success: true, removed: turma.nome } } });
                 actionToTrigger = 'REFRESH_TIMETABLE';
               } else {

@@ -1422,7 +1422,12 @@ export function useAdminState() {
       setLoading(false);
     }
   };
-
+  const cancelEditStudent = () => {
+    setEditingStudentId(null);
+    setStudentNome('');
+    setStudentNickname('');
+    setStudentTurmaId('');
+  };
   const handleLogout = async () => {
     await logout();
     router.replace('/login');
@@ -1667,6 +1672,7 @@ export function useAdminState() {
     cancelEditMaster,
     handleEditStudentPress,
     handleUpdateStudent,
+    cancelEditStudent,
     handleLogout,
     handleUpdateDisciplina,
     handleDeleteDisciplina,

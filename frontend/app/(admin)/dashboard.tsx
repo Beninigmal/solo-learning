@@ -245,6 +245,30 @@ export default function AdminDashboard() {
                 handleConfirmDeleteRequest={state.handleConfirmDeleteRequest}
                 handleRejectDeleteRequest={state.handleRejectDeleteRequest}
                 handleDeleteUser={state.handleDeleteUser}
+                showAlert={state.showAlert}
+                
+                editingMasterId={state.editingMasterId}
+                nome={state.nome}
+                setNome={state.setNome}
+                matricula={state.matricula}
+                setMatricula={state.setMatricula}
+                maxAulasSemanais={state.maxAulasSemanais}
+                setMaxAulasSemanais={state.setMaxAulasSemanais}
+                categoria={state.categoria}
+                setCategoria={state.setCategoria}
+                loading={state.loading}
+                handleRegisterOrUpdateMaster={state.handleRegisterOrUpdateMaster}
+                cancelEditMaster={state.cancelEditMaster}
+                
+                editingStudentId={state.editingStudentId}
+                studentNome={state.studentNome}
+                setStudentNome={state.setStudentNome}
+                studentNickname={state.studentNickname}
+                setStudentNickname={state.setStudentNickname}
+                studentTurmaId={state.studentTurmaId}
+                setStudentTurmaId={state.setStudentTurmaId}
+                handleUpdateStudent={state.handleUpdateStudent}
+                cancelEditStudent={state.cancelEditStudent}
               />
             )}
 

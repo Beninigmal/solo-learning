@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { prisma } from '../prisma';
 import bcrypt from 'bcryptjs';
+import { logAction } from '../services/actionLog';
 
 export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   // Hook de autenticação e verificação de role ADMIN (Super Admin)
@@ -323,6 +324,8 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
       await prisma.user.delete({
         where: { id }
       });
+
+      await logAction('Exclusão de Arquiteto (Root)', `Arquiteto excluído: ${architect.nome} (Matrícula: ${architect.matricula})`, request.user.id, architect.institutionId);
 
       return reply.status(200).send({ message: 'Arquiteto excluído com sucesso.' });
     } catch (error) {

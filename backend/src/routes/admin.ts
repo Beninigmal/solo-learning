@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { prisma } from '../prisma';
 import { PrismaUserRepository } from '../infra/database/repositories/PrismaUserRepository';
+import { logAction } from '../services/actionLog';
 import bcrypt from 'bcryptjs';
 import * as XLSX from 'xlsx';
 
@@ -75,6 +76,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           categoria: finalCategoria
         }
       });
+      await logAction('Cadastro de Professor', `Professor cadastrado: ${user.nome} (${user.matricula})`, request.user.id, request.user.institutionId);
       return reply.status(201).send({ message: 'Mestre cadastrado com sucesso!', user });
     } catch (error: any) {
       if (error.code === 'P2002') {
@@ -496,6 +498,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           institutionId: request.user.institutionId || null
         }
       });
+      await logAction('Cadastro de Aluno', `Aluno cadastrado: ${student.nome} (${student.matricula})`, request.user.id, request.user.institutionId);
       return reply.status(201).send(student);
     } catch (error: any) {
       return reply.status(500).send({ error: 'Erro ao processar cadastro de aluno.', details: error.message });
@@ -554,6 +557,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           }
         }
       }
+
+      await logAction('Cadastro em Lote (Alunos)', `${createdCount} alunos cadastrados em lote`, request.user.id, request.user.institutionId);
 
       return reply.status(201).send({ 
         message: `${createdCount} alunos cadastrados com sucesso.`,
@@ -765,6 +770,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         }
       }
 
+      await logAction('Cadastro em Lote (Professores)', `${createdCount} professores cadastrados em lote`, request.user.id, request.user.institutionId);
+
       return reply.status(201).send({
         message: `${createdCount} professores cadastrados com sucesso.`,
         errors: errors.length > 0 ? errors : undefined
@@ -795,6 +802,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
 
       const userRepository = new PrismaUserRepository();
       await userRepository.delete(id);
+
+      await logAction('Exclusão de Usuário', `Usuário excluído: ${targetUser.nome} (${targetUser.matricula})`, request.user.id, request.user.institutionId);
 
       return reply.status(200).send({ message: 'Usuário excluído com sucesso.' });
     } catch (error: any) {
@@ -831,11 +840,16 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       }
 
       const userRepository = new PrismaUserRepository();
+      const deletedUser = await prisma.user.findUnique({ where: { id: reqDel.userId } });
+      const userName = deletedUser ? deletedUser.nome : reqDel.userId;
+
       await userRepository.delete(reqDel.userId);
 
       try {
         await prisma.deleteAccountRequest.delete({ where: { id } });
       } catch (err) {}
+
+      await logAction('Exclusão de Conta (Solicitação Confirmada)', `Conta excluída via solicitação: ${userName} (Motivo: ${reqDel.reason})`, request.user.id, request.user.institutionId);
 
       return reply.status(200).send({ message: 'Conta excluída com sucesso.' });
     } catch (error: any) {

@@ -30,3 +30,12 @@ Rules:
 Not lazy about: understanding the problem (read it fully and trace the real flow before picking a rung, a small diff you don't understand is just laziness dressed up as efficiency), input validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs (the platform is never the spec ideal, a clock drifts, a sensor reads off), anything explicitly requested. Lazy code without its check is unfinished: non-trivial logic leaves ONE runnable check behind, the smallest thing that fails if the logic breaks (an assert-based demo/self-check or one small test file; no frameworks, no fixtures). Trivial one-liners need no test.
 
 (Yes, this file also applies to agents working on the ponytail repo itself. Especially to them.)
+
+## Skill: Cross-Platform Expo Guardian
+
+As an agent working on this codebase, you must guarantee that features work seamlessly across both **Web** and **Mobile** (Expo) environments.
+To avoid breaking one platform while fixing another, strictly follow these directives:
+1. **Never assume single-platform execution:** If you fix a component for Web, ensure it won't crash on Mobile (and vice-versa). Always consider the execution context of the other platform.
+2. **Gate platform-specific APIs:** Libraries like `@shopify/react-native-skia` or native modules often lack synchronous Web support or DOM APIs are missing on native. Always use `Platform.OS === 'web'` to safely fallback or bypass unsupported code.
+3. **Prevent regression loops:** Before applying a fix, evaluate if your changes (like `useMemo`, conditional hooks, or lazy loading) violate React rules on one platform or cause unhandled exceptions on the other.
+4. **Use platform extensions for complex divergence:** If the logic or UI diverges heavily, prefer creating `[Component].web.tsx` and `[Component].native.tsx` rather than polluting a single file with complex `Platform.OS` ternaries.
