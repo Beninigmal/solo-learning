@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { CyberSubmitButton } from '../CyberSubmitButton';
+import { useWebDragScroll } from '../../hooks/useWebDragScroll';
 
 interface MateriasTabProps {
   newDisciplinaNome: string;
@@ -33,6 +34,9 @@ interface MateriasTabProps {
   handleDeleteDisciplina: (id: string) => void;
   handleUnlinkProfessor: (profId: string, discId: string) => void;
   sounds: any;
+  currentUser?: any;
+  handleCreateDefaultDisciplinas?: (nivel?: string) => void;
+  handleDeleteUnlinkedDisciplinas?: () => void;
 }
 
 export function MateriasTab({
@@ -65,7 +69,14 @@ export function MateriasTab({
   handleDeleteDisciplina,
   handleUnlinkProfessor,
   sounds,
+  currentUser,
+  handleCreateDefaultDisciplinas,
+  handleDeleteUnlinkedDisciplinas,
 }: MateriasTabProps) {
+  const scrollRef1 = useWebDragScroll();
+  const scrollRef2 = useWebDragScroll();
+  const scrollRef3 = useWebDragScroll();
+
   const firstSelectedTurmaId = selectedLinkTurmaIds[0];
   const firstSelectedTurma = turmas.find(t => t.id === firstSelectedTurmaId);
   const activeLevel = firstSelectedTurma ? (firstSelectedTurma.nivel || 'FUNDAMENTAL') : null;
@@ -82,29 +93,52 @@ export function MateriasTab({
   const selectedDisc = allDisciplinasList.find(d => d.id === selectedDisciplinaId);
 
   const getSubjectDefaultHours = (name: string): number => {
-    const clean = cleanNormalize(name);
-    if (clean.includes("portugues") || clean.includes("matematica")) return 5;
-    if (clean.includes("historia") || clean.includes("geografia") || clean.includes("ciencia") || clean.includes("biologia")) return 3;
-    if (clean.includes("ingles") || clean.includes("ed") || clean.includes("fisica") || clean.includes("quimica")) return 2;
-    if (clean.includes("arte") || clean.includes("filosofia") || clean.includes("relig") || clean.includes("sociologia")) return 1;
+    const cleanSub = cleanNormalize(name);
+    let level: 'FUNDAMENTAL' | 'MEDIO_REGULAR' | 'MEDIO_TECNICO' = 'FUNDAMENTAL';
+    if (activeLevel === 'MEDIO') level = 'MEDIO_REGULAR';
+    else if (activeLevel === 'MEDIO_TECNICO') level = 'MEDIO_TECNICO';
+
+    if (cleanSub.includes("portugues") || cleanSub.includes("lingua portuguesa") || cleanSub.includes("redacao")) {
+      return (level === "FUNDAMENTAL") ? 5 : 4;
+    }
+    if (cleanSub.includes("matematica") || cleanSub.includes("calculo")) {
+      if (level === "FUNDAMENTAL") return 5;
+      if (level === "MEDIO_REGULAR") return 2;
+      return 3;
+    }
+    if (cleanSub.includes("historia") || cleanSub.includes("geografia") || cleanSub.includes("ciencia") || cleanSub.includes("biologia")) {
+      return (level === "FUNDAMENTAL") ? 3 : 2;
+    }
+    if (cleanSub.includes("fisica") || cleanSub.includes("quimica")) {
+      return 2;
+    }
+    if (cleanSub.includes("ingles") || cleanSub.includes("ed") || cleanSub.includes("esport")) {
+      return 2;
+    }
+    if (cleanSub.includes("arte") || cleanSub.includes("filosofia") || cleanSub.includes("relig") || cleanSub.includes("sociologia")) {
+      return 1;
+    }
     return 2;
   };
 
-  // Calcular carga alocada em OUTRAS disciplinas
+  // Calcular carga alocada em OUTRAS turmas/disciplinas
   let allocatedOtherHours = 0;
   allDisciplinasList.forEach(d => {
-    if (d.id !== selectedDisciplinaId) {
-      const profLink = d.professores?.find((p: any) => p.id === selectedProfessorId);
-      if (profLink && Array.isArray(profLink.turmas)) {
-        profLink.turmas.forEach((t: any) => {
-          allocatedOtherHours += (t.aulasSemanais && t.aulasSemanais > 0) ? t.aulasSemanais : getSubjectDefaultHours(d.nome);
-        });
-      }
+    const profLink = d.professores?.find((p: any) => p.id === selectedProfessorId);
+    if (profLink && Array.isArray(profLink.turmas)) {
+      profLink.turmas.forEach((t: any) => {
+        // Se a turma estiver no selectedLinkTurmaIds E for a disciplina atual, não somamos aqui pois estará no proposedNewHours
+        if (d.id === selectedDisciplinaId && selectedLinkTurmaIds.includes(t.id)) {
+          return;
+        }
+        allocatedOtherHours += (t.aulasSemanais && t.aulasSemanais > 0) ? t.aulasSemanais : getSubjectDefaultHours(d.nome);
+      });
     }
   });
 
-  const currentSubjectWeight = Number(aulasSemanais) > 0 
-    ? Number(aulasSemanais) 
+  const parsedAulas = parseInt((aulasSemanais || '').trim(), 10);
+  const currentSubjectWeight = !isNaN(parsedAulas) && parsedAulas > 0 
+    ? parsedAulas 
     : (selectedDisc ? getSubjectDefaultHours(selectedDisc.nome) : 2);
   const proposedNewHours = selectedLinkTurmaIds.length * currentSubjectWeight;
   const totalCalculatedHours = allocatedOtherHours + proposedNewHours;
@@ -113,6 +147,63 @@ export function MateriasTab({
   return (
     <View className="bg-[#0a1128]/90 border border-neonBlue/50 p-6 rounded-sm mb-6">
       <Text className="text-white text-lg font-bold uppercase tracking-widest mb-6">Manejo de Disciplinas</Text>
+
+      {/* Botões de Ação Global (Matérias Padrão e Limpeza) */}
+      <View className="flex-row gap-3 mb-6">
+        {(currentUser?.institution?.tipo === 'PRIVADO_LIVRE' || currentUser?.institution?.tipo === 'PRIVADO') ? (
+          <>
+            <TouchableOpacity
+              className="flex-1 bg-neonBlue/10 border border-neonBlue/40 py-2.5 rounded-sm items-center justify-center flex-row gap-2"
+              onPress={() => {
+                sounds.playSelect();
+                if (handleCreateDefaultDisciplinas) handleCreateDefaultDisciplinas('FUNDAMENTAL');
+              }}
+            >
+              <Feather name="plus-circle" size={14} color="#00f3ff" />
+              <Text className="text-neonBlue font-bold uppercase tracking-widest text-[10px]">
+                Gerar Matérias (Fundamental)
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="flex-1 bg-neonBlue/10 border border-neonBlue/40 py-2.5 rounded-sm items-center justify-center flex-row gap-2"
+              onPress={() => {
+                sounds.playSelect();
+                if (handleCreateDefaultDisciplinas) handleCreateDefaultDisciplinas('MEDIO');
+              }}
+            >
+              <Feather name="plus-circle" size={14} color="#00f3ff" />
+              <Text className="text-neonBlue font-bold uppercase tracking-widest text-[10px]">
+                Gerar Matérias (Médio)
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <TouchableOpacity
+            className="flex-1 bg-neonBlue/10 border border-neonBlue/40 py-2.5 rounded-sm items-center justify-center flex-row gap-2"
+            onPress={() => {
+              sounds.playSelect();
+              if (handleCreateDefaultDisciplinas) handleCreateDefaultDisciplinas();
+            }}
+          >
+            <Feather name="plus-circle" size={14} color="#00f3ff" />
+            <Text className="text-neonBlue font-bold uppercase tracking-widest text-[10px]">
+              Gerar Matérias Padrão
+            </Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          className="bg-red-900/10 border border-red-500/40 px-4 py-2.5 rounded-sm items-center justify-center flex-row gap-2"
+          onPress={() => {
+            sounds.playSelect();
+            if (handleDeleteUnlinkedDisciplinas) handleDeleteUnlinkedDisciplinas();
+          }}
+        >
+          <Feather name="trash-2" size={14} color="#f87171" />
+          <Text className="text-red-400 font-bold uppercase tracking-widest text-[10px]">
+            Limpar Órfãs
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Criar Matéria */}
       <View className="mb-6 bg-black/40 border border-neonBlue/20 p-4 rounded-sm">
@@ -138,9 +229,47 @@ export function MateriasTab({
       <View className="mb-6 bg-black/40 border border-neonBlue/20 p-4 rounded-sm">
         <Text className="text-white font-bold uppercase text-xs tracking-wider mb-3">Vincular Professor a Matéria</Text>
         
-        {/* Turma Selector (Primeira Posição - Filtro & Associação Múltipla) */}
-        <Text className="text-white/50 text-[10px] uppercase font-bold mb-1">1. Selecionar Turmas Alvo (Filtro Inteligente de Nível):</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3" contentContainerStyle={{ paddingHorizontal: 8 }}>
+        {/* Professor Selector (Primeira Posição) */}
+        <Text className="text-white/50 text-[10px] uppercase font-bold mb-1">1. Selecionar Professor:</Text>
+        <ScrollView ref={scrollRef1} horizontal showsHorizontalScrollIndicator={false} className="mb-4" contentContainerStyle={{ paddingHorizontal: 8 }}>
+          <View className="flex-row gap-2">
+            {masters.map(m => (
+              <TouchableOpacity
+                key={m.id}
+                onPress={() => { setSelectedProfessorId(m.id); sounds.playSelect(); }}
+                className={`px-3 py-2 rounded-sm border ${selectedProfessorId === m.id ? 'bg-neonBlue/20 border-neonBlue' : 'bg-black/50 border-neonBlue/20'}`}
+                activeOpacity={0.7}
+              >
+                <Text className={`text-xs font-mono ${(selectedProfessorId === m.id) ? 'text-white' : 'text-neonBlue/40'}`}>
+                  {m.nickname || m.nome}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+
+        {/* Disciplina Selector (Segunda Posição) */}
+        <Text className="text-white/50 text-[10px] uppercase font-bold mb-1">2. Selecionar Disciplina:</Text>
+        <ScrollView ref={scrollRef2} horizontal showsHorizontalScrollIndicator={false} className="mb-3" contentContainerStyle={{ paddingHorizontal: 8 }}>
+          <View className="flex-row gap-2">
+            {filteredDisciplinas.map(d => (
+              <TouchableOpacity
+                key={d.id}
+                onPress={() => { setSelectedDisciplinaId(d.id); sounds.playSelect(); }}
+                className={`px-3 py-2 rounded-sm border ${selectedDisciplinaId === d.id ? 'bg-neonBlue/20 border-neonBlue' : 'bg-black/50 border-neonBlue/20'}`}
+                activeOpacity={0.7}
+              >
+                <Text className={`text-xs font-mono ${(selectedDisciplinaId === d.id) ? 'text-white' : 'text-neonBlue/40'}`}>
+                  {d.nome}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+
+        {/* Turma Selector (Terceira Posição - Filtro & Associação Múltipla) */}
+        <Text className="text-white/50 text-[10px] uppercase font-bold mb-1">3. Selecionar Turmas Alvo (Filtro Inteligente de Nível):</Text>
+        <ScrollView ref={scrollRef3} horizontal showsHorizontalScrollIndicator={false} className="mb-3" contentContainerStyle={{ paddingHorizontal: 8 }}>
           <View className="flex-row gap-2">
             {turmas.map(t => {
               const isSelected = selectedLinkTurmaIds.includes(t.id);
@@ -183,44 +312,6 @@ export function MateriasTab({
                 </TouchableOpacity>
               );
             })}
-          </View>
-        </ScrollView>
-
-        {/* Disciplina Selector (Segunda Posição) */}
-        <Text className="text-white/50 text-[10px] uppercase font-bold mb-1">2. Selecionar Disciplina:</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3" contentContainerStyle={{ paddingHorizontal: 8 }}>
-          <View className="flex-row gap-2">
-            {filteredDisciplinas.map(d => (
-              <TouchableOpacity
-                key={d.id}
-                onPress={() => { setSelectedDisciplinaId(d.id); sounds.playSelect(); }}
-                className={`px-3 py-2 rounded-sm border ${selectedDisciplinaId === d.id ? 'bg-neonBlue/20 border-neonBlue' : 'bg-black/50 border-neonBlue/20'}`}
-                activeOpacity={0.7}
-              >
-                <Text className={`text-xs font-mono ${(selectedDisciplinaId === d.id) ? 'text-white' : 'text-neonBlue/40'}`}>
-                  {d.nome}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-
-        {/* Professor Selector (Terceira Posição) */}
-        <Text className="text-white/50 text-[10px] uppercase font-bold mb-1">3. Selecionar Professor:</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4" contentContainerStyle={{ paddingHorizontal: 8 }}>
-          <View className="flex-row gap-2">
-            {masters.map(m => (
-              <TouchableOpacity
-                key={m.id}
-                onPress={() => { setSelectedProfessorId(m.id); sounds.playSelect(); }}
-                className={`px-3 py-2 rounded-sm border ${selectedProfessorId === m.id ? 'bg-neonBlue/20 border-neonBlue' : 'bg-black/50 border-neonBlue/20'}`}
-                activeOpacity={0.7}
-              >
-                <Text className={`text-xs font-mono ${(selectedProfessorId === m.id) ? 'text-white' : 'text-neonBlue/40'}`}>
-                  {m.nickname || m.nome}
-                </Text>
-              </TouchableOpacity>
-            ))}
           </View>
         </ScrollView>
 

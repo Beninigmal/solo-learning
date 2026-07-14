@@ -20,7 +20,6 @@ interface TurmasTabProps {
   turmas: any[];
   fetchTurmas: () => void;
   sounds: any;
-  currentUser?: any;
   handleUpdateUnidade: (turmaId: string, unidade: number) => void;
 }
 

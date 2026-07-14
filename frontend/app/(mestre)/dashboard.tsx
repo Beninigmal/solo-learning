@@ -187,7 +187,7 @@ export default function MestreDashboard() {
       return (
         <ForjaTab
           turmas={state.turmas}
-          disciplinas={state.disciplinas}
+          disciplinas={state.forjaDisciplinas}
           forjaTurmaId={state.forjaTurmaId}
           setForjaTurmaId={(id) => state.setForjaTurmaId(id || '')}
           forjaDisciplinaId={state.forjaDisciplinaId}
@@ -315,6 +315,7 @@ export default function MestreDashboard() {
           timetableSlots={state.timetableSlots}
           disciplinas={state.disciplinas}
           sounds={sounds}
+          currentUserId={state.currentUser?.id}
         />
       );
     }

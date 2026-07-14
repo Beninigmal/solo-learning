@@ -155,7 +155,7 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
           onPress={() => { setTipoQuest('CALCULO'); setExigeCalculo(true); sounds.playSelect(); }}
         >
           <Text className={`text-[9px] uppercase font-bold tracking-widest ${tipoQuest === 'CALCULO' ? 'text-white' : 'text-neonBlue/50'}`}>
-            Cálculo (Foto)
+            Foto
           </Text>
         </TouchableOpacity>
         <TouchableOpacity

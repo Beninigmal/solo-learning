@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { CyberSubmitButton } from '../CyberSubmitButton';
+import { useWebDragScroll } from '../../hooks/useWebDragScroll';
 
 interface MateriasTabProps {
   currentUserRole: string;
@@ -42,6 +43,9 @@ export const MateriasTab: React.FC<MateriasTabProps> = ({
   handleUnlinkProfessor,
   sounds,
 }) => {
+  const scrollRef1 = useWebDragScroll();
+  const scrollRef2 = useWebDragScroll();
+
   return (
     <View className="bg-[#0a1128]/90 border border-neonBlue/50 p-6 rounded-sm mb-6">
       <Text className="text-white text-lg font-bold uppercase tracking-widest mb-6">Manejo de Disciplinas</Text>
@@ -80,7 +84,7 @@ export const MateriasTab: React.FC<MateriasTabProps> = ({
             
             {/* Professor Selector */}
             <Text className="text-white/50 text-[10px] uppercase font-bold mb-1">Selecionar Professor:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3" contentContainerStyle={{ paddingHorizontal: 8 }}>
+            <ScrollView ref={scrollRef1} horizontal showsHorizontalScrollIndicator={false} className="mb-3" contentContainerStyle={{ paddingHorizontal: 8 }}>
               <View className="flex-row gap-2">
                 {masters.map(m => (
                   <TouchableOpacity
@@ -99,7 +103,7 @@ export const MateriasTab: React.FC<MateriasTabProps> = ({
 
             {/* Disciplina Selector */}
             <Text className="text-white/50 text-[10px] uppercase font-bold mb-1">Selecionar Disciplina:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4" contentContainerStyle={{ paddingHorizontal: 8 }}>
+            <ScrollView ref={scrollRef2} horizontal showsHorizontalScrollIndicator={false} className="mb-4" contentContainerStyle={{ paddingHorizontal: 8 }}>
               <View className="flex-row gap-2">
                 {allDisciplinasList.map(d => (
                   <TouchableOpacity

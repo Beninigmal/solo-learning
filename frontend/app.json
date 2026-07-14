@@ -3,7 +3,7 @@
     "name": "Collegium: A Guilda do Aprendiz",
     "slug": "frontend",
     "scheme": "solen",
-    "version": "1.3.0",
+    "version": "1.3.1",
     "orientation": "portrait",
     "icon": "./assets/first.png",
     "userInterfaceStyle": "light",

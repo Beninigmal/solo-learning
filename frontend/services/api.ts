@@ -206,6 +206,16 @@ export const getDisciplinas = async () => {
   return response.data;
 };
 
+export const createDefaultDisciplinas = async (nivel?: string) => {
+  const response = await api.post('/admin/disciplinas/default', { nivel });
+  return response.data;
+};
+
+export const deleteUnlinkedDisciplinas = async () => {
+  const response = await api.delete('/admin/disciplinas/unlinked');
+  return response.data;
+};
+
 export const getAdminTurmas = async () => {
   const response = await api.get('/admin/turmas');
   return response.data;

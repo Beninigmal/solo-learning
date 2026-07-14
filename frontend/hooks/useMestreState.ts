@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Animated, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
@@ -567,6 +567,16 @@ export function useMestreState() {
     }
   };
 
+  const fetchDisciplinas = useCallback(async () => {
+    // Mantido por compatibilidade, mas as disciplinas reais para Forja serão derivadas.
+    try {
+      const data = await getProfessorDisciplinas();
+      setDisciplinas(data);
+    } catch (error) {
+      console.error('Erro ao carregar disciplinas');
+    }
+  }, []);
+
   const fetchInitialData = useCallback(async () => {
     try {
       const userRaw = await AsyncStorage.getItem('@Solen:user');
@@ -597,11 +607,12 @@ export function useMestreState() {
         .then((data) => setMasters(data))
         .catch(() => {});
       fetchDisciplinasWithProfessores();
+      fetchDisciplinas();
       fetchCalendarEvents();
     } catch (e) {
       console.error(e);
     }
-  }, [fetchDisciplinasWithProfessores, fetchCalendarEvents]);
+  }, [fetchDisciplinasWithProfessores, fetchCalendarEvents, fetchDisciplinas]);
 
   const handleAcceptTerms = async (parentConsentName?: string) => {
     setTermsLoading(true);
@@ -674,17 +685,29 @@ export function useMestreState() {
     }
   }, []);
 
-  const fetchDisciplinas = useCallback(async () => {
-    try {
-      const data = await getProfessorDisciplinas();
-      setDisciplinas(data);
-      if (data.length > 0 && !forjaDisciplinaId) {
-        setForjaDisciplinaId(data[0].id);
+
+  const disciplinasFiltradas = useMemo(() => {
+    if (!forjaTurmaId) return [];
+    const turmaSelecionada = turmas.find(t => t.id === forjaTurmaId);
+    if (!turmaSelecionada || !turmaSelecionada.turmaDisciplinas) return disciplinas;
+    
+    // Remove duplicatas caso haja
+    const unique = Array.from(new Map(turmaSelecionada.turmaDisciplinas.map((td: any) => [td.disciplina.id, td.disciplina])).values());
+    return unique;
+  }, [forjaTurmaId, turmas, disciplinas]);
+
+  // Efeito para auto-selecionar a disciplina quando a turma muda
+  useEffect(() => {
+    if (disciplinasFiltradas.length > 0) {
+      // Verifica se a disciplina selecionada atualmente ainda é válida nesta turma
+      const isValid = disciplinasFiltradas.some((d: any) => d.id === forjaDisciplinaId);
+      if (!isValid) {
+        setForjaDisciplinaId(disciplinasFiltradas[0].id);
       }
-    } catch (error) {
-      console.error('Erro ao carregar disciplinas');
+    } else {
+      setForjaDisciplinaId('');
     }
-  }, [forjaDisciplinaId]);
+  }, [disciplinasFiltradas]);
 
   const fetchPendingQuests = useCallback(async () => {
     try {
@@ -1235,6 +1258,7 @@ export function useMestreState() {
     forjando,
     loadingBoss,
     disciplinas,
+    forjaDisciplinas: disciplinasFiltradas,
     forjaDisciplinaId,
     setForjaDisciplinaId,
     duracaoDiasBoss,

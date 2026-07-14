@@ -204,6 +204,9 @@ export default function AdminDashboard() {
                 sounds={sounds}
                 aulasSemanais={state.aulasSemanais}
                 setAulasSemanais={state.setAulasSemanais}
+                currentUser={state.currentUser}
+                handleCreateDefaultDisciplinas={state.handleCreateDefaultDisciplinas}
+                handleDeleteUnlinkedDisciplinas={state.handleDeleteUnlinkedDisciplinas}
               />
             )}
 

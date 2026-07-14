@@ -17,7 +17,7 @@ import {
   getDisciplinas,
   createVinculo,
   deleteVinculo,
-  createTurma,
+  createTurma, createDefaultDisciplinas, deleteUnlinkedDisciplinas,
   updateAdminTurma,
   createGoldenQuestion,
   getGoldenQuestions,
@@ -1473,6 +1473,36 @@ export function useAdminState() {
     );
   };
 
+  const handleCreateDefaultDisciplinas = async (nivel?: string) => {
+    try {
+      setLoadingDisciplinas(true);
+      const res = await createDefaultDisciplinas(nivel);
+      showAlert('Sucesso', res.message, 'success');
+      fetchDisciplinasWithProfessores();
+      fetchDisciplinas();
+    } catch (e: any) {
+      console.error(e);
+      showAlert('Erro', e.response?.data?.error || 'Não foi possível gerar matérias padrão.', 'error');
+    } finally {
+      setLoadingDisciplinas(false);
+    }
+  };
+
+  const handleDeleteUnlinkedDisciplinas = async () => {
+    try {
+      setLoadingDisciplinas(true);
+      const res = await deleteUnlinkedDisciplinas();
+      showAlert('Sucesso', res.message, 'success');
+      fetchDisciplinasWithProfessores();
+      fetchDisciplinas();
+    } catch (e: any) {
+      console.error(e);
+      showAlert('Erro', e.response?.data?.error || 'Não foi possível limpar matérias órfãs.', 'error');
+    } finally {
+      setLoadingDisciplinas(false);
+    }
+  };
+
   return {
     fadeAnim,
     slideAnim,
@@ -1669,5 +1699,7 @@ export function useAdminState() {
     handleRejectDeleteRequest,
     handleUpdateUnidade,
     handleDeleteUser,
+    handleCreateDefaultDisciplinas,
+    handleDeleteUnlinkedDisciplinas,
   };
 }
