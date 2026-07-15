@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Alert, Modal } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { YearPicker } from '../YearPicker';
 import { SelectPicker } from '../SelectPicker';
@@ -43,6 +43,32 @@ interface ArquitetoTabProps {
   handleRejectDeleteRequest?: (id: string) => void;
 
   handleDeleteUser?: (id: string, role: string) => void;
+  showAlert?: (title: string, message: string, type?: 'success'|'error'|'warning'|'info', buttons?: any[]) => void;
+
+  // Master Edit Props
+  editingMasterId?: string | null;
+  nome?: string;
+  setNome?: (val: string) => void;
+  matricula?: string;
+  setMatricula?: (val: string) => void;
+  maxAulasSemanais?: string;
+  setMaxAulasSemanais?: (val: string) => void;
+  categoria?: 'CONCURSADO' | 'REDA' | 'CLT';
+  setCategoria?: (val: 'CONCURSADO' | 'REDA' | 'CLT') => void;
+  loading?: boolean;
+  handleRegisterOrUpdateMaster?: () => void;
+  cancelEditMaster?: () => void;
+
+  // Student Edit Props
+  editingStudentId?: string | null;
+  studentNome?: string;
+  setStudentNome?: (val: string) => void;
+  studentNickname?: string;
+  setStudentNickname?: (val: string) => void;
+  studentTurmaId?: string;
+  setStudentTurmaId?: (val: string) => void;
+  handleUpdateStudent?: () => void;
+  cancelEditStudent?: () => void;
 }
 
 export function ArquitetoTab({
@@ -82,7 +108,31 @@ export function ArquitetoTab({
   handleConfirmDeleteRequest,
   handleRejectDeleteRequest,
 
-  handleDeleteUser
+  handleDeleteUser,
+  showAlert,
+
+  editingMasterId,
+  nome,
+  setNome,
+  matricula,
+  setMatricula,
+  maxAulasSemanais,
+  setMaxAulasSemanais,
+  categoria,
+  setCategoria,
+  loading,
+  handleRegisterOrUpdateMaster,
+  cancelEditMaster,
+
+  editingStudentId,
+  studentNome,
+  setStudentNome,
+  studentNickname,
+  setStudentNickname,
+  studentTurmaId,
+  setStudentTurmaId,
+  handleUpdateStudent,
+  cancelEditStudent
 }: ArquitetoTabProps) {
   const [subTab, setSubTab] = useState<'VISAO_GERAL' | 'SISTEMA' | 'MESTRES' | 'PLAYERS'>('VISAO_GERAL');
 
@@ -94,16 +144,28 @@ export function ArquitetoTab({
   const [filterPlayerName, setFilterPlayerName] = useState('');
   const [filterPlayerTurma, setFilterPlayerTurma] = useState('');
 
-  const confirmDeleteUser = (id: string, nome: string, role: string) => {
+  const confirmDeleteUser = (id: string, nomeStr: string, role: string) => {
     sounds.playSelect();
-    Alert.alert(
-      "Atenção!",
-      `Tem certeza que deseja apagar permanentemente o ${role} ${nome}? Isso removerá todos os vínculos!`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Apagar", style: "destructive", onPress: () => handleDeleteUser?.(id, role) }
-      ]
-    );
+    if (showAlert) {
+      showAlert(
+        "Atenção!",
+        `Tem certeza que deseja apagar permanentemente o ${role} ${nomeStr}? Isso removerá todos os vínculos!`,
+        'warning',
+        [
+          { text: "Apagar", style: "danger", onPress: () => handleDeleteUser?.(id, role) },
+          { text: "Cancelar", style: "cancel" }
+        ]
+      );
+    } else {
+      Alert.alert(
+        "Atenção!",
+        `Tem certeza que deseja apagar permanentemente o ${role} ${nomeStr}? Isso removerá todos os vínculos!`,
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Apagar", style: "destructive", onPress: () => handleDeleteUser?.(id, role) }
+        ]
+      );
+    }
   };
 
   return (
@@ -508,6 +570,113 @@ export function ArquitetoTab({
           })()}
         </View>
       )}
+
+      {/* MODAL DE EDIÇÃO DE MESTRE */}
+      <Modal visible={!!editingMasterId} animationType="fade" transparent onRequestClose={() => cancelEditMaster?.()}>
+        <View className="flex-1 bg-black/85 justify-center items-center p-5 relative">
+          <View className="bg-[#080d1a] border-2 border-neonBlue rounded-sm p-6 w-full max-w-md shadow-2xl relative">
+            <View className="flex-row justify-between items-start border-b border-neonBlue/30 pb-3 mb-4">
+              <Text className="text-white text-lg font-bold uppercase tracking-wider">Editar Mestre</Text>
+              <TouchableOpacity onPress={() => { sounds.playSelect(); cancelEditMaster?.(); }} className="bg-neonBlue/10 p-1 border border-neonBlue/30 rounded-sm">
+                <Feather name="x" size={16} color="#00f3ff" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+              <Text className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-2 font-mono">Nome Completo</Text>
+              <TextInput
+                className="w-full bg-black/50 border border-neonBlue/40 text-white p-3 rounded-sm mb-4"
+                placeholder="Nome do Professor"
+                placeholderTextColor="#00f3ff40"
+                value={nome}
+                onChangeText={setNome}
+              />
+
+              <Text className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-2 font-mono">Matrícula</Text>
+              <TextInput
+                className="w-full bg-black/50 border border-neonBlue/40 text-white p-3 rounded-sm mb-4"
+                placeholder="Matrícula"
+                placeholderTextColor="#00f3ff40"
+                value={matricula}
+                onChangeText={setMatricula}
+                editable={false}
+              />
+
+              <Text className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-2 font-mono">Categoria</Text>
+              <View className="flex-row flex-wrap gap-2 mb-4">
+                {['CONCURSADO', 'REDA', 'CLT'].map(cat => (
+                  <TouchableOpacity
+                    key={cat}
+                    onPress={() => { sounds.playSelect(); setCategoria?.(cat as any); }}
+                    className={`px-4 py-2 rounded-sm border ${categoria === cat ? 'bg-neonBlue/20 border-neonBlue' : 'bg-black/50 border-neonBlue/20'}`}
+                  >
+                    <Text className={`font-bold text-[10px] uppercase ${categoria === cat ? 'text-white' : 'text-neonBlue/50'}`}>{cat}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-2 font-mono">Horas de Contrato (Aulas)</Text>
+              <TextInput
+                className="w-full bg-black/50 border border-neonBlue/40 text-white p-3 rounded-sm mb-6"
+                keyboardType="numeric"
+                value={maxAulasSemanais}
+                onChangeText={setMaxAulasSemanais}
+              />
+
+              <TouchableOpacity
+                className="w-full bg-neonBlue/20 border border-neonBlue p-4 rounded-sm items-center"
+                onPress={() => { sounds.playSelect(); handleRegisterOrUpdateMaster?.(); }}
+                disabled={loading}
+              >
+                {loading ? <ActivityIndicator color="#00f3ff" /> : <Text className="text-neonBlue font-bold uppercase tracking-widest">Salvar Mestre</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL DE EDIÇÃO DE PLAYER */}
+      <Modal visible={!!editingStudentId} animationType="fade" transparent onRequestClose={() => cancelEditStudent?.()}>
+        <View className="flex-1 bg-black/85 justify-center items-center p-5 relative">
+          <View className="bg-[#080d1a] border-2 border-neonBlue rounded-sm p-6 w-full max-w-md shadow-2xl relative">
+            <View className="flex-row justify-between items-start border-b border-neonBlue/30 pb-3 mb-4">
+              <Text className="text-white text-lg font-bold uppercase tracking-wider">Editar Player</Text>
+              <TouchableOpacity onPress={() => { sounds.playSelect(); cancelEditStudent?.(); }} className="bg-neonBlue/10 p-1 border border-neonBlue/30 rounded-sm">
+                <Feather name="x" size={16} color="#00f3ff" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 20 }}>
+              <Text className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-2 font-mono">Nome do Aluno</Text>
+              <TextInput
+                className="w-full bg-black/50 border border-neonBlue/40 text-white p-3 rounded-sm mb-4"
+                placeholder="Nome do Aluno"
+                placeholderTextColor="#00f3ff40"
+                value={studentNome}
+                onChangeText={setStudentNome}
+              />
+
+              <Text className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-2 font-mono">Turma</Text>
+              <SelectPicker
+                value={studentTurmaId || ''}
+                onChange={setStudentTurmaId!}
+                options={turmas.map((t) => ({ label: t.nome, value: t.id }))}
+                placeholder="Selecione a Turma"
+                title="Turma"
+              />
+              <View className="h-6" />
+
+              <TouchableOpacity
+                className="w-full bg-neonBlue/20 border border-neonBlue p-4 rounded-sm items-center"
+                onPress={() => { sounds.playSelect(); handleUpdateStudent?.(); }}
+                disabled={loading}
+              >
+                {loading ? <ActivityIndicator color="#00f3ff" /> : <Text className="text-neonBlue font-bold uppercase tracking-widest">Salvar Player</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
     </View>
   );

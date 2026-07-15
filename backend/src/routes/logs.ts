@@ -6,15 +6,18 @@ export const logsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
 
   fastify.get('/', async (request, reply) => {
     const userRole = (request.user as any).role;
-    const instituicao = (request.user as any).instituicao;
+    const institutionId = (request.user as any).institutionId;
+    const queryInstId = (request.query as any).institutionId;
 
-    if (userRole !== 'ARQUITETO') {
+    if (userRole !== 'ARQUITETO' && userRole !== 'ADMIN') {
       return reply.status(403).send({ error: 'Acesso negado.' });
     }
 
     try {
+      const targetInstitutionId = userRole === 'ADMIN' && queryInstId ? queryInstId : institutionId;
+      
       const logs = await prisma.actionLog.findMany({
-        where: { institutionId: instituicao },
+        where: targetInstitutionId ? { institutionId: targetInstitutionId } : {},
         orderBy: { createdAt: 'desc' },
         take: 50,
         include: { user: { select: { nome: true, matricula: true, role: true } } }

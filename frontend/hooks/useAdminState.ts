@@ -17,7 +17,7 @@ import {
   getDisciplinas,
   createVinculo,
   deleteVinculo,
-  createTurma,
+  createTurma, createDefaultDisciplinas, deleteUnlinkedDisciplinas,
   updateAdminTurma,
   createGoldenQuestion,
   getGoldenQuestions,
@@ -264,7 +264,8 @@ export function useAdminState() {
   const fetchTurmas = useCallback(async () => {
     try {
       const data = await getAdminTurmas();
-      setTurmas(data);
+      const sorted = (data || []).sort((a: any, b: any) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
+      setTurmas(sorted);
     } catch (error) {
       console.error('Erro ao carregar turmas');
     }
@@ -734,7 +735,7 @@ export function useAdminState() {
       fetchShiftSettings(),
       fetchProfessorRestrictions(),
       fetchDeleteRequests(),
-      selectedTurmaId ? fetchStudents(selectedTurmaId) : Promise.resolve(),
+      fetchStudents(selectedTurmaId),
       timetableTurmaId ? fetchTimetable(timetableTurmaId) : Promise.resolve(),
     ]);
     setRefreshing(false);
@@ -1422,7 +1423,12 @@ export function useAdminState() {
       setLoading(false);
     }
   };
-
+  const cancelEditStudent = () => {
+    setEditingStudentId(null);
+    setStudentNome('');
+    setStudentNickname('');
+    setStudentTurmaId('');
+  };
   const handleLogout = async () => {
     await logout();
     router.replace('/login');
@@ -1471,6 +1477,36 @@ export function useAdminState() {
         },
       ]
     );
+  };
+
+  const handleCreateDefaultDisciplinas = async (nivel?: string) => {
+    try {
+      setLoadingDisciplinas(true);
+      const res = await createDefaultDisciplinas(nivel);
+      showAlert('Sucesso', res.message, 'success');
+      fetchDisciplinasWithProfessores();
+      fetchDisciplinas();
+    } catch (e: any) {
+      console.error(e);
+      showAlert('Erro', e.response?.data?.error || 'Não foi possível gerar matérias padrão.', 'error');
+    } finally {
+      setLoadingDisciplinas(false);
+    }
+  };
+
+  const handleDeleteUnlinkedDisciplinas = async () => {
+    try {
+      setLoadingDisciplinas(true);
+      const res = await deleteUnlinkedDisciplinas();
+      showAlert('Sucesso', res.message, 'success');
+      fetchDisciplinasWithProfessores();
+      fetchDisciplinas();
+    } catch (e: any) {
+      console.error(e);
+      showAlert('Erro', e.response?.data?.error || 'Não foi possível limpar matérias órfãs.', 'error');
+    } finally {
+      setLoadingDisciplinas(false);
+    }
   };
 
   return {
@@ -1637,6 +1673,7 @@ export function useAdminState() {
     cancelEditMaster,
     handleEditStudentPress,
     handleUpdateStudent,
+    cancelEditStudent,
     handleLogout,
     handleUpdateDisciplina,
     handleDeleteDisciplina,
@@ -1669,5 +1706,7 @@ export function useAdminState() {
     handleRejectDeleteRequest,
     handleUpdateUnidade,
     handleDeleteUser,
+    handleCreateDefaultDisciplinas,
+    handleDeleteUnlinkedDisciplinas,
   };
 }

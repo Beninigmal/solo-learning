@@ -161,10 +161,34 @@ vec4 main(vec2 fragCoord) {
 }
 `;
 
-const organicMaskShader = Skia.RuntimeEffect.Make(maskShaderSource);
-const organicFireShader = Skia.RuntimeEffect.Make(fireShaderSource);
+let organicMaskShader: any = null;
+let organicFireShader: any = null;
+
+const getOrganicMaskShader = () => {
+  if (!organicMaskShader && typeof Skia !== 'undefined' && Skia && Skia.RuntimeEffect) {
+    try {
+      organicMaskShader = Skia.RuntimeEffect.Make(maskShaderSource);
+    } catch (e) {
+      console.warn('[Skia] Failed to initialize organicMaskShader:', e);
+    }
+  }
+  return organicMaskShader;
+};
+
+const getOrganicFireShader = () => {
+  if (!organicFireShader && typeof Skia !== 'undefined' && Skia && Skia.RuntimeEffect) {
+    try {
+      organicFireShader = Skia.RuntimeEffect.Make(fireShaderSource);
+    } catch (e) {
+      console.warn('[Skia] Failed to initialize organicFireShader:', e);
+    }
+  }
+  return organicFireShader;
+};
 
 export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: ArtifactBurnModalProps) {
+  const maskShader = getOrganicMaskShader();
+  const fireShader = getOrganicFireShader();
   const [localVisible, setLocalVisible] = useState(visible);
   const bgOpacityAnim = useRef(new RNAnimated.Value(1)).current;
   const [isBurned, setIsBurned] = useState(false);
@@ -753,8 +777,8 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
                     mode="alpha"
                     mask={
                       <Fill>
-                        {organicMaskShader && (
-                          <Shader source={organicMaskShader} uniforms={charredMaskUniforms} />
+                        {maskShader && (
+                          <Shader source={maskShader} uniforms={charredMaskUniforms} />
                         )}
                       </Fill>
                     }
@@ -798,8 +822,8 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
                     mode="alpha"
                     mask={
                       <Fill>
-                        {organicMaskShader && (
-                          <Shader source={organicMaskShader} uniforms={intactMaskUniforms} />
+                        {maskShader && (
+                          <Shader source={maskShader} uniforms={intactMaskUniforms} />
                         )}
                       </Fill>
                     }
@@ -839,8 +863,8 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
 
                   {/* Glowing Fire Edge Overlay on top of the Mask */}
                   <Fill>
-                    {organicFireShader && (
-                      <Shader source={organicFireShader} uniforms={fireUniforms} />
+                    {fireShader && (
+                      <Shader source={fireShader} uniforms={fireUniforms} />
                     )}
                   </Fill>
                 </Canvas>

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { ArtifactCard, Artifact } from './ArtifactCard';
+import { useWebDragScroll } from '../hooks/useWebDragScroll';
 
 interface ArtifactBagProps {
   visible: boolean;
@@ -39,6 +40,7 @@ const ARTIFACT_CATALOG: Artifact[] = [
 
 export function ArtifactBag({ visible, onClose, artifacts = [], onUse, onProfileCardPress }: ArtifactBagProps) {
   const [filter, setFilter] = React.useState<'all' | 'legendary' | 'epic' | 'magic'>('all');
+  const scrollRef = useWebDragScroll();
 
   const getRarityWeight = (type?: string) => {
     if (type === 'legendary') return 3;
@@ -148,6 +150,7 @@ export function ArtifactBag({ visible, onClose, artifacts = [], onUse, onProfile
                   Deslize para o lado · Toque para escolher
                 </Text>
                 <ScrollView 
+                   ref={scrollRef}
                    horizontal={true} 
                    showsHorizontalScrollIndicator={false}
                    contentContainerStyle={{ paddingHorizontal: 10, gap: 16, alignItems: 'center' }}

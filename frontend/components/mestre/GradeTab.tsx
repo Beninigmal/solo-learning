@@ -29,6 +29,7 @@ interface GradeTabProps {
   timetableSlots: any[];
   disciplinas: any[];
   sounds: any;
+  currentUserId?: string;
 }
 
 export const GradeTab: React.FC<GradeTabProps> = ({
@@ -40,6 +41,7 @@ export const GradeTab: React.FC<GradeTabProps> = ({
   timetableSlots,
   disciplinas,
   sounds,
+  currentUserId,
 }) => {
   return (
     <View className="bg-[#0a1128]/90 border border-neonBlue/50 p-6 rounded-sm mb-6">
@@ -70,10 +72,9 @@ export const GradeTab: React.FC<GradeTabProps> = ({
           {loadingTimetable ? (
             <ActivityIndicator color="#00f3ff" />
           ) : (() => {
-            const linkedIds = disciplinas.map(d => d.id);
-            const hasMatutino = timetableSlots.some(s => s.posicao >= 1 && s.posicao <= 5 && linkedIds.includes(s.disciplinaId));
-            const hasVespertino = timetableSlots.some(s => s.posicao >= 6 && s.posicao <= 10 && linkedIds.includes(s.disciplinaId));
-            const hasNoturno = timetableSlots.some(s => s.posicao >= 11 && s.posicao <= 15 && linkedIds.includes(s.disciplinaId));
+            const hasMatutino = timetableSlots.some(s => s.posicao >= 1 && s.posicao <= 5);
+            const hasVespertino = timetableSlots.some(s => s.posicao >= 6 && s.posicao <= 10);
+            const hasNoturno = timetableSlots.some(s => s.posicao >= 11 && s.posicao <= 15);
 
             const activeShifts: ('MATUTINO' | 'VESPERTINO' | 'NOTURNO')[] = [];
             if (hasMatutino) activeShifts.push('MATUTINO');
@@ -84,7 +85,7 @@ export const GradeTab: React.FC<GradeTabProps> = ({
               return (
                 <View className="bg-black/50 border border-neonBlue/10 p-6 rounded-sm items-center justify-center my-6">
                   <Feather name="calendar" size={32} color="#00f3ff33" />
-                  <Text className="text-white/40 text-xs font-mono text-center mt-3">Você não possui aulas agendadas para esta turma.</Text>
+                  <Text className="text-white/40 text-xs font-mono text-center mt-3">A turma ainda não possui uma grade de horários gerada.</Text>
                 </View>
               );
             }
@@ -119,9 +120,9 @@ export const GradeTab: React.FC<GradeTabProps> = ({
                             </View>
                             {['SEGUNDA', 'TERCA', 'QUARTA', 'QUINTA', 'SEXTA'].map(day => {
                               const slot = timetableSlots.find(s => s.diaSemana === day && s.posicao === absolutePos);
-                              const isMine = slot && linkedIds.includes(slot.disciplinaId);
-                              
                               const professor = slot?.professor;
+                              const isMine = slot && currentUserId && professor?.id === currentUserId;
+                              
                               const professorText = professor ? (professor.nickname || professor.nome) : '';
                               const hasNoProfessor = slot && !professor;
 
