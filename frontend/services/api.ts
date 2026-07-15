@@ -23,7 +23,7 @@ export const resetServerUrl = async () => {
 };
 
 export const api = axios.create({
-  timeout: 60000, // Aumentado para 60s por causa do cold start do Render
+  timeout: 120000, // Aumentado para 120s por causa do cold start do Render e fallback LLM pesado
   headers: {
     'Content-Type': 'application/json',
   },

@@ -128,7 +128,7 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
     try {
       const activeKey = rotator.getActiveKey();
       const genAI = new GoogleGenerativeAI(activeKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
       const parts: any[] = [cavemanSystemPrompt + prompt];
       if (image) {
@@ -1448,7 +1448,13 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         responseText = responseText.substring(firstBrace, lastBrace + 1);
       }
 
-      const validation = JSON.parse(responseText);
+      let validation;
+      try {
+        validation = JSON.parse(responseText);
+      } catch (parseError: any) {
+        request.log.error({ err: parseError, responseText }, '[daily/submit] Falha no parse do JSON do Gemini');
+        validation = { status: 'error', message: 'Não conseguimos entender a resposta. Por favor, tente explicar de outra forma ou envie uma foto mais nítida.' };
+      }
       const isCorrect = validation.status === 'success';
       if (isCorrect) {
         // Calcular XP com penalidade de 25% por erro acumulado (Boss e Mini Boss não sofrem penalidade)
@@ -1846,7 +1852,8 @@ Retorne APENAS um JSON no seguinte formato:
         return reply.send({ ...validation, isCorrect: false, xpRestante, erros: novosErros, cooldownUntil: cooldownTime, youtubeLink });
       }
     } catch (error: any) {
-      return reply.status(500).send({ error: 'Erro ao submeter resposta.' });
+      request.log.error({ err: error, errMsg: error?.message }, '[daily/submit] Error');
+      return reply.status(500).send({ error: 'Erro ao submeter resposta.', details: error?.message });
     }
   });
 

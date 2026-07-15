@@ -136,20 +136,25 @@ export default function AdminDashboard() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView
-            className="flex-1"
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ flexGrow: 1, paddingBottom: 120 }}
-            refreshControl={
-              <RefreshControl
-                refreshing={state.refreshing}
-                onRefresh={state.onRefresh}
-                tintColor="#00f3ff"
-                colors={['#00f3ff']}
-              />
-            }
-          >
+          {state.activeTab === 'ORDINATOR' ? (
+            <View style={{ flex: 1, paddingHorizontal: 16, paddingBottom: 16, height: (Platform.OS === 'web' ? 'calc(100vh - 180px)' : 600) as any }}>
+              <OrdinatorTab onDataChanged={state.onRefresh} currentUser={state.currentUser} />
+            </View>
+          ) : (
+            <ScrollView
+              className="flex-1"
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ flexGrow: 1, paddingBottom: 120 }}
+              refreshControl={
+                <RefreshControl
+                  refreshing={state.refreshing}
+                  onRefresh={state.onRefresh}
+                  tintColor="#00f3ff"
+                  colors={['#00f3ff']}
+                />
+              }
+            >
              {state.activeTab === 'TURMAS' && (
               <TurmasTab
                 turmaNome={state.turmaNome}
@@ -345,14 +350,12 @@ export default function AdminDashboard() {
               />
             )}
 
-            <View style={{ display: state.activeTab === 'ORDINATOR' ? 'flex' : 'none', flex: 1 }}>
-              <OrdinatorTab onDataChanged={state.onRefresh} />
-            </View>
-
             {state.activeTab === 'LOGS' && (
               <LogsTab />
             )}
           </ScrollView>
+          )}
+
         </Animated.View>
 
         {/* MODAL DE DESEMPENHO INDIVIDUAL DO ALUNO */}

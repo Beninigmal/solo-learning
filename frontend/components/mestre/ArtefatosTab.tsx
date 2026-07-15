@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { giftArtifactToStudent } from '../../services/api';
 
@@ -24,6 +24,7 @@ export const ArtefatosTab: React.FC<ArtefatosTabProps> = ({
 }) => {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [giftingId, setGiftingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const ARTEFATOS_DISPONIVEIS = [
     { id: 'pocao_cura', name: 'Poção de Cura', type: 'epic', icon: 'heart', description: 'Restaura a integridade de uma quest do Baú para 100% de XP, limpando as penalidades de erros.' },
@@ -93,6 +94,10 @@ export const ArtefatosTab: React.FC<ArtefatosTabProps> = ({
     };
   };
 
+  const filteredStudents = students.filter(s => 
+    (s.nickname || s.nome || '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <View className="flex-1">
       <Text className="text-white text-lg font-bold uppercase tracking-widest mb-4">Conceder Artefatos</Text>
@@ -109,6 +114,7 @@ export const ArtefatosTab: React.FC<ArtefatosTabProps> = ({
               onPress={() => { 
                 setSelectedTurmaId(t.id); 
                 setSelectedStudentId(null);
+                setSearchQuery('');
                 sounds.playSelect(); 
               }}
               className={`px-4 py-2 border rounded-sm mr-3 justify-center ${selectedTurmaId === t.id ? 'bg-neonBlue border-neonBlue' : 'border-neonBlue/30'}`}
@@ -122,27 +128,39 @@ export const ArtefatosTab: React.FC<ArtefatosTabProps> = ({
       {/* 2. Selecionar Aluno */}
       {selectedTurmaId && (
         <View className="mb-6">
-          <Text className="text-neonBlue font-bold text-xs uppercase tracking-wider mb-2 font-mono">2. SELECIONE O CAÇADOR (PLAYER)</Text>
+          <View className="flex-row items-center justify-between mb-3">
+            <Text className="text-neonBlue font-bold text-xs uppercase tracking-wider font-mono">2. SELECIONE O CAÇADOR (PLAYER)</Text>
+            <View className="bg-black/60 border border-neonBlue/30 flex-row items-center px-2 py-1 rounded-sm min-w-[150px]">
+              <Feather name="search" size={12} color="#00f3ff" />
+              <TextInput
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Filtrar por nome..."
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                className="text-white text-xs ml-2 flex-1 outline-none font-mono py-1"
+              />
+            </View>
+          </View>
           {loadingRadar ? (
             <ActivityIndicator color="#00f3ff" size="small" className="my-4" />
-          ) : students.length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="max-h-14">
-              {students.map(s => (
+          ) : filteredStudents.length > 0 ? (
+            <View className="flex-row flex-wrap gap-2">
+              {filteredStudents.map(s => (
                 <TouchableOpacity 
                   key={s.id} 
                   onPress={() => { 
                     setSelectedStudentId(s.id); 
                     sounds.playSelect(); 
                   }}
-                  className={`px-4 py-2 border rounded-sm mr-3 justify-center items-center ${selectedStudentId === s.id ? 'bg-neonBlue border-neonBlue' : 'border-neonBlue/20 bg-black/40'}`}
+                  className={`px-3 py-2 border rounded-sm justify-center items-center ${selectedStudentId === s.id ? 'bg-neonBlue border-neonBlue' : 'border-neonBlue/20 bg-black/40'}`}
                 >
                   <Text className={`font-bold text-xs ${selectedStudentId === s.id ? 'text-black' : 'text-white'}`}>{s.nickname || s.nome}</Text>
                   <Text className={`text-[8px] font-mono ${selectedStudentId === s.id ? 'text-black/60' : 'text-white/40'}`}>Lvl {s.level}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </View>
           ) : (
-            <Text className="text-white/30 text-xs italic">Nenhum caçador ativo nesta turma.</Text>
+            <Text className="text-white/30 text-xs italic">Nenhum caçador encontrado.</Text>
           )}
         </View>
       )}

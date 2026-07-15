@@ -783,8 +783,9 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
 
   // ─── SOLICITAÇÕES DE EXCLUSÃO DE CONTA ────────────────────────────────────
 
-  fastify.delete<{ Params: { id: string } }>('/users/:id', async (request, reply) => {
+  fastify.delete<{ Params: { id: string }, Querystring: { ai?: string } }>('/users/:id', async (request, reply) => {
     const { id } = request.params;
+    const { ai } = request.query;
     const instituicao = request.user.instituicao!;
 
     try {
@@ -803,7 +804,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       const userRepository = new PrismaUserRepository();
       await userRepository.delete(id);
 
-      await logAction('Exclusão de Usuário', `Usuário excluído: ${targetUser.nome} (${targetUser.matricula})`, request.user.id, request.user.institutionId);
+      const logPrefix = ai === 'true' ? 'Exclusão de Usuário (IA)' : 'Exclusão de Usuário';
+      await logAction(logPrefix, `Usuário excluído: ${targetUser.nome} (${targetUser.matricula})`, request.user.id, request.user.institutionId);
 
       return reply.status(200).send({ message: 'Usuário excluído com sucesso.' });
     } catch (error: any) {
@@ -849,7 +851,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         await prisma.deleteAccountRequest.delete({ where: { id } });
       } catch (err) {}
 
-      await logAction('Exclusão de Conta (Solicitação Confirmada)', `Conta excluída via solicitação: ${userName} (Motivo: ${reqDel.reason})`, request.user.id, request.user.institutionId);
+      await logAction('Exclusão de Conta (Solicitação Confirmada)', `Conta excluída via solicitação: ${userName} (Motivo: ${reqDel.motivo})`, request.user.id, request.user.institutionId);
 
       return reply.status(200).send({ message: 'Conta excluída com sucesso.' });
     } catch (error: any) {

@@ -264,7 +264,8 @@ export function useAdminState() {
   const fetchTurmas = useCallback(async () => {
     try {
       const data = await getAdminTurmas();
-      setTurmas(data);
+      const sorted = (data || []).sort((a: any, b: any) => a.nome.localeCompare(b.nome, undefined, { numeric: true }));
+      setTurmas(sorted);
     } catch (error) {
       console.error('Erro ao carregar turmas');
     }
@@ -734,7 +735,7 @@ export function useAdminState() {
       fetchShiftSettings(),
       fetchProfessorRestrictions(),
       fetchDeleteRequests(),
-      selectedTurmaId ? fetchStudents(selectedTurmaId) : Promise.resolve(),
+      fetchStudents(selectedTurmaId),
       timetableTurmaId ? fetchTimetable(timetableTurmaId) : Promise.resolve(),
     ]);
     setRefreshing(false);

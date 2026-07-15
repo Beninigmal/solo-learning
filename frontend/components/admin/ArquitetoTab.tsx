@@ -658,7 +658,7 @@ export function ArquitetoTab({
 
               <Text className="text-white/50 text-[10px] font-bold uppercase tracking-widest mb-2 font-mono">Turma</Text>
               <SelectPicker
-                value={studentTurmaId}
+                value={studentTurmaId || ''}
                 onChange={setStudentTurmaId!}
                 options={turmas.map((t) => ({ label: t.nome, value: t.id }))}
                 placeholder="Selecione a Turma"

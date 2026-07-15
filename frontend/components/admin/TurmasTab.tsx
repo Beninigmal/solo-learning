@@ -21,6 +21,7 @@ interface TurmasTabProps {
   fetchTurmas: () => void;
   sounds: any;
   handleUpdateUnidade: (turmaId: string, unidade: number) => void;
+  currentUser?: any;
 }
 
 export function TurmasTab({
