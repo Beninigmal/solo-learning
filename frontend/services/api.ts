@@ -23,7 +23,7 @@ export const resetServerUrl = async () => {
 };
 
 export const api = axios.create({
-  timeout: 60000, // Aumentado para 60s por causa do cold start do Render
+  timeout: 120000, // Aumentado para 120s por causa do cold start do Render e fallback LLM pesado
   headers: {
     'Content-Type': 'application/json',
   },
@@ -203,6 +203,16 @@ export const updateStudent = async (id: string, data: { nome?: string; nickname?
 
 export const getDisciplinas = async () => {
   const response = await api.get('/admin/disciplinas');
+  return response.data;
+};
+
+export const createDefaultDisciplinas = async (nivel?: string) => {
+  const response = await api.post('/admin/disciplinas/default', { nivel });
+  return response.data;
+};
+
+export const deleteUnlinkedDisciplinas = async () => {
+  const response = await api.delete('/admin/disciplinas/unlinked');
   return response.data;
 };
 

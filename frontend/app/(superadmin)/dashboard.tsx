@@ -14,7 +14,8 @@ import {
   updateArchitect,
   blockArchitect,
   deleteArchitect,
-  resetArchitectAccess
+  resetArchitectAccess,
+  api
 } from '../../services/api';
 import { SystemAlert } from '../../components/SystemAlert';
 import { CyberSubmitButton } from '../../components/CyberSubmitButton';
@@ -58,6 +59,11 @@ export default function SuperAdminDashboard() {
   // Architect reset action states
   const [architectToReset, setArchitectToReset] = useState<any | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  // Logs state
+  const [logs, setLogs] = useState<any[]>([]);
+  const [logFilterInstId, setLogFilterInstId] = useState<string | null>(null);
+  const [loadingLogs, setLoadingLogs] = useState(false);
 
   // Alert State
   const [alertVisible, setAlertVisible] = useState(false);
@@ -130,10 +136,24 @@ export default function SuperAdminDashboard() {
 
       const fetchedArchitects = await getArchitects();
       setArchitects(fetchedArchitects);
+
+      await fetchLogs(null);
     } catch (err) {
       console.error('Erro ao carregar dados do superadmin:', err);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const fetchLogs = async (instId: string | null) => {
+    try {
+      setLoadingLogs(true);
+      const res = await api.get('/logs', { params: instId ? { institutionId: instId } : {} });
+      setLogs(res.data);
+    } catch (e) {
+      console.error('Erro ao buscar logs', e);
+    } finally {
+      setLoadingLogs(false);
     }
   };
 
@@ -671,6 +691,72 @@ export default function SuperAdminDashboard() {
                           <Feather name="trash-2" size={11} color="#ef4444" />
                         </TouchableOpacity>
                       </View>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          </View>
+
+          {/* ================= SEÇÃO DE LOGS ================= */}
+          <View className="bg-[#0a1128]/90 border border-neonBlue p-6 rounded-sm mb-6">
+            <View className="flex-row items-center justify-between mb-6">
+              <View className="flex-row items-center gap-2">
+                <Feather name="activity" size={18} color="#00f3ff" />
+                <Text className="text-white text-base font-bold uppercase tracking-widest">Registro de Ações</Text>
+              </View>
+            </View>
+
+            {/* Filtro de Instituição para Logs */}
+            <Text className="text-white/50 text-[10px] uppercase font-mono mb-3">Filtrar por Instituição:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
+              <View className="flex-row gap-2">
+                <TouchableOpacity
+                  onPress={() => { setLogFilterInstId(null); fetchLogs(null); sounds.playSelect(); }}
+                  className={`px-3 py-2 rounded-sm border ${logFilterInstId === null ? 'bg-neonBlue/30 border-neonBlue' : 'bg-black/60 border-neonBlue/30'}`}
+                >
+                  <Text className={`text-[10px] font-mono uppercase font-bold ${logFilterInstId === null ? 'text-white' : 'text-neonBlue/60'}`}>
+                    Todas
+                  </Text>
+                </TouchableOpacity>
+                {schools.map(s => {
+                  const isSelected = logFilterInstId === s.id;
+                  return (
+                    <TouchableOpacity
+                      key={s.id}
+                      onPress={() => { setLogFilterInstId(s.id); fetchLogs(s.id); sounds.playSelect(); }}
+                      className={`px-3 py-2 rounded-sm border ${isSelected ? 'bg-neonBlue/30 border-neonBlue' : 'bg-black/60 border-neonBlue/30'}`}
+                    >
+                      <Text className={`text-[10px] font-mono uppercase font-bold ${isSelected ? 'text-white' : 'text-neonBlue/60'}`}>
+                        {s.nome}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            <View>
+              {loadingLogs ? (
+                <Text className="text-neonBlue text-center font-mono py-6 text-xs animate-pulse">Carregando logs...</Text>
+              ) : logs.length === 0 ? (
+                <Text className="text-white/30 text-center font-mono py-6 text-xs">Nenhum log encontrado.</Text>
+              ) : (
+                logs.map((log) => (
+                  <View key={log.id} className="bg-black/40 border border-neonBlue/20 p-4 rounded-sm flex-row items-start mb-3">
+                    <View className="flex-1">
+                      <Text className="text-white font-bold text-sm mb-1">{log.action}</Text>
+                      {log.details && (
+                        <Text className="text-white/70 text-xs font-mono mb-2">{log.details}</Text>
+                      )}
+                      {log.user && (
+                        <Text className="text-neonBlue/70 text-[10px] font-mono uppercase mt-1">
+                          Operador: {log.user.nome} ({log.user.role}) - Matrícula: {log.user.matricula}
+                        </Text>
+                      )}
+                      <Text className="text-white/40 text-[9px] mt-1 text-right">
+                        {new Date(log.createdAt).toLocaleString('pt-BR')}
+                      </Text>
                     </View>
                   </View>
                 ))

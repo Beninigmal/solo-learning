@@ -62,6 +62,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   actionLogs ActionLog[]
+  chatSessions ChatSession[]
 }
 
 model Turma {
@@ -406,3 +407,43 @@ model ActionLog {
   details       String?
   createdAt     DateTime     @default(now())
 }
+
+model Document {
+  id            String          @id @default(uuid())
+  filename      String
+  instituicao   String
+  createdAt     DateTime        @default(now())
+  chunks        DocumentChunk[]
+}
+
+model DocumentChunk {
+  id            String   @id @default(uuid())
+  documentId    String
+  document      Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  content       String   @db.Text
+  embedding     Float[]
+}
+
+model ChatSession {
+  id            String        @id @default(uuid())
+  title         String        @default("Nova conversa")
+  instituicao   String
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  messages      ChatMessage[]
+}
+
+model ChatMessage {
+  id            String      @id @default(uuid())
+  sessionId     String
+  session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sender        String      // "user" | "ordinator"
+  text          String      @db.Text
+  widgetType    String?     // e.g. "BATCH_CONFIRM"
+  widgetData    Json?       // JSON metadata
+  createdAt     DateTime    @default(now())
+}
+
+

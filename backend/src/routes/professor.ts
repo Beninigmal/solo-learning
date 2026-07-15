@@ -28,7 +28,15 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
           }
         }
       },
-      include: { _count: { select: { users: true } } },
+      include: { 
+        _count: { select: { users: true } },
+        turmaDisciplinas: {
+          where: request.user.role === 'ADMIN' ? {} : {
+            professorId: request.user.id
+          },
+          include: { disciplina: true }
+        }
+      },
       orderBy: { nome: 'asc' }
     });
     return reply.send(turmas);
@@ -175,6 +183,6 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
     // Remove duplicatas
     const disciplinas = Array.from(new Map(vinculos.map(v => [v.disciplina.id, v.disciplina])).values());
     
-    return reply.send(disciplinas);
+    console.log("RETURNING DISCIPLINAS:", disciplinas); return reply.send(disciplinas);
   });
 };

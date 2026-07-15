@@ -266,7 +266,7 @@ export function ArtifactCard({ artifact, size = 'normal', animated = true, isCon
               right: 0,
               height: config.height - (config.width * 0.6),
               backgroundImage: 'linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0.95) 100%)',
-            }}
+            } as any}
             pointerEvents="none"
           />
 
