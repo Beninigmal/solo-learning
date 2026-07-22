@@ -187,7 +187,8 @@ export function usePlayerState() {
   const [usedHelpers, setUsedHelpers] = useState<string[]>([]);
   const [isRaidQuest, setIsRaidQuest] = useState(false);
 
-  const [questExpiresAt, setQuestExpiresAt] = useState<string | null>(null);
+  const [questExpiresAt, setQuestExpiresAt] = useState<Date | string | null>(null);
+  const [questCooldownUntil, setQuestCooldownUntil] = useState<Date | string | null>(null);
   const [timeRemainingText, setTimeRemainingText] = useState('');
 
   // Multi-Boss States
@@ -1549,6 +1550,7 @@ export function usePlayerState() {
     setHelpResponse(targetItem.delivery?.helpResponse || null);
     setStudentDoubt(targetItem.delivery?.studentDoubt || null);
     setQuestExpiresAt(updatedExpiresAt || targetItem.delivery?.expiresAt || targetItem.quest?.expiresAt || null);
+    setQuestCooldownUntil(targetItem.delivery?.cooldownUntil || targetItem.cooldownUntil || null);
     
     // Carrega ajudas persistidas se existirem no delivery
     setEliminatedOption(targetItem.delivery?.eliminatedOption || null);
@@ -1904,6 +1906,8 @@ export function usePlayerState() {
       if (!isSharedRaidQuest) {
         setSelectedArtifact(artifact);
         consumeItemLocally(artifact.id);
+        if (deliveryId) useHelperArtifact(deliveryId, artifact.id).catch(console.error);
+        else consumeDirectArtifact(artifact.id).catch(console.error);
         setUsedHelpers((prev) => [...prev, artifact.id]);
         setPendingArtifact(null);
         setBurnArtifact(null);
@@ -1919,6 +1923,8 @@ export function usePlayerState() {
       if (!isSharedRaidQuest) {
         setSelectedArtifact(artifact);
         consumeItemLocally(artifact.id);
+        if (deliveryId) useHelperArtifact(deliveryId, artifact.id).catch(console.error);
+        else consumeDirectArtifact(artifact.id).catch(console.error);
         setUsedHelpers((prev) => [...prev, artifact.id]);
         setPendingArtifact(null);
         setBurnArtifact(null);
@@ -2426,6 +2432,7 @@ export function usePlayerState() {
     setStudentDoubtText,
     studentDoubt,
     questExpiresAt,
+    questCooldownUntil,
     timeRemainingText,
     activeBosses,
     setActiveBosses,

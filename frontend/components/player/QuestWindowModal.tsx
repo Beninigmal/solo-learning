@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, Modal, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Image, StyleSheet, Dimensions, Animated } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Image, StyleSheet, Dimensions, Animated, Linking } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { DoomFireParticles } from '../DoomFireParticles';
 import { ArtifactCard } from '../ArtifactCard';
@@ -58,6 +58,7 @@ interface QuestWindowModalProps {
   setChatInput?: (text: string) => void;
   handleSendChatMessage?: () => void;
   sendingMessage?: boolean;
+  questCooldownUntil?: string | Date | null;
   unreadChatCount?: number;
   showFloatingChat?: boolean;
   setShowFloatingChat?: (show: boolean) => void;
@@ -457,7 +458,8 @@ export function QuestWindowModal({
   isRaidQuest = false,
   activeBosses = [],
   showMultiBossSelection = false,
-  onSelectBoss
+  onSelectBoss,
+  questCooldownUntil
 }: QuestWindowModalProps) {
   const isWarBannerActive = activeParty?.bandeiraGuerraActive &&
     activeParty?.bandeiraGuerraExpires &&
@@ -506,6 +508,32 @@ export function QuestWindowModal({
       setBattleState(null);
     }
   }, [feedback, questNivel]);
+
+  const [cooldownRemaining, setCooldownRemaining] = useState<string>('');
+  
+  useEffect(() => {
+    if (!questCooldownUntil) {
+      setCooldownRemaining('');
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      const now = new Date();
+      const target = new Date(questCooldownUntil);
+      const diff = target.getTime() - now.getTime();
+      
+      if (diff <= 0) {
+        setCooldownRemaining('');
+        clearInterval(interval);
+      } else {
+        const mins = Math.floor(diff / 60000);
+        const secs = Math.floor((diff % 60000) / 1000);
+        setCooldownRemaining(`Bloqueado por ${mins}m ${secs}s`);
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [questCooldownUntil, visible]);
 
   const extractBossName = (q: string) => {
     const match = q.match(/O inimigo (.*?) surgiu!/);
@@ -721,7 +749,7 @@ export function QuestWindowModal({
               <Text className={`text-xl md:text-2xl font-bold uppercase tracking-[0.3em] ${ questNivel === 'BOSS' ? 'text-red-500' : questNivel === 'MINIBOSS' ? 'text-[#ff9f00]' : isFromChest ? 'text-red-400' : fromQueue ? 'text-yellow-400' : 'text-neonBlue'}`}>
                 {questNivel === 'BOSS' ? 'Desafio BOSS' : questNivel === 'MINIBOSS' ? 'Desafio Mini Boss' : isFromChest ? 'Missão do Baú' : fromQueue ? 'Missão Retomada' : 'Missão Diária'}
               </Text>
-              <View className="flex-row items-center gap-3 mt-1">
+              <View className="flex-row items-center justify-center flex-wrap gap-2 mt-2 w-full px-2">
                 <Text
                   className={`text-xs font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm ${
                     questNivel === 'FACIL'     ? 'bg-green-500/20 text-green-400' :
@@ -787,9 +815,11 @@ export function QuestWindowModal({
                     <Text className="text-white/80 text-[11px] mb-2 leading-5 text-left">
                       Foi detectada uma lacuna em seu conhecimento. Assista a este vídeo para recuperar seu foco:
                     </Text>
-                    <Text className="text-neonBlue text-[10px] underline text-left" selectable={true}>
-                      {feedback.youtubeLink}
-                    </Text>
+                    <TouchableOpacity onPress={() => Linking.openURL(feedback.youtubeLink!)}>
+                      <Text className="text-neonBlue text-[10px] underline text-left">
+                        {feedback.youtubeLink}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
 
@@ -949,6 +979,13 @@ export function QuestWindowModal({
                     <Feather name="clock" size={14} color="#a349ff" />
                     <Text className="text-[#a349ff] text-xs font-mono font-bold uppercase tracking-wider text-center">
                       Aguardando resposta de: {currentResponderNickname}
+                    </Text>
+                  </View>
+                ) : cooldownRemaining ? (
+                  <View className="w-full bg-red-950/40 border border-red-500/50 p-3.5 rounded-sm mb-3 items-center justify-center flex-row gap-2">
+                    <Feather name="lock" size={14} color="#ef4444" />
+                    <Text className="text-red-400 text-xs font-mono font-bold uppercase tracking-wider text-center">
+                      {cooldownRemaining}
                     </Text>
                   </View>
                 ) : (

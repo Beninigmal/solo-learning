@@ -150,7 +150,7 @@ export function useMestreState() {
 
   // Forja State
   const [tema, setTema] = useState('');
-  const [forjaTurmaId, setForjaTurmaId] = useState('');
+  const [forjaTurmaIds, setForjaTurmaIds] = useState<string[]>([]);
   const [complexidade, setComplexidade] = useState('MEDIO');
   const [exigeCalculo, setExigeCalculo] = useState(false);
   const [tipoQuest, setTipoQuest] = useState<'CALCULO' | 'TEORICA' | 'MULTIPLA'>('TEORICA');
@@ -213,7 +213,7 @@ export function useMestreState() {
       } else if (tipo === 'PRIVADO_LIVRE') {
         setComplexidade('LIVRE');
       } else if (tipo === 'PRIVADO') {
-        const activeTurma = turmas.find(t => t.id === forjaTurmaId);
+        const activeTurma = turmas.find(t => forjaTurmaIds.includes(t.id));
         if (activeTurma) {
           setComplexidade(activeTurma.nivel || 'FUNDAMENTAL');
         } else if (turmas.length > 0) {
@@ -223,7 +223,7 @@ export function useMestreState() {
         }
       }
     }
-  }, [currentUser, forjaTurmaId, turmas]);
+  }, [currentUser, forjaTurmaIds, turmas]);
 
   const [newDisciplinaNome, setNewDisciplinaNome] = useState('');
   const [selectedProfessorId, setSelectedProfessorId] = useState('');
@@ -246,7 +246,7 @@ export function useMestreState() {
   const [newEventData, setNewEventData] = useState(new Date().toISOString().split('T')[0]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [newEventTipo, setNewEventTipo] = useState('PROVA'); // PROVA, TRABALHO, TAREFA, EVENTO
-  const [newEventTurmaId, setNewEventTurmaId] = useState('');
+  const [newEventTurmaIds, setNewEventTurmaIds] = useState<string[]>([]);
 
   // Afiar Quests / Arsenal de Rascunhos
   const [pendingBatches, setPendingBatches] = useState<any[]>([]);
@@ -519,8 +519,8 @@ export function useMestreState() {
   };
 
   const handleCreateCalendarEvent = async () => {
-    if (!newEventTitulo.trim() || !newEventTurmaId) {
-      showAlert('Aviso', 'Preencha o título e selecione a turma.', 'warning');
+    if (!newEventTitulo.trim() || newEventTurmaIds.length === 0) {
+      showAlert('Aviso', 'Preencha o título e selecione pelo menos uma turma.', 'warning');
       return;
     }
     try {
@@ -529,7 +529,7 @@ export function useMestreState() {
         newEventTitulo,
         newEventData,
         newEventTipo,
-        newEventTurmaId,
+        newEventTurmaIds,
         newEventDescricao
       );
       showAlert('Sucesso', 'Evento adicionado na agenda!', 'success');
@@ -687,19 +687,25 @@ export function useMestreState() {
 
 
   const disciplinasFiltradas = useMemo(() => {
-    if (!forjaTurmaId) return [];
-    const turmaSelecionada = turmas.find(t => t.id === forjaTurmaId);
-    if (!turmaSelecionada || !turmaSelecionada.turmaDisciplinas) return disciplinas;
+    if (forjaTurmaIds.length === 0) return [];
     
-    // Remove duplicatas caso haja
-    const unique = Array.from(new Map(turmaSelecionada.turmaDisciplinas.map((td: any) => [td.disciplina.id, td.disciplina])).values());
+    let allDisciplinas: any[] = [];
+    for (const tId of forjaTurmaIds) {
+      const turma = turmas.find(t => t.id === tId);
+      if (turma?.turmaDisciplinas) {
+        allDisciplinas = [...allDisciplinas, ...turma.turmaDisciplinas.map((td: any) => td.disciplina)];
+      }
+    }
+    
+    // Remove duplicatas
+    const unique = Array.from(new Map(allDisciplinas.map(d => [d.id, d])).values());
     return unique;
-  }, [forjaTurmaId, turmas, disciplinas]);
+  }, [forjaTurmaIds, turmas, disciplinas]);
 
   // Efeito para auto-selecionar a disciplina quando a turma muda
   useEffect(() => {
     if (disciplinasFiltradas.length > 0) {
-      // Verifica se a disciplina selecionada atualmente ainda é válida nesta turma
+      // Verifica se a disciplina selecionada atualmente ainda é válida
       const isValid = disciplinasFiltradas.some((d: any) => d.id === forjaDisciplinaId);
       if (!isValid) {
         setForjaDisciplinaId(disciplinasFiltradas[0].id);
@@ -928,8 +934,8 @@ export function useMestreState() {
   };
 
   const handleForjarQuest = async () => {
-    if (!tema || !forjaTurmaId || !forjaDisciplinaId) {
-      showAlert('Aviso', 'Preencha Turma, Tema e Disciplina.', 'warning');
+    if (!tema || forjaTurmaIds.length === 0 || !forjaDisciplinaId) {
+      showAlert('Aviso', 'Preencha as Turmas, Tema e Disciplina.', 'warning');
       return;
     }
     const semana = new Date().toLocaleDateString('pt-BR', {
@@ -941,7 +947,7 @@ export function useMestreState() {
       setForjando(true);
       await generateQuest(
         semana,
-        forjaTurmaId,
+        forjaTurmaIds,
         tema,
         complexidade,
         exigeCalculo,
@@ -950,7 +956,7 @@ export function useMestreState() {
       );
       showAlert(
         'Sucesso',
-        'Nova missão gerada na forja! Verifique a aba de rascunhos abaixo para afiar e ativar.',
+        'Missões geradas na forja para as turmas selecionadas! Verifique a aba de rascunhos abaixo.',
         'success'
       );
       setTema('');
@@ -967,8 +973,8 @@ export function useMestreState() {
   };
 
   const handleInvocacaoRapidaBOSS = async () => {
-    if (!tema || !forjaTurmaId) {
-      showAlert('Aviso', 'Preencha Turma e Tema.', 'warning');
+    if (!tema || forjaTurmaIds.length === 0) {
+      showAlert('Aviso', 'Preencha as Turmas e o Tema.', 'warning');
       return;
     }
     const dias = parseInt(duracaoDiasBoss) || 1;
@@ -979,7 +985,8 @@ export function useMestreState() {
     });
     try {
       setLoadingBoss(true);
-      await mockBossQuest(forjaTurmaId, tema, semana, dias);
+      // Pega apenas a primeira turma por ser mock simples
+      await mockBossQuest(forjaTurmaIds[0], tema, semana, dias);
       showAlert('Sucesso', 'Missão BOSS invocada para teste!', 'success');
       setTema('');
       setDuracaoDiasBoss('1');
@@ -1247,8 +1254,8 @@ export function useMestreState() {
     termsLoading,
     tema,
     setTema,
-    forjaTurmaId,
-    setForjaTurmaId,
+    forjaTurmaIds,
+    setForjaTurmaIds,
     complexidade,
     setComplexidade,
     exigeCalculo,
@@ -1336,8 +1343,8 @@ export function useMestreState() {
     setShowDatePicker,
     newEventTipo,
     setNewEventTipo,
-    newEventTurmaId,
-    setNewEventTurmaId,
+    newEventTurmaIds,
+    setNewEventTurmaIds,
     pendingBatches,
     loadingPending,
     editingQuestId,

@@ -461,7 +461,10 @@ export function GradeTab({
             {/* Listagem de Turmas Elegíveis no Turno */}
             <Text className="text-white/40 text-[9px] font-mono mb-2.5 uppercase tracking-wider">Turmas Elegíveis para Geração Simultânea:</Text>
             <View className="flex-row flex-wrap gap-2 mb-6">
-              {turmas.map(t => (
+              {turmas.filter(t => {
+                if (!t.users || t.users.length === 0) return true;
+                return t.users.some((u: any) => u.turno === selectedShift);
+              }).map(t => (
                 <View key={t.id} className="bg-black/50 border border-white/10 px-3 py-1.5 rounded-sm flex-row items-center gap-1.5">
                   <View className="w-1.5 h-1.5 rounded-full bg-neonBlue" />
                   <Text className="text-white/80 text-xs font-bold font-mono">{t.nome}</Text>

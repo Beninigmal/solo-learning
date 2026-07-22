@@ -28,7 +28,7 @@ const QUEST_EXPIRES_DAYS = 7;
 
 interface GenerateQuestBody {
   semana: string;
-  turmaId: string;
+  turmaIds: string[];
   tema: string;
   complexidade: string;
   exigeCalculo: boolean;
@@ -4033,7 +4033,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
 
     const MAX_AULAS_SEMANA_DEFAULT = 32;
     let backtrackCount = 0;
-    const MAX_BACKTRACK_STEPS = 8000;
+    const MAX_BACKTRACK_STEPS = 40000;
 
     function solve(slotIndex: number): boolean {
       backtrackCount++;
@@ -4095,6 +4095,8 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
            : (turmaDisciplinas.length === 2 ? Math.ceil(slotsCount / 2) + 1 : 2));
 
       candidates = candidates.filter(td => {
+        if (td.disciplinaId === 'VAGO') return true;
+
         let countToday = 0;
         let hasNonAdjacent = false;
         
@@ -4117,8 +4119,8 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       // 5. Lógica de geminadas + barreira do recreio
       if (prevDisciplineId) {
         if (crossesInterval) {
-          // Nunca repetir mesma disciplina cruzando o intervalo
-          candidates = candidates.filter(c => c.disciplinaId !== prevDisciplineId);
+          // Nunca repetir mesma disciplina cruzando o intervalo (exceto VAGO)
+          candidates = candidates.filter(c => c.disciplinaId === 'VAGO' || c.disciplinaId !== prevDisciplineId);
         } else {
           // Forçar geminada se marcada como obrigatória
           if (isGeminada[prevDisciplineId]) {
@@ -4164,7 +4166,20 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
 
       if (candidates.length === 0) return false;
 
-      shuffleArray(candidates);
+      // Otimização heurística (MRV): Priorizar matérias que ainda precisam de mais aulas.
+      // Isso evita deixar 3 aulas de Matemática para a sexta-feira (o que causaria dead-end se o limite for 2).
+      candidates.sort((a, b) => {
+        // Horários vagos SEMPRE ficam com a menor prioridade possível
+        if (a.disciplinaId === 'VAGO' && b.disciplinaId !== 'VAGO') return 1;
+        if (b.disciplinaId === 'VAGO' && a.disciplinaId !== 'VAGO') return -1;
+
+        const remainingA = (requiredCounts[a.disciplinaId] ?? 0) - (assignedCounts[a.disciplinaId] ?? 0);
+        const remainingB = (requiredCounts[b.disciplinaId] ?? 0) - (assignedCounts[b.disciplinaId] ?? 0);
+        if (remainingA !== remainingB) {
+          return remainingB - remainingA;
+        }
+        return Math.random() - 0.5; // desempate aleatório para não ficar sempre igual
+      });
 
       for (const candidate of candidates) {
         const discId = candidate.disciplinaId;
@@ -4441,6 +4456,9 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         include: {
           turmaDisciplinas: {
             include: { disciplina: true, professor: true }
+          },
+          users: {
+            select: { turno: true }
           }
         }
       });
@@ -4449,7 +4467,15 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
         return reply.status(403).send({ error: `Seu plano TRIAL permite rodar o Monarch para no máximo ${maxTurmas} turmas ao mesmo tempo. Você possui ${allTurmas.length} turmas.` });
       }
 
-      const eligibleTurmas = allTurmas.filter(t => t.turmaDisciplinas.length > 0);
+      const eligibleTurmas = allTurmas.filter(t => {
+        if (t.turmaDisciplinas.length === 0) return false;
+        // Se a turma tiver alunos, ela só é elegível se algum aluno pertencer a este turno
+        if (t.users && t.users.length > 0) {
+          return t.users.some((u: any) => u.turno === shift);
+        }
+        // Se não tiver alunos ainda, consideramos elegível para qualquer turno
+        return true;
+      });
       if (eligibleTurmas.length === 0) {
         return reply.status(400).send({ error: 'Nenhuma turma com disciplinas cadastradas encontrada.' });
       }
@@ -4725,27 +4751,32 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
     }
   });
 
-  fastify.post<{ Body: { titulo: string; descricao?: string; data: string; tipo: string; turmaId: string } }>('/calendar/events', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+  fastify.post<{ Body: { titulo: string; descricao?: string; data: string; tipo: string; turmaIds: string[] } }>('/calendar/events', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     try {
       const user = await prisma.user.findUnique({ where: { id: request.user.id } });
       if (!user || (user.role !== 'ADMIN' && user.role !== 'PROFESSOR')) {
         return reply.status(403).send({ error: 'Apenas mestres e diretores podem adicionar datas na agenda.' });
       }
-      const { titulo, descricao, data, tipo, turmaId } = request.body;
-      if (!titulo || !data || !tipo || !turmaId) {
-        return reply.status(400).send({ error: 'Campos titulo, data, tipo e turmaId são obrigatórios.' });
+      const { titulo, descricao, data, tipo, turmaIds } = request.body;
+      if (!titulo || !data || !tipo || !turmaIds || turmaIds.length === 0) {
+        return reply.status(400).send({ error: 'Campos titulo, data, tipo e turmaIds são obrigatórios.' });
       }
-      const event = await prisma.calendarEvent.create({
-        data: {
-          titulo,
-          descricao,
-          data: new Date(data),
-          tipo,
-          turmaId,
-          professorId: user.id
-        }
-      });
-      return reply.status(201).send(event);
+      
+      const events = [];
+      for (const tId of turmaIds) {
+        const event = await prisma.calendarEvent.create({
+          data: {
+            titulo,
+            descricao,
+            data: new Date(data),
+            tipo,
+            turmaId: tId,
+            professorId: user.id
+          }
+        });
+        events.push(event);
+      }
+      return reply.status(201).send(events);
     } catch (error: any) {
       request.log.error(error);
       return reply.status(500).send({ error: 'Erro ao criar evento na agenda.', details: error.message });
@@ -4932,6 +4963,10 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
             return reply.status(400).send({ error: 'Este artefato já foi utilizado nesta missão.' });
           }
           usedList.push(artifactId);
+        }
+
+        if (artifactId) {
+          await consumeArtifactIfPresent(userId, artifactId);
         }
 
         if (artifactId === 'elixir_dourado' || artifactId === 'escudo_arcano' || artifactId === 'bracelete_cristal') {

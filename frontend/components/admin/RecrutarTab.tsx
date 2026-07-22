@@ -21,6 +21,7 @@ interface RecrutarTabProps {
   handleSelectExcel: (type: 'alunos' | 'professores') => void;
   handleUploadFile: (base64: string, type: 'alunos' | 'professores') => Promise<void>;
   excelData: any[];
+  setExcelData?: (data: any[]) => void;
   handleBatchRecrutarExcel: () => void;
   sounds: any;
   
@@ -58,6 +59,7 @@ export function RecrutarTab({
   handleSelectExcel,
   handleUploadFile,
   excelData,
+  setExcelData,
   handleBatchRecrutarExcel,
   sounds,
   
@@ -86,8 +88,15 @@ export function RecrutarTab({
     setIsDragging(true);
   };
 
-  const handleDragLeave = () => {
+  const handleDragEnter = (e: any) => {
     if (Platform.OS !== 'web') return;
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: any) => {
+    if (Platform.OS !== 'web') return;
+    e.preventDefault();
     setIsDragging(false);
   };
 
@@ -208,29 +217,71 @@ export function RecrutarTab({
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity
-                className={`w-full py-6 border border-dashed rounded-sm items-center justify-center flex-col gap-2.5 mb-4 ${
-                  isDragging 
-                    ? 'bg-yellow-500/10 border-yellow-500' 
-                    : 'bg-neonBlue/10 border-neonBlue/50'
-                }`}
-                onPress={() => handleSelectExcel('alunos')}
-                {...({
-                  onDragOver: handleDragOver,
-                  onDragLeave: handleDragLeave,
-                  onDrop: handleDrop
-                } as any)}
-              >
-                <Feather name={isDragging ? "upload-cloud" : "upload"} size={20} color={isDragging ? "#eab308" : "#00f3ff"} />
-                <Text className={`font-mono text-xs uppercase tracking-widest ${isDragging ? 'text-yellow-500 font-bold' : 'text-neonBlue'}`}>
-                  {isDragging ? 'Soltar Planilha Excel' : 'Importar Planilha'}
-                </Text>
-                {Platform.OS === 'web' && !isDragging && (
-                  <Text className="text-[9px] text-white/30 uppercase tracking-wider font-mono">
-                    Ou arraste e solte o arquivo aqui
-                  </Text>
-                )}
-              </TouchableOpacity>
+              {(!excelData || excelData.length === 0) ? (
+                Platform.OS === 'web' ? (
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={() => handleSelectExcel('alunos')}
+                    style={{
+                      width: '100%',
+                      padding: '24px 0',
+                      borderWidth: 1,
+                      borderStyle: 'dashed',
+                      borderRadius: 4,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: 16,
+                      cursor: 'pointer',
+                      backgroundColor: isDragging ? 'rgba(234, 179, 8, 0.1)' : 'rgba(0, 243, 255, 0.1)',
+                      borderColor: isDragging ? '#eab308' : 'rgba(0, 243, 255, 0.5)'
+                    }}
+                  >
+                    <View style={{ alignItems: 'center', pointerEvents: 'none' } as any}>
+                      <Feather name={isDragging ? "upload-cloud" : "upload"} size={20} color={isDragging ? "#eab308" : "#00f3ff"} />
+                      <Text className={`font-mono text-xs uppercase tracking-widest mt-2 ${isDragging ? 'text-yellow-500 font-bold' : 'text-neonBlue'}`}>
+                        {isDragging ? 'Soltar Planilha Excel' : 'Importar Planilha'}
+                      </Text>
+                      {!isDragging && (
+                        <Text className="text-[9px] text-white/30 uppercase tracking-wider font-mono mt-1">
+                          Ou arraste e solte o arquivo aqui
+                        </Text>
+                      )}
+                    </View>
+                  </div>
+                ) : (
+                  <TouchableOpacity
+                    className={`w-full py-6 border border-dashed rounded-sm items-center justify-center flex-col gap-2.5 mb-4 ${
+                      isDragging 
+                        ? 'bg-yellow-500/10 border-yellow-500' 
+                        : 'bg-neonBlue/10 border-neonBlue/50'
+                    }`}
+                    onPress={() => handleSelectExcel('alunos')}
+                  >
+                    <Feather name="upload" size={20} color="#00f3ff" />
+                    <Text className="font-mono text-xs uppercase tracking-widest text-neonBlue">
+                      Importar Planilha
+                    </Text>
+                  </TouchableOpacity>
+                )
+              ) : (
+                <View className="bg-neonBlue/10 border border-neonBlue p-4 rounded-sm mb-4 flex-row justify-between items-center">
+                  <View>
+                    <Text className="text-neonBlue text-[10px] font-mono font-bold uppercase tracking-wider mb-2">⚡ PLANILHA CARREGADA</Text>
+                    <Text className="text-white text-xs">Detectamos <Text className="font-bold text-neonBlue">{excelData.length}</Text> alunos.</Text>
+                  </View>
+                  <TouchableOpacity 
+                    className="p-3 bg-red-500/10 border border-red-500/50 rounded-sm"
+                    onPress={() => setExcelData?.([])}
+                  >
+                    <Feather name="trash-2" size={16} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              )}
 
               <Text className="text-white/50 text-xs mb-2 uppercase font-bold mt-2">Vincular alunos importados à Turma:</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6" contentContainerStyle={{ paddingHorizontal: 8 }}>
@@ -248,13 +299,6 @@ export function RecrutarTab({
                   ))}
                 </View>
               </ScrollView>
-
-              {excelData && excelData.length > 0 && (
-                <View className="bg-neonBlue/10 border border-neonBlue p-4 rounded-sm mb-6">
-                  <Text className="text-neonBlue text-[10px] font-mono font-bold uppercase tracking-wider mb-2">⚡ PLANILHA CARREGADA</Text>
-                  <Text className="text-white text-xs mb-3">Detectamos <Text className="font-bold text-neonBlue">{excelData.length}</Text> alunos.</Text>
-                </View>
-              )}
               
               <CyberSubmitButton
                 title="Importar Planilha de Alunos"
@@ -322,34 +366,69 @@ export function RecrutarTab({
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity
-                className={`w-full py-6 border border-dashed rounded-sm items-center justify-center flex-col gap-2.5 mb-4 ${
-                  isDragging 
-                    ? 'bg-yellow-500/10 border-yellow-500' 
-                    : 'bg-neonBlue/10 border-neonBlue/50'
-                }`}
-                onPress={() => handleSelectExcel('professores')}
-                {...({
-                  onDragOver: handleDragOver,
-                  onDragLeave: handleDragLeave,
-                  onDrop: handleDrop
-                } as any)}
-              >
-                <Feather name={isDragging ? "upload-cloud" : "upload"} size={20} color={isDragging ? "#eab308" : "#00f3ff"} />
-                <Text className={`font-mono text-xs uppercase tracking-widest ${isDragging ? 'text-yellow-500 font-bold' : 'text-neonBlue'}`}>
-                  {isDragging ? 'Soltar Planilha Excel' : 'Importar Planilha'}
-                </Text>
-                {Platform.OS === 'web' && !isDragging && (
-                  <Text className="text-[9px] text-white/30 uppercase tracking-wider font-mono">
-                    Ou arraste e solte o arquivo aqui
-                  </Text>
-                )}
-              </TouchableOpacity>
-
-              {excelData && excelData.length > 0 && (
-                <View className="bg-neonBlue/10 border border-neonBlue p-4 rounded-sm mb-6">
-                  <Text className="text-neonBlue text-[10px] font-mono font-bold uppercase tracking-wider mb-2">⚡ PLANILHA CARREGADA</Text>
-                  <Text className="text-white text-xs mb-3">Detectamos <Text className="font-bold text-neonBlue">{excelData.length}</Text> professores.</Text>
+              {(!excelData || excelData.length === 0) ? (
+                Platform.OS === 'web' ? (
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={() => handleSelectExcel('professores')}
+                    style={{
+                      width: '100%',
+                      padding: '24px 0',
+                      borderWidth: 1,
+                      borderStyle: 'dashed',
+                      borderRadius: 4,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: 16,
+                      cursor: 'pointer',
+                      backgroundColor: isDragging ? 'rgba(234, 179, 8, 0.1)' : 'rgba(0, 243, 255, 0.1)',
+                      borderColor: isDragging ? '#eab308' : 'rgba(0, 243, 255, 0.5)'
+                    }}
+                  >
+                    <View style={{ alignItems: 'center', pointerEvents: 'none' } as any}>
+                      <Feather name={isDragging ? "upload-cloud" : "upload"} size={20} color={isDragging ? "#eab308" : "#00f3ff"} />
+                      <Text className={`font-mono text-xs uppercase tracking-widest mt-2 ${isDragging ? 'text-yellow-500 font-bold' : 'text-neonBlue'}`}>
+                        {isDragging ? 'Soltar Planilha Excel' : 'Importar Planilha'}
+                      </Text>
+                      {!isDragging && (
+                        <Text className="text-[9px] text-white/30 uppercase tracking-wider font-mono mt-1">
+                          Ou arraste e solte o arquivo aqui
+                        </Text>
+                      )}
+                    </View>
+                  </div>
+                ) : (
+                  <TouchableOpacity
+                    className={`w-full py-6 border border-dashed rounded-sm items-center justify-center flex-col gap-2.5 mb-4 ${
+                      isDragging 
+                        ? 'bg-yellow-500/10 border-yellow-500' 
+                        : 'bg-neonBlue/10 border-neonBlue/50'
+                    }`}
+                    onPress={() => handleSelectExcel('professores')}
+                  >
+                    <Feather name="upload" size={20} color="#00f3ff" />
+                    <Text className="font-mono text-xs uppercase tracking-widest text-neonBlue">
+                      Importar Planilha
+                    </Text>
+                  </TouchableOpacity>
+                )
+              ) : (
+                <View className="bg-neonBlue/10 border border-neonBlue p-4 rounded-sm mb-6 flex-row justify-between items-center">
+                  <View>
+                    <Text className="text-neonBlue text-[10px] font-mono font-bold uppercase tracking-wider mb-2">⚡ PLANILHA CARREGADA</Text>
+                    <Text className="text-white text-xs">Detectamos <Text className="font-bold text-neonBlue">{excelData.length}</Text> professores.</Text>
+                  </View>
+                  <TouchableOpacity 
+                    className="p-3 bg-red-500/10 border border-red-500/50 rounded-sm"
+                    onPress={() => setExcelData?.([])}
+                  >
+                    <Feather name="trash-2" size={16} color="#ef4444" />
+                  </TouchableOpacity>
                 </View>
               )}
 

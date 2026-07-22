@@ -1005,11 +1005,8 @@ export function useAdminState() {
       const parsedRows = await uploadExcel(base64);
       if (parsedRows && Array.isArray(parsedRows)) {
         setExcelData(parsedRows);
-        showAlert(
-          'ARQUIVO CARREGADO',
-          `Planilha de ${type} processada! Detectamos ${parsedRows.length} registros. Clique em Confirmar para salvar.`,
-          'success'
-        );
+        // sounds.playSuccess() // optional, but let's just keep silent or just set data
+
       } else {
         showAlert('ERRO', 'Não foi possível interpretar os dados da planilha.', 'error');
       }
@@ -1096,6 +1093,7 @@ export function useAdminState() {
       }
 
       let targetTurmaId = recrutTurmaId;
+      let targetTurmaNome = '';
       if (row.turma) {
         const turmaNomeCSV = String(row.turma).trim();
         if (turmaNomeCSV) {
@@ -1103,9 +1101,8 @@ export function useAdminState() {
           if (foundTurma) {
             targetTurmaId = foundTurma.id;
           } else {
-            localValidationErrors.push(
-              `• Aluno "${nomeVal}": A guilda/turma "${turmaNomeCSV}" não existe nesta instituição.`
-            );
+            targetTurmaId = undefined;
+            targetTurmaNome = turmaNomeCSV.toUpperCase();
           }
         }
       }
@@ -1115,26 +1112,18 @@ export function useAdminState() {
         matricula: String(matriculaVal),
         turno: finalTurno,
         targetTurmaId: targetTurmaId,
+        targetTurmaNome: targetTurmaNome
       });
     }
 
-    if (localValidationErrors.length > 0) {
-      showAlert(
-        'ERRO DE IMPORTAÇÃO',
-        `Inconsistência de Turmas detectada:\n\n${localValidationErrors.join(
-          '\n'
-        )}\n\nPor favor, crie as turmas correspondentes ou corrija o arquivo antes de tentar novamente.`,
-        'error'
-      );
-      return;
-    }
+    // Removida a trava de erro local, pois o backend criará a turma se necessário.
 
     if (studentsList.length === 0) {
       showAlert('Aviso', 'Nenhum aluno válido encontrado na planilha.', 'warning');
       return;
     }
 
-    const firstStudentTurma = studentsList[0].targetTurmaId;
+    const firstStudentTurma = studentsList[0].targetTurmaId || studentsList[0].targetTurmaNome;
     if (!firstStudentTurma) {
       showAlert(
         'Aviso',
@@ -1146,11 +1135,13 @@ export function useAdminState() {
 
     try {
       setRecrutando(true);
-      const groups: { [turmaId: string]: typeof studentsList } = {};
+      const groups: { [turmaIdOrName: string]: typeof studentsList } = {};
       studentsList.forEach((s) => {
-        const tId = s.targetTurmaId || firstStudentTurma;
-        if (!groups[tId]) groups[tId] = [];
-        groups[tId].push(s);
+        const tId = s.targetTurmaId || s.targetTurmaNome || firstStudentTurma;
+        if (tId) {
+          if (!groups[tId]) groups[tId] = [];
+          groups[tId].push(s);
+        }
       });
 
       let totalSuccess = 0;
@@ -1164,6 +1155,9 @@ export function useAdminState() {
           totalErrors = [...totalErrors, ...res.errors];
         }
       }
+      
+      // Como turmas podem ter sido criadas no backend, forçar atualização
+      fetchTurmas();
 
       showAlert(
         'PORTAL DE RECRUTAMENTO',
@@ -1188,20 +1182,29 @@ export function useAdminState() {
       return;
     }
 
-    const teachersList: { nome: string; matricula: string; cargahoraria?: number }[] = [];
+    const teachersList: { nome: string; matricula: string; cargahoraria?: number; categoria?: string; disciplina?: string }[] = [];
 
     for (const row of excelData) {
-      const nomeVal = row.nome || '';
-      const matriculaVal = row.matricula || '';
-      if (!nomeVal || !matriculaVal) continue;
+      console.log('--- DEBUG FRONTEND ROW ---', JSON.stringify(row));
+      const nomeVal = row.nome || row.nomedoprofessor || row.professor || row.docente || '';
+      const matriculaVal = row.matricula || row.registro || row.chapa || '';
+      if (!nomeVal || !matriculaVal) {
+        console.log('Linha ignorada - faltou nome ou matricula:', { nomeVal, matriculaVal });
+        continue;
+      }
 
       const rawCarga = row.cargahorariacontratual || row.cargahoraria || row.horas || row.cargahorariacontratualhoras;
       const hours = rawCarga ? Number(rawCarga) : 20;
 
+      const categoriaVal = row.categoria || row.vinculo || row.contrato || '';
+      const disciplinaVal = row.disciplina || row.materia || '';
+
       teachersList.push({
         nome: String(nomeVal),
         matricula: String(matriculaVal),
-        cargahoraria: hours
+        cargahoraria: hours,
+        categoria: categoriaVal ? String(categoriaVal) : undefined,
+        disciplina: disciplinaVal ? String(disciplinaVal) : undefined
       });
     }
 
@@ -1222,6 +1225,7 @@ export function useAdminState() {
       );
       setExcelData([]);
       fetchMasters();
+      fetchDisciplinas();
     } catch (error: any) {
       const msg = error.response?.data?.error || 'Erro ao processar lote de professores.';
       showAlert('Erro', msg, 'error');

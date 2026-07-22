@@ -12,8 +12,8 @@ interface AgendaTabProps {
   setNewEventData: (date: string) => void;
   newEventTipo: string;
   setNewEventTipo: (type: string) => void;
-  newEventTurmaId: string;
-  setNewEventTurmaId: (id: string) => void;
+  newEventTurmaIds: string[];
+  setNewEventTurmaIds: (ids: string[] | ((prev: string[]) => string[])) => void;
   loadingCalendar: boolean;
   calendarEvents: any[];
   sounds: any;
@@ -32,8 +32,8 @@ export const AgendaTab: React.FC<AgendaTabProps> = ({
   setNewEventData,
   newEventTipo,
   setNewEventTipo,
-  newEventTurmaId,
-  setNewEventTurmaId,
+  newEventTurmaIds,
+  setNewEventTurmaIds,
   loadingCalendar,
   calendarEvents,
   sounds,
@@ -105,16 +105,19 @@ export const AgendaTab: React.FC<AgendaTabProps> = ({
         </View>
 
         {/* Turma Alvo Selector */}
-        <Text className="text-white/50 text-[10px] uppercase font-bold mb-2">Turma Destinatária:</Text>
+        <Text className="text-white/50 text-[10px] uppercase font-bold mb-2">Turmas Destinatárias:</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
           <View className="flex-row gap-2">
             {turmas.map(t => (
               <TouchableOpacity
                 key={t.id}
-                onPress={() => { setNewEventTurmaId(t.id); sounds.playSelect(); }}
-                className={`px-3 py-2 rounded-sm border ${newEventTurmaId === t.id ? 'bg-neonBlue/20 border-neonBlue' : 'bg-black/50 border-neonBlue/20'}`}
+                onPress={() => {
+                  setNewEventTurmaIds((prev: string[]) => prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]);
+                  sounds.playSelect();
+                }}
+                className={`px-3 py-2 rounded-sm border ${newEventTurmaIds.includes(t.id) ? 'bg-neonBlue/20 border-neonBlue' : 'bg-black/50 border-neonBlue/20'}`}
               >
-                <Text className={`text-xs font-bold uppercase ${newEventTurmaId === t.id ? 'text-white' : 'text-neonBlue/40'}`}>
+                <Text className={`text-xs font-bold uppercase ${newEventTurmaIds.includes(t.id) ? 'text-white' : 'text-neonBlue/40'}`}>
                   {t.nome}
                 </Text>
               </TouchableOpacity>

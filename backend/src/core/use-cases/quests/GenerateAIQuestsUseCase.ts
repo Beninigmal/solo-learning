@@ -6,7 +6,7 @@ import { analyzePrompt } from '../../../services/defensor';
 
 interface GenerateQuestRequest {
   semana: string;
-  turmaId: string;
+  turmaIds: string[];
   tema: string;
   complexidade: string;
   exigeCalculo: boolean;
@@ -24,34 +24,37 @@ export class GenerateAIQuestsUseCase {
   ) {}
 
   async execute(request: GenerateQuestRequest): Promise<{ batch: string; count: number }> {
-    const { semana, turmaId, tema, complexidade, exigeCalculo, disciplinaId, tipoQuest, userRole, userId } = request;
+    const { semana, turmaIds, tema, complexidade, exigeCalculo, disciplinaId, tipoQuest, userRole, userId } = request;
 
     if (userRole !== 'PROFESSOR' && userRole !== 'ADMIN') {
       throw new Error('Acesso negado.');
     }
 
-    if (!turmaId || !tema || !complexidade || !disciplinaId) {
-      throw new Error('Campos obrigatórios: turmaId, tema, complexidade, disciplinaId.');
+    if (!turmaIds || turmaIds.length === 0 || !tema || !complexidade || !disciplinaId) {
+      throw new Error('Campos obrigatórios: turmaIds, tema, complexidade, disciplinaId.');
     }
 
     const finalTipo = tipoQuest || (exigeCalculo ? 'CALCULO' : 'TEORICA');
 
-    const turma = await this.questRepository.findTurmaById(turmaId);
-    if (!turma) throw new Error('Turma não encontrada.');
+    // Usa a primeira turma como referência principal para o Prompt da IA
+    const turma = await this.questRepository.findTurmaById(turmaIds[0]);
+    if (!turma) throw new Error('Turma de referência não encontrada.');
 
     const disciplina = await this.questRepository.findDisciplinaById(disciplinaId);
     if (!disciplina) throw new Error('Disciplina não encontrada.');
 
     // Verificar vínculo se não for Admin
     if (userRole !== 'ADMIN') {
-      const vinculo = await this.questRepository.findProfessorTurmaDisciplina(userId, turmaId, disciplinaId);
-      if (!vinculo) {
-        throw new Error('Você não tem permissão para criar quests desta disciplina para esta turma.');
+      for (const tId of turmaIds) {
+        const vinculo = await this.questRepository.findProfessorTurmaDisciplina(userId, tId, disciplinaId);
+        if (!vinculo) {
+          throw new Error(`Você não tem permissão para criar quests para a turma de ID ${tId}.`);
+        }
       }
     }
 
     // Passa o tema pelo Agente Defensor (Anti-Prompt Injection para Professor)
-    const defensorResult = await analyzePrompt(tema, 'PROFESSOR', { turmaId, disciplinaId });
+    const defensorResult = await analyzePrompt(tema, 'PROFESSOR', { turmaIds, disciplinaId });
     if (!defensorResult.allowed) {
       throw new Error(`Tema bloqueado pelas políticas de segurança: ${defensorResult.reason}`);
     }
@@ -115,56 +118,61 @@ Exemplo de formato esperado:
     
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 dias
-    const batchId = crypto.randomUUID();
-
     const questConfig = [
       { level: 'FACIL', xp: 100 },
       { level: 'MEDIO', xp: 150 },
       { level: 'DIFICIL', xp: 200 }
     ];
 
-    for (let i = 1; i <= 3; i++) {
-      const key = `q${i}`;
-      const questData = questions[key] || questions[key.toUpperCase()];
+    let totalCreated = 0;
+
+    for (const tId of turmaIds) {
+      const batchId = crypto.randomUUID(); // Batch único por turma
       
-      if (!questData) {
-        throw new Error(`Formato de resposta da IA inválido. Esperado chave ${key}.`);
+      for (let i = 1; i <= 3; i++) {
+        const key = `q${i}`;
+        const questData = questions[key] || questions[key.toUpperCase()];
+        
+        if (!questData) {
+          throw new Error(`Formato de resposta da IA inválido. Esperado chave ${key}.`);
+        }
+
+        let enunciado = '';
+        let gabarito = '';
+
+        if (typeof questData === 'string') {
+          enunciado = questData;
+        } else if (typeof questData === 'object') {
+          enunciado = questData.enunciado || '';
+          gabarito = questData.gabarito || '';
+        }
+
+        if (!enunciado) {
+          throw new Error(`Formato de resposta da IA inválido para a chave ${key}: enunciado vazio.`);
+        }
+
+        const config = questConfig[i - 1];
+
+        await this.questRepository.createQuest({
+          disciplinaId: disciplina.id,
+          enunciado,
+          gabarito: gabarito ? String(gabarito).trim() : null,
+          tags: exigeCalculo ? ['CALCULO'] : [],
+          xp: config.xp,
+          nivel: config.level,
+          batchId,
+          ordem: i,
+          turmaAlvoId: tId,
+          semana,
+          tema,
+          status: 'PENDENTE',
+          expiresAt
+        });
+        totalCreated++;
       }
-
-      let enunciado = '';
-      let gabarito = '';
-
-      if (typeof questData === 'string') {
-        enunciado = questData;
-      } else if (typeof questData === 'object') {
-        enunciado = questData.enunciado || '';
-        gabarito = questData.gabarito || '';
-      }
-
-      if (!enunciado) {
-        throw new Error(`Formato de resposta da IA inválido para a chave ${key}: enunciado vazio.`);
-      }
-
-      const config = questConfig[i - 1];
-
-      await this.questRepository.createQuest({
-        disciplinaId: disciplina.id,
-        enunciado,
-        gabarito: gabarito ? String(gabarito).trim() : null,
-        tags: exigeCalculo ? ['CALCULO'] : [],
-        xp: config.xp,
-        nivel: config.level,
-        batchId,
-        ordem: i,
-        turmaAlvoId: turma.id,
-        semana,
-        tema,
-        status: 'PENDENTE',
-        expiresAt
-      });
     }
 
-    return { batch: batchId, count: 3 };
+    return { batch: 'multi-batch', count: totalCreated };
   }
 }
 
