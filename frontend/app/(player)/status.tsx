@@ -11,6 +11,7 @@ import {
   Animated as RNAnimated,
   RefreshControl,
   TextInput,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -1013,7 +1014,11 @@ export default function StatusScreen() {
 
       {/* Botão Flutuante e Caixa de Chat da Missão */}
       {state.activeParty && !state.showWindow && (
-        <View className="absolute bottom-24 right-6 z-50 items-end">
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
+          className="absolute bottom-24 right-6 z-50 items-end"
+        >
           {state.showFloatingChat && (
             <View 
               className="bg-[#080d1a]/95 border-2 border-neonBlue rounded-sm p-3 mb-3 w-[290px] h-[240px] shadow-2xl relative"
@@ -1112,7 +1117,7 @@ export default function StatusScreen() {
               </View>
             )}
           </TouchableOpacity>
-        </View>
+        </KeyboardAvoidingView>
       )}
     </SafeAreaView>
   );

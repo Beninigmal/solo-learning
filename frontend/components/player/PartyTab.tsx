@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 interface PartyTabProps {
@@ -57,7 +57,11 @@ export function PartyTab({
   handleJoinRaidQuest
 }: PartyTabProps) {
   return (
-    <View className="flex-1">
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
+      className="flex-1"
+    >
       <Text className="text-white text-lg font-bold uppercase tracking-widest mb-2">Party System</Text>
       <Text className="text-white/40 text-xs mb-6 font-mono">Una-se a aventureiros da sua turma para enfrentar Raids!</Text>
 
@@ -338,6 +342,6 @@ export function PartyTab({
           </View>
         </View>
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }

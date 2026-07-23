@@ -80,6 +80,7 @@ Crie EXATAMENTE 3 perguntas sobre o tema "${tema}" para a Semana "${semana}".
 Nível de ensino/Complexidade alvo: ${complexidade} (FUNDAMENTAL, MEDIO ou LIVRE).
 
 REGRAS IMPORTANTES:
+- REGRA CRÍTICA DE ALINHAMENTO DE TEMA: TODAS as 3 perguntas DEVEM obrigatoriamente focar exclusivamente no tema "${tema}". Se o tema for uma operação ou tópico específico (ex: "Soma entre três números"), as 3 questões DEVEM ser estritamente dessa operação (adição entre 3 números), e NUNCA de outras operações como divisão ou multiplicação.
 - Linguagem simples e direta.
 - As respostas devem ser curtas (uma palavra, número ou frase bem curta), dependendo do que for mais adequado para a pergunta.
 - Não dê a resposta no enunciado.

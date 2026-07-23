@@ -1149,6 +1149,9 @@ export function usePlayerState() {
         if (dStatus.expiresAt) {
           setQuestExpiresAt(dStatus.expiresAt);
         }
+        if (dStatus.cooldownUntil || dStatus.questCooldownUntil) {
+          setQuestCooldownUntil(dStatus.cooldownUntil || dStatus.questCooldownUntil);
+        }
         if (dStatus.usedHelpers !== undefined) {
           setUsedHelpers(Array.isArray(dStatus.usedHelpers) ? dStatus.usedHelpers : []);
         }
@@ -1307,6 +1310,19 @@ export function usePlayerState() {
       sounds.playSelect();
       await loadCurrentQuest();
       fetchSubjectStats();
+
+      // Se o jogador estiver em uma party com Modo Raid ativo, dispara a quest para o grupo automaticamente!
+      if (activeParty && activeParty.raidModeActive) {
+        const q = await getDailyQuest();
+        if (q && q.deliveryId) {
+          try {
+            await shareQuestInRaid(q.deliveryId);
+            await loadPartyData();
+          } catch (e) {
+            console.warn('Erro ao disparar quest na raid automaticamente:', e);
+          }
+        }
+      }
     } catch (error: any) {
       const msg = error?.response?.data?.error || error?.message || 'Nenhuma missão disponível.';
       showAlert('MENSAGEM DO SISTEMA', msg, 'info');
@@ -2040,12 +2056,14 @@ export function usePlayerState() {
       return;
     }
 
-    // 3. OUTROS ARTEFATOS AUXILIARES (Dica)
-    if (!deliveryId) {
-      showAlert('Erro', 'Nenhuma missão ativa encontrada para aplicar o artefato.', 'error');
-      setBurnArtifact(null);
-      setShowBurnModal(false);
-      return;
+    if (artifact.id === 'poeira_estelar') {
+      const hasOptions = /(?:^|\n)\s*([A-E])[\.\)\-]\s+/i.test(question);
+      if (!hasOptions) {
+        showAlert('Poeira Estelar', 'A Poeira Estelar só pode ser usada em missões de Múltipla Escolha.', 'warning');
+        setBurnArtifact(null);
+        setShowBurnModal(false);
+        return;
+      }
     }
 
     // Fecha o modal de queima imediatamente para dar fluidez e feedback visual instantâneo!
