@@ -11,7 +11,8 @@ import Reanimated, {
   withRepeat,
   Easing,
 } from 'react-native-reanimated';
-import { Canvas, Mask, RoundedRect, Fill, Shader, Skia, Image, useImage } from '@shopify/react-native-skia';
+import { Canvas, Mask, RoundedRect, Fill, Shader, Skia, Image as SkiaImage, useImage } from '@shopify/react-native-skia';
+import { Platform } from 'react-native';
 
 interface Artifact {
   id: string;
@@ -165,6 +166,7 @@ let organicMaskShader: any = null;
 let organicFireShader: any = null;
 
 const getOrganicMaskShader = () => {
+  if (Platform.OS === 'web') return null;
   if (!organicMaskShader && typeof Skia !== 'undefined' && Skia && Skia.RuntimeEffect) {
     try {
       organicMaskShader = Skia.RuntimeEffect.Make(maskShaderSource);
@@ -176,6 +178,7 @@ const getOrganicMaskShader = () => {
 };
 
 const getOrganicFireShader = () => {
+  if (Platform.OS === 'web') return null;
   if (!organicFireShader && typeof Skia !== 'undefined' && Skia && Skia.RuntimeEffect) {
     try {
       organicFireShader = Skia.RuntimeEffect.Make(fireShaderSource);
@@ -184,6 +187,85 @@ const getOrganicFireShader = () => {
     }
   }
   return organicFireShader;
+};
+
+// Sub-component for Skia canvas to avoid hook execution on Web
+const SkiaBurnCanvas = ({
+  maskShader,
+  charredMaskUniforms,
+  intactMaskUniforms,
+  fireShader,
+  fireUniforms,
+  imgSource,
+  burnProgress,
+  rarityBgColor,
+  rarityBorderColor
+}: any) => {
+  const cardImage = useImage(imgSource);
+  
+  return (
+    <Canvas style={{ width: 250, height: 420 }}>
+      {/* Layer 1 (Bottom): Charred Card, lags behind */}
+      <Mask
+        mode="alpha"
+        mask={
+          <Fill>
+            {maskShader && (
+              <Shader source={maskShader} uniforms={charredMaskUniforms} />
+            )}
+          </Fill>
+        }
+      >
+        <RoundedRect x={0} y={0} width={250} height={420} r={14} color="#0c0808" />
+        <RoundedRect x={1.5} y={1.5} width={247} height={417} r={14} color="#1a1111" style="stroke" strokeWidth={3} />
+        {cardImage && (
+          <SkiaImage
+            image={cardImage}
+            x={16}
+            y={15}
+            width={218}
+            height={170}
+            fit="contain"
+            opacity={0.15}
+          />
+        )}
+      </Mask>
+
+      {/* Layer 2 (Middle): The Original Intact Card Image with dissolve mask */}
+      <Mask
+        mode="alpha"
+        mask={
+          <Fill>
+            {maskShader && (
+              <Shader source={maskShader} uniforms={intactMaskUniforms} />
+            )}
+          </Fill>
+        }
+      >
+        {/* Intact Background */}
+        <RoundedRect x={0} y={0} width={250} height={420} r={14} color={rarityBgColor} />
+        {/* Intact Border */}
+        <RoundedRect x={1.5} y={1.5} width={247} height={417} r={14} color={rarityBorderColor} style="stroke" strokeWidth={3} />
+        {cardImage && (
+          <SkiaImage
+            image={cardImage}
+            x={16}
+            y={15}
+            width={218}
+            height={170}
+            fit="contain"
+          />
+        )}
+      </Mask>
+
+      {/* Layer 3 (Top): The Fire Rim effect running along the dissolve edge */}
+      <Fill>
+        {fireShader && (
+          <Shader source={fireShader} uniforms={fireUniforms} />
+        )}
+      </Fill>
+    </Canvas>
+  );
 };
 
 export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: ArtifactBurnModalProps) {
@@ -195,22 +277,25 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
   const sounds = useSolenSounds();
   const [activeArtifactState, setActiveArtifactState] = useState<Artifact | null>(null);
 
+  const isBurningRef = useRef(false);
+
   useEffect(() => {
     if (visible && artifact) {
       setLocalVisible(true);
       setActiveArtifactState(artifact);
+      setIsBurned(false);
+      isBurningRef.current = false;
       bgOpacityAnim.setValue(1);
     } else {
-      if (!isBurned) {
+      if (!isBurned && !isBurningRef.current) {
         setLocalVisible(false);
         setActiveArtifactState(null);
       }
     }
-  }, [visible, isBurned, artifact]);
+  }, [visible, artifact]);
 
   const activeArtifact = activeArtifactState || { id: '', name: '', type: 'magic' as const, description: '' };
   const imgSource = artifactImages[activeArtifact.id] || require('../assets/nano_banana.png');
-  const cardImage = useImage(imgSource);
 
   const getRarityColors = () => {
     switch (activeArtifact.type) {
@@ -271,6 +356,12 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
   const textFadeStyle = useAnimatedStyle(() => {
     return {
       opacity: textOpacity.value,
+    };
+  });
+
+  const cardDissolveStyle = useAnimatedStyle(() => {
+    return {
+      opacity: isBurned ? Math.max(0, 1 - burnProgress.value * 1.15) : 1,
     };
   });
 
@@ -520,6 +611,7 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
   const handleActivate = () => {
     if (isBurned) return;
     setIsBurned(true);
+    isBurningRef.current = true;
 
     sounds.playBurnArtefact();
 
@@ -664,7 +756,8 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
               setLocalVisible(false);
               setActiveArtifactState(null);
               setIsBurned(false);
-            }, 5200);
+              isBurningRef.current = false;
+            }, 1000);
           });
         });
       }, 900);
@@ -760,114 +853,28 @@ export function ArtifactBurnModal({ visible, artifact, onAnimationEnd }: Artifac
             {/* Charcoal burned background border */}
             <View style={{ position: 'relative', width: 250, height: 420, overflow: 'hidden', borderRadius: 14 }}>
               
-              {/* If NOT burned, show the normal intact card */}
-              {!isBurned && (
+              {/* O Card Intacto permanece renderizado e dissolve progressivamente com o progresso do fogo */}
+              <Reanimated.View style={[{ width: 250, height: 420, position: 'absolute', top: 0, left: 0, zIndex: 1 }, cardDissolveStyle]}>
                 <ArtifactCard
                   artifact={activeArtifact}
                   size="large"
                   animated={false}
                 />
-              )}
+              </Reanimated.View>
 
-              {/* If burned, show the Skia Organic Dissolve Canvas */}
-              {isBurned && (
-                <Canvas style={{ width: 250, height: 420 }}>
-                  {/* Layer 1 (Bottom): Charred Card, lags behind */}
-                  <Mask
-                    mode="alpha"
-                    mask={
-                      <Fill>
-                        {maskShader && (
-                          <Shader source={maskShader} uniforms={charredMaskUniforms} />
-                        )}
-                      </Fill>
-                    }
-                  >
-                    {/* Charred Background */}
-                    <RoundedRect
-                      x={0}
-                      y={0}
-                      width={250}
-                      height={420}
-                      r={14}
-                      color="#0c0808"
-                    />
-                    {/* Charred Border */}
-                    <RoundedRect
-                      x={1.5}
-                      y={1.5}
-                      width={247}
-                      height={417}
-                      r={14}
-                      color="#1a1111"
-                      style="stroke"
-                      strokeWidth={3}
-                    />
-                    {/* Charred Artifact Image (drawn with low opacity to look like a burnt silhouette) */}
-                    {cardImage && (
-                      <Image
-                        image={cardImage}
-                        x={16}
-                        y={15}
-                        width={218}
-                        height={170}
-                        fit="contain"
-                        opacity={0.15}
-                      />
-                    )}
-                  </Mask>
-
-                  {/* Layer 2 (Top): Intact Card */}
-                  <Mask
-                    mode="alpha"
-                    mask={
-                      <Fill>
-                        {maskShader && (
-                          <Shader source={maskShader} uniforms={intactMaskUniforms} />
-                        )}
-                      </Fill>
-                    }
-                  >
-                    {/* Intact Background */}
-                    <RoundedRect
-                      x={0}
-                      y={0}
-                      width={250}
-                      height={420}
-                      r={14}
-                      color={rarityBgColor}
-                    />
-                    {/* Intact Border */}
-                    <RoundedRect
-                      x={1.5}
-                      y={1.5}
-                      width={247}
-                      height={417}
-                      r={14}
-                      color={rarityBorderColor}
-                      style="stroke"
-                      strokeWidth={3}
-                    />
-                    {/* Artifact Image */}
-                    {cardImage && (
-                      <Image
-                        image={cardImage}
-                        x={16}
-                        y={15}
-                        width={218}
-                        height={170}
-                        fit="contain"
-                      />
-                    )}
-                  </Mask>
-
-                  {/* Glowing Fire Edge Overlay on top of the Mask */}
-                  <Fill>
-                    {fireShader && (
-                      <Shader source={fireShader} uniforms={fireUniforms} />
-                    )}
-                  </Fill>
-                </Canvas>
+              {/* Se queimado no Mobile/Native, renderiza também o Skia Canvas por cima/trás para simular a fusão da máscara */}
+              {isBurned && Platform.OS !== 'web' && (
+                <SkiaBurnCanvas
+                  maskShader={maskShader}
+                  charredMaskUniforms={charredMaskUniforms}
+                  intactMaskUniforms={intactMaskUniforms}
+                  fireShader={fireShader}
+                  fireUniforms={fireUniforms}
+                  imgSource={imgSource}
+                  burnProgress={burnProgress}
+                  rarityBgColor={rarityBgColor}
+                  rarityBorderColor={rarityBorderColor}
+                />
               )}
 
               {/* Standard React Native Text Overlays (Fade out during burn) */}

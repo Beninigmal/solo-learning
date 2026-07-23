@@ -304,6 +304,61 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     }
   });
 
+  // Gerar Matérias Padrão
+  fastify.post<{ Body: { nivel?: string } }>('/disciplinas/default', async (request, reply) => {
+    const { nivel } = request.body || {};
+    const instituicao = request.user.instituicao!;
+    const institutionId = request.user.institutionId || null;
+    
+    try {
+      const isMedio = nivel === 'MEDIO';
+      const defaultSubjects = isMedio ? 
+        ['Língua Portuguesa', 'Matemática', 'História', 'Geografia', 'Biologia', 'Física', 'Química', 'Sociologia', 'Filosofia', 'Educação Física', 'Artes', 'Língua Inglesa'] :
+        ['Língua Portuguesa', 'Matemática', 'História', 'Geografia', 'Ciências', 'Artes', 'Educação Física', 'Ensino Religioso', 'Língua Inglesa'];
+
+      let count = 0;
+      for (const subject of defaultSubjects) {
+        const existing = await prisma.disciplina.findFirst({
+          where: { nome: subject, instituicao }
+        });
+        if (!existing) {
+          await prisma.disciplina.create({
+            data: {
+              nome: subject,
+              instituicao,
+              institutionId
+            }
+          });
+          count++;
+        }
+      }
+      return reply.status(201).send({ message: `${count} matérias padrão criadas com sucesso!` });
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao gerar matérias padrão.' });
+    }
+  });
+
+  // Limpar Matérias Órfãs
+  fastify.delete('/disciplinas/unlinked', async (request, reply) => {
+    const instituicao = request.user.instituicao!;
+    try {
+      const disciplinas = await prisma.disciplina.findMany({
+        where: { instituicao },
+        include: { _count: { select: { turmaDisciplinas: true } } }
+      });
+      const unlinkedIds = disciplinas.filter(d => d._count.turmaDisciplinas === 0).map(d => d.id);
+      if (unlinkedIds.length === 0) {
+         return reply.status(200).send({ message: 'Nenhuma matéria órfã encontrada.' });
+      }
+      await prisma.disciplina.deleteMany({
+        where: { id: { in: unlinkedIds } }
+      });
+      return reply.status(200).send({ message: `${unlinkedIds.length} matérias órfãs removidas com sucesso.` });
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao limpar matérias órfãs.' });
+    }
+  });
+
   // Listar Disciplinas da Instituição
   fastify.get('/disciplinas', async (request, reply) => {
     const instituicao = request.user.instituicao!;
@@ -514,12 +569,50 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     }
 
     try {
-      const turma = await prisma.turma.findFirst({
-        where: { 
-          id: turmaId,
-          instituicao: request.user.instituicao
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(turmaId);
+      
+      console.log('--- DEBUG BATCH STUDENTS ---');
+      console.log('turmaId recebida:', turmaId);
+      console.log('isUUID:', isUUID);
+
+      let turma;
+      if (isUUID) {
+        turma = await prisma.turma.findFirst({
+          where: { 
+            id: turmaId,
+            instituicao: request.user.instituicao
+          }
+        });
+        console.log('Busca por UUID resultou em:', turma ? turma.id : 'NADA');
+      } else {
+        const turmaName = turmaId.toUpperCase().trim();
+        turma = await prisma.turma.findFirst({
+          where: {
+            nome: turmaName,
+            instituicao: request.user.instituicao
+          }
+        });
+        
+        if (!turma) {
+           let finalNivel = 'FUNDAMENTAL';
+           if (request.user.institutionId) {
+             const inst = await prisma.institution.findUnique({ where: { id: request.user.institutionId } });
+             if (inst && (inst.tipo === 'ESTADUAL' || inst.tipo === 'PRIVADO_MEDIO')) {
+                finalNivel = 'MEDIO';
+             }
+           }
+           turma = await prisma.turma.create({
+              data: {
+                 nome: turmaName,
+                 ano: String(new Date().getFullYear()),
+                 nivel: finalNivel,
+                 codigoInvocacao: '1234',
+                 instituicao: request.user.instituicao,
+                 institutionId: request.user.institutionId || null
+              }
+           });
         }
-      });
+      }
 
       if (!turma) {
         return reply.status(404).send({ error: 'Turma não encontrada ou sem permissão.' });
@@ -634,21 +727,60 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       const workbook = XLSX.read(buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(sheet);
-
-      // Normalizar cabeçalhos para evitar erros com acentos/espaços
       const cleanNormalize = (name: string): string => {
+        if (typeof name !== 'string') return '';
         return name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "");
       };
 
-      const parsedRows = jsonData.map((row: any) => {
-        const normalizedRow: any = {};
-        for (const key of Object.keys(row)) {
-          const normKey = cleanNormalize(key);
-          normalizedRow[normKey] = row[key];
+      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      let headerRowIndex = -1;
+      let headers: string[] = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (!Array.isArray(row)) continue;
+        const normalizedCols = row.map(cell => cell !== undefined && cell !== null ? cleanNormalize(String(cell)) : '');
+        if (normalizedCols.includes('nome') || normalizedCols.includes('nomedoprofessor') || normalizedCols.includes('matricula')) {
+          headerRowIndex = i;
+          headers = normalizedCols;
+          break;
         }
-        return normalizedRow;
-      });
+      }
+
+      if (headerRowIndex === -1) {
+        // Fallback: se não achar, tentar parse padrão
+        const jsonData = XLSX.utils.sheet_to_json(sheet);
+        const parsedRows = jsonData.map((row: any) => {
+          const normalizedRow: any = {};
+          for (const key of Object.keys(row)) {
+            const normKey = cleanNormalize(key);
+            normalizedRow[normKey] = row[key];
+          }
+          return normalizedRow;
+        });
+        return reply.send(parsedRows);
+      }
+
+      const parsedRows = [];
+      for (let i = headerRowIndex + 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!Array.isArray(row)) continue;
+        const obj: any = {};
+        let hasData = false;
+        for (let j = 0; j < headers.length; j++) {
+          if (headers[j]) {
+            obj[headers[j]] = row[j];
+            if (row[j] !== undefined && row[j] !== null && String(row[j]).trim() !== '') hasData = true;
+          }
+        }
+        if (hasData) parsedRows.push(obj);
+      }
+
+      console.log('--- DEBUG UPLOAD EXCEL ---');
+      console.log('Headers encontrados:', headers);
+      console.log('Exemplo primeira linha parseada:', parsedRows[0]);
+      console.log('Total de registros:', parsedRows.length);
+      console.log('--------------------------');
 
       return reply.send(parsedRows);
     } catch (err: any) {
@@ -692,7 +824,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
   });
 
   // Cadastro de Professores/Mestres em Lote
-  fastify.post<{ Body: { teachers: { nome: string; matricula: string; maxAulasSemanais?: number; cargahoraria?: number; cargahorariacontratual?: number; categoria?: string }[] } }>('/masters/batch', async (request, reply) => {
+  fastify.post<{ Body: { teachers: { nome: string; matricula: string; maxAulasSemanais?: number; cargahoraria?: number; cargahorariacontratual?: number; categoria?: string; disciplina?: string }[] } }>('/masters/batch', async (request, reply) => {
     const { teachers } = request.body;
     const instituicao = request.user.instituicao!;
     const institutionId = request.user.institutionId || null;
@@ -747,7 +879,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         }
 
         try {
-          await prisma.user.create({
+          const user = await prisma.user.create({
             data: {
               nome: t.nome.trim(),
               matricula: t.matricula.toLowerCase().trim(),
@@ -760,6 +892,26 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
               categoria: catClean
             }
           });
+          
+          if (t.disciplina) {
+            const discName = t.disciplina.trim();
+            let disc = await prisma.disciplina.findFirst({
+              where: { nome: discName, instituicao }
+            });
+            if (!disc) {
+              disc = await prisma.disciplina.create({
+                data: { nome: discName, instituicao, institutionId }
+              });
+            }
+            await prisma.disciplinaProfessor.create({
+              data: {
+                professorId: user.id,
+                disciplinaId: disc.id,
+                temp: false
+              }
+            });
+          }
+          
           createdCount++;
         } catch (e: any) {
           if (e.code === 'P2002') {
@@ -883,4 +1035,324 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       return reply.status(500).send({ error: 'Erro ao rejeitar exclusão de conta.' });
     }
   });
+
+  // ─── MATRIZ DE AUDITORIA ──────────────────────────────────────────────────
+  fastify.get<{ Querystring: { institutionId?: string; instituicao?: string; turmaId?: string; ano?: string; unidade?: string; disciplinaId?: string } }>(
+    '/matrix/audit',
+    async (request, reply) => {
+      const { institutionId, instituicao: targetInstName, turmaId, ano, unidade, disciplinaId } = request.query;
+
+      try {
+        let targetInst: any = null;
+        if (institutionId) {
+          targetInst = await prisma.institution.findUnique({ where: { id: institutionId } });
+        } else if (targetInstName) {
+          targetInst = await prisma.institution.findUnique({ where: { nome: targetInstName } });
+        } else if (request.user.institutionId) {
+          targetInst = await prisma.institution.findUnique({ where: { id: request.user.institutionId } });
+        } else if (request.user.instituicao) {
+          targetInst = await prisma.institution.findUnique({ where: { nome: request.user.instituicao } });
+        }
+
+        const instituicaoName = targetInst?.nome || request.user.instituicao || '';
+        const targetInstId = targetInst?.id || request.user.institutionId || undefined;
+
+        // Filtro base de turmas
+        const turmaWhere: any = {};
+        if (instituicaoName) turmaWhere.instituicao = instituicaoName;
+        if (turmaId) turmaWhere.id = turmaId;
+        if (ano) turmaWhere.ano = ano;
+        if (unidade) turmaWhere.unidade = parseInt(unidade, 10);
+
+        const turmas = await prisma.turma.findMany({
+          where: turmaWhere,
+          select: { id: true, nome: true, ano: true, unidade: true }
+        });
+        const turmaIds = turmas.map(t => t.id);
+
+        // Filtro de entregas de quests
+        const hasTurmaFilter = !!(turmaId || ano || unidade);
+        const deliveryWhere: any = {};
+        const wrongAnswersWhere: any = {};
+        const questWhere: any = {};
+
+        if (instituicaoName) {
+          deliveryWhere.user = { instituicao: instituicaoName };
+          wrongAnswersWhere.user = { instituicao: instituicaoName };
+          questWhere.turmaAlvo = { instituicao: instituicaoName };
+        }
+
+        if (hasTurmaFilter && turmaIds.length === 0) {
+          deliveryWhere.user = { id: 'impossible-id' };
+          wrongAnswersWhere.user = { id: 'impossible-id' };
+          questWhere.turmaAlvoId = 'impossible-id';
+        } else if (turmaIds.length > 0) {
+          deliveryWhere.user = { ...deliveryWhere.user, turmaId: { in: turmaIds } };
+          wrongAnswersWhere.user = { ...wrongAnswersWhere.user, turmaId: { in: turmaIds } };
+          questWhere.turmaAlvoId = { in: turmaIds };
+        }
+
+        if (disciplinaId) {
+          deliveryWhere.quest = { disciplinaId };
+          wrongAnswersWhere.quest = { disciplinaId };
+          questWhere.disciplinaId = disciplinaId;
+        }
+
+        const totalQuestsCreated = await prisma.quest.count({ where: questWhere });
+        const totalDeliveries = await prisma.questDelivery.count({ where: deliveryWhere });
+        const correctDeliveries = await prisma.questDelivery.count({
+          where: { ...deliveryWhere, isCorrect: true }
+        });
+        const wrongDeliveries = await prisma.questDelivery.count({
+          where: { ...deliveryWhere, isCorrect: false }
+        });
+
+        const totalAnswered = correctDeliveries + wrongDeliveries;
+        const hitRate = totalAnswered > 0 
+          ? Math.round((correctDeliveries / totalAnswered) * 100) 
+          : 0;
+
+        // Baú de Erros
+        const totalWrongAnswers = await prisma.wrongAnswer.count({ where: wrongAnswersWhere });
+        const resolvedWrongAnswers = await prisma.wrongAnswer.count({
+          where: { ...wrongAnswersWhere, resolvido: true }
+        });
+
+        // Logs de auditoria recentes
+        const logs = await prisma.actionLog.findMany({
+          where: targetInstId ? { institutionId: targetInstId } : {},
+          take: 20,
+          orderBy: { createdAt: 'desc' },
+          include: { user: { select: { nome: true, role: true } } }
+        });
+
+        // Detalhamento por Disciplina
+        const disciplinas = await prisma.disciplina.findMany({
+          where: instituicaoName ? { instituicao: instituicaoName } : {},
+          select: { id: true, nome: true }
+        });
+
+        const disciplinaStats = await Promise.all(
+          disciplinas.map(async (d) => {
+            const totalQuests = await prisma.quest.count({
+              where: { ...questWhere, disciplinaId: d.id }
+            });
+            const totalDeliv = await prisma.questDelivery.count({
+              where: { ...deliveryWhere, quest: { disciplinaId: d.id } }
+            });
+            const correct = await prisma.questDelivery.count({
+              where: { ...deliveryWhere, isCorrect: true, quest: { disciplinaId: d.id } }
+            });
+            const wrong = await prisma.questDelivery.count({
+              where: { ...deliveryWhere, isCorrect: false, quest: { disciplinaId: d.id } }
+            });
+            const answered = correct + wrong;
+            const rate = answered > 0 ? Math.round((correct / answered) * 100) : 0;
+
+            return {
+              disciplinaId: d.id,
+              nome: d.nome,
+              totalQuests,
+              totalDeliveries: totalDeliv,
+              totalAnswered: answered,
+              correct,
+              wrong,
+              hitRate: rate
+            };
+          })
+        );
+
+        return reply.status(200).send({
+          summary: {
+            totalTurmas: turmas.length,
+            totalQuestsCreated,
+            totalDeliveries,
+            totalAnswered,
+            correctDeliveries,
+            wrongDeliveries,
+            hitRate,
+            totalWrongAnswers,
+            resolvedWrongAnswers,
+            bauResolutionRate: totalWrongAnswers > 0 ? Math.round((resolvedWrongAnswers / totalWrongAnswers) * 100) : 0
+          },
+          turmas,
+          disciplinaStats,
+          auditLogs: logs
+        });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao gerar dados da matriz de auditoria.' });
+      }
+    }
+  );
+
+  // ─── RELATÓRIO POR UNIDADE (1, 2 ou 3) ────────────────────────────────────
+  fastify.get<{ Querystring: { unidade?: string; turmaId?: string; ano?: string; disciplinaId?: string } }>(
+    '/reports/unit',
+    async (request, reply) => {
+      const instituicao = request.user.instituicao!;
+      const { unidade = '1', turmaId, ano, disciplinaId } = request.query;
+
+      try {
+        const unidadeNum = parseInt(unidade, 10);
+        const turmaWhere: any = { instituicao, unidade: unidadeNum };
+        if (turmaId) turmaWhere.id = turmaId;
+        if (ano) turmaWhere.ano = ano;
+
+        const turmas = await prisma.turma.findMany({ where: turmaWhere, select: { id: true } });
+        const turmaIds = turmas.map(t => t.id);
+
+        const deliveryWhere: any = {
+          user: { instituicao, turmaId: { in: turmaIds } }
+        };
+        if (disciplinaId) deliveryWhere.quest = { disciplinaId };
+
+        const deliveries = await prisma.questDelivery.findMany({
+          where: deliveryWhere,
+          include: {
+            quest: { include: { disciplina: true } },
+            user: { select: { id: true, nome: true, matricula: true, xp: true } }
+          }
+        });
+
+        // Agrupar por disciplina/tópico para identificar Ganhos e Déficits
+        const bySubject: Record<string, { nome: string; total: number; correct: number; wrong: number; temas: Record<string, { total: number; correct: number }> }> = {};
+
+        deliveries.forEach((d) => {
+          const subName = d.quest?.disciplina?.nome || 'Geral';
+          const temaName = d.quest?.tema || 'Geral';
+
+          if (!bySubject[subName]) {
+            bySubject[subName] = { nome: subName, total: 0, correct: 0, wrong: 0, temas: {} };
+          }
+
+          bySubject[subName].total += 1;
+          if (d.isCorrect) bySubject[subName].correct += 1;
+          if (d.isCorrect === false) bySubject[subName].wrong += 1;
+
+          if (!bySubject[subName].temas[temaName]) {
+            bySubject[subName].temas[temaName] = { total: 0, correct: 0 };
+          }
+          bySubject[subName].temas[temaName].total += 1;
+          if (d.isCorrect) bySubject[subName].temas[temaName].correct += 1;
+        });
+
+        const ganhos: any[] = [];
+        const deficits: any[] = [];
+
+        Object.values(bySubject).forEach((sub) => {
+          const rate = sub.total > 0 ? Math.round((sub.correct / sub.total) * 100) : 0;
+          const item = {
+            materia: sub.nome,
+            totalQuests: sub.total,
+            taxaAcerto: rate,
+            temas: Object.entries(sub.temas).map(([t, stats]) => ({
+              tema: t,
+              taxaAcerto: stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0
+            }))
+          };
+
+          if (rate >= 75) {
+            ganhos.push(item);
+          } else if (rate < 50 || sub.wrong > sub.correct) {
+            deficits.push(item);
+          }
+        });
+
+        // Rastreamento por Aluno (Alunos Destaque vs. Alunos em Risco)
+        const studentStats: Record<string, { id: string; nome: string; matricula: string; total: number; correct: number; wrong: number }> = {};
+        deliveries.forEach((d) => {
+          if (!d.user) return;
+          const sId = d.user.id;
+          if (!studentStats[sId]) {
+            studentStats[sId] = { id: sId, nome: d.user.nome, matricula: d.user.matricula, total: 0, correct: 0, wrong: 0 };
+          }
+          studentStats[sId].total += 1;
+          if (d.isCorrect) studentStats[sId].correct += 1;
+          if (d.isCorrect === false) studentStats[sId].wrong += 1;
+        });
+
+        const studentsArray = Object.values(studentStats).map(s => ({
+          ...s,
+          taxaAcerto: s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0
+        }));
+
+        const destaques = [...studentsArray]
+          .filter(s => s.correct > 0 && s.taxaAcerto >= 70)
+          .sort((a, b) => b.taxaAcerto - a.taxaAcerto)
+          .slice(0, 5);
+
+        const emRisco = [...studentsArray]
+          .filter(s => s.total > 0 && (s.taxaAcerto < 50 || s.wrong > s.correct))
+          .sort((a, b) => a.taxaAcerto - b.taxaAcerto)
+          .slice(0, 5);
+
+        return reply.status(200).send({
+          unidade: unidadeNum,
+          totalQuests: deliveries.length,
+          ganhos,
+          deficits,
+          destaques,
+          emRisco
+        });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao gerar relatório por unidade.' });
+      }
+    }
+  );
+
+  // ─── RELATÓRIO ANUAL DE DESEMPENHO ─────────────────────────────────────────
+  fastify.get<{ Querystring: { turmaId?: string; ano?: string; disciplinaId?: string } }>(
+    '/reports/annual',
+    async (request, reply) => {
+      const instituicao = request.user.instituicao!;
+      const { turmaId, ano, disciplinaId } = request.query;
+
+      try {
+        const turmaWhere: any = { instituicao };
+        if (turmaId) turmaWhere.id = turmaId;
+        if (ano) turmaWhere.ano = ano;
+
+        const turmas = await prisma.turma.findMany({ where: turmaWhere, select: { id: true, unidade: true } });
+        const turmaIds = turmas.map(t => t.id);
+
+        const deliveryWhere: any = {
+          user: { instituicao, turmaId: { in: turmaIds } }
+        };
+        if (disciplinaId) deliveryWhere.quest = { disciplinaId };
+
+        const unitPerformance = await Promise.all([1, 2, 3].map(async (u) => {
+          const uTurmas = turmas.filter(t => t.unidade === u).map(t => t.id);
+          if (uTurmas.length === 0) return { unidade: u, total: 0, correct: 0, hitRate: 0 };
+
+          const uDeliveries = await prisma.questDelivery.findMany({
+            where: { ...deliveryWhere, user: { turmaId: { in: uTurmas } } },
+            select: { isCorrect: true }
+          });
+
+          const total = uDeliveries.length;
+          const correct = uDeliveries.filter(d => d.isCorrect === true).length;
+          const hitRate = total > 0 ? Math.round((correct / total) * 100) : 0;
+
+          return { unidade: u, total, correct, hitRate };
+        }));
+
+        const totalDeliveries = await prisma.questDelivery.count({ where: deliveryWhere });
+        const totalCorrect = await prisma.questDelivery.count({ where: { ...deliveryWhere, isCorrect: true } });
+
+        return reply.status(200).send({
+          ano: ano || 'Todos',
+          totalDeliveries,
+          totalCorrect,
+          overallHitRate: totalDeliveries > 0 ? Math.round((totalCorrect / totalDeliveries) * 100) : 0,
+          unitPerformance
+        });
+      } catch (error: any) {
+        request.log.error(error);
+        return reply.status(500).send({ error: 'Erro ao gerar relatório anual.' });
+      }
+    }
+  );
 };
+

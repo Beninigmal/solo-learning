@@ -188,8 +188,8 @@ export default function MestreDashboard() {
         <ForjaTab
           turmas={state.turmas}
           disciplinas={state.forjaDisciplinas}
-          forjaTurmaId={state.forjaTurmaId}
-          setForjaTurmaId={(id) => state.setForjaTurmaId(id || '')}
+          forjaTurmaIds={state.forjaTurmaIds}
+          setForjaTurmaIds={state.setForjaTurmaIds}
           forjaDisciplinaId={state.forjaDisciplinaId}
           setForjaDisciplinaId={(id) => state.setForjaDisciplinaId(id || '')}
           complexidade={state.complexidade}
@@ -332,8 +332,8 @@ export default function MestreDashboard() {
           setNewEventData={state.setNewEventData}
           newEventTipo={state.newEventTipo}
           setNewEventTipo={state.setNewEventTipo}
-          newEventTurmaId={state.newEventTurmaId}
-          setNewEventTurmaId={(id) => state.setNewEventTurmaId(id || '')}
+          newEventTurmaIds={state.newEventTurmaIds}
+          setNewEventTurmaIds={state.setNewEventTurmaIds}
           loadingCalendar={state.loadingCalendar}
           calendarEvents={state.calendarEvents}
           sounds={sounds}

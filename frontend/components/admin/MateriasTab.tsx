@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { CyberSubmitButton } from '../CyberSubmitButton';
 import { useWebDragScroll } from '../../hooks/useWebDragScroll';
@@ -144,6 +144,16 @@ export function MateriasTab({
   const totalCalculatedHours = allocatedOtherHours + proposedNewHours;
   const workloadExceeded = totalCalculatedHours > teacherMax;
 
+  const scrollList = (ref: React.MutableRefObject<any>, direction: 'left' | 'right') => {
+    if (Platform.OS === 'web') {
+      const el = ref.current;
+      const node = el?.getScrollableNode ? el.getScrollableNode() : el;
+      if (node) {
+        node.scrollBy({ left: direction === 'left' ? -250 : 250, behavior: 'smooth' });
+      }
+    }
+  };
+
   return (
     <View className="bg-[#0a1128]/90 border border-neonBlue/50 p-6 rounded-sm mb-6">
       <Text className="text-white text-lg font-bold uppercase tracking-widest mb-6">Manejo de Disciplinas</Text>
@@ -231,89 +241,125 @@ export function MateriasTab({
         
         {/* Professor Selector (Primeira Posição) */}
         <Text className="text-white/50 text-[10px] uppercase font-bold mb-1">1. Selecionar Professor:</Text>
-        <ScrollView ref={scrollRef1} horizontal showsHorizontalScrollIndicator={false} className="mb-4" contentContainerStyle={{ paddingHorizontal: 8 }}>
-          <View className="flex-row gap-2">
-            {masters.map(m => (
-              <TouchableOpacity
-                key={m.id}
-                onPress={() => { setSelectedProfessorId(m.id); sounds.playSelect(); }}
-                className={`px-3 py-2 rounded-sm border ${selectedProfessorId === m.id ? 'bg-neonBlue/20 border-neonBlue' : 'bg-black/50 border-neonBlue/20'}`}
-                activeOpacity={0.7}
-              >
-                <Text className={`text-xs font-mono ${(selectedProfessorId === m.id) ? 'text-white' : 'text-neonBlue/40'}`}>
-                  {m.nickname || m.nome}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
+        <View className="flex-row items-center mb-4">
+          {Platform.OS === 'web' && (
+            <TouchableOpacity onPress={() => { sounds.playSelect(); scrollList(scrollRef1, 'left'); }} className="p-2 bg-black/50 border border-neonBlue/20 rounded-sm mr-2 active:bg-neonBlue/20">
+              <Feather name="chevron-left" size={16} color="#00f3ff" />
+            </TouchableOpacity>
+          )}
+          <ScrollView ref={scrollRef1} horizontal showsHorizontalScrollIndicator={false} className="flex-1" contentContainerStyle={{ paddingHorizontal: 4 }}>
+            <View className="flex-row gap-2">
+              {masters.map(m => (
+                <TouchableOpacity
+                  key={m.id}
+                  onPress={() => { setSelectedProfessorId(m.id); sounds.playSelect(); }}
+                  className={`px-3 py-2 rounded-sm border ${selectedProfessorId === m.id ? 'bg-neonBlue/20 border-neonBlue' : 'bg-black/50 border-neonBlue/20'}`}
+                  activeOpacity={0.7}
+                >
+                  <Text className={`text-xs font-mono ${(selectedProfessorId === m.id) ? 'text-white' : 'text-neonBlue/40'}`}>
+                    {m.nickname || m.nome}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+          {Platform.OS === 'web' && (
+            <TouchableOpacity onPress={() => { sounds.playSelect(); scrollList(scrollRef1, 'right'); }} className="p-2 bg-black/50 border border-neonBlue/20 rounded-sm ml-2 active:bg-neonBlue/20">
+              <Feather name="chevron-right" size={16} color="#00f3ff" />
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Disciplina Selector (Segunda Posição) */}
         <Text className="text-white/50 text-[10px] uppercase font-bold mb-1">2. Selecionar Disciplina:</Text>
-        <ScrollView ref={scrollRef2} horizontal showsHorizontalScrollIndicator={false} className="mb-3" contentContainerStyle={{ paddingHorizontal: 8 }}>
-          <View className="flex-row gap-2">
-            {filteredDisciplinas.map(d => (
-              <TouchableOpacity
-                key={d.id}
-                onPress={() => { setSelectedDisciplinaId(d.id); sounds.playSelect(); }}
-                className={`px-3 py-2 rounded-sm border ${selectedDisciplinaId === d.id ? 'bg-neonBlue/20 border-neonBlue' : 'bg-black/50 border-neonBlue/20'}`}
-                activeOpacity={0.7}
-              >
-                <Text className={`text-xs font-mono ${(selectedDisciplinaId === d.id) ? 'text-white' : 'text-neonBlue/40'}`}>
-                  {d.nome}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
+        <View className="flex-row items-center mb-3">
+          {Platform.OS === 'web' && (
+            <TouchableOpacity onPress={() => { sounds.playSelect(); scrollList(scrollRef2, 'left'); }} className="p-2 bg-black/50 border border-neonBlue/20 rounded-sm mr-2 active:bg-neonBlue/20">
+              <Feather name="chevron-left" size={16} color="#00f3ff" />
+            </TouchableOpacity>
+          )}
+          <ScrollView ref={scrollRef2} horizontal showsHorizontalScrollIndicator={false} className="flex-1" contentContainerStyle={{ paddingHorizontal: 4 }}>
+            <View className="flex-row gap-2">
+              {filteredDisciplinas.map(d => (
+                <TouchableOpacity
+                  key={d.id}
+                  onPress={() => { setSelectedDisciplinaId(d.id); sounds.playSelect(); }}
+                  className={`px-3 py-2 rounded-sm border ${selectedDisciplinaId === d.id ? 'bg-neonBlue/20 border-neonBlue' : 'bg-black/50 border-neonBlue/20'}`}
+                  activeOpacity={0.7}
+                >
+                  <Text className={`text-xs font-mono ${(selectedDisciplinaId === d.id) ? 'text-white' : 'text-neonBlue/40'}`}>
+                    {d.nome}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+          {Platform.OS === 'web' && (
+            <TouchableOpacity onPress={() => { sounds.playSelect(); scrollList(scrollRef2, 'right'); }} className="p-2 bg-black/50 border border-neonBlue/20 rounded-sm ml-2 active:bg-neonBlue/20">
+              <Feather name="chevron-right" size={16} color="#00f3ff" />
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Turma Selector (Terceira Posição - Filtro & Associação Múltipla) */}
         <Text className="text-white/50 text-[10px] uppercase font-bold mb-1">3. Selecionar Turmas Alvo (Filtro Inteligente de Nível):</Text>
-        <ScrollView ref={scrollRef3} horizontal showsHorizontalScrollIndicator={false} className="mb-3" contentContainerStyle={{ paddingHorizontal: 8 }}>
-          <View className="flex-row gap-2">
-            {turmas.map(t => {
-              const isSelected = selectedLinkTurmaIds.includes(t.id);
-              const levelBadge = t.nivel === 'FUNDAMENTAL' ? 'F' : (t.nivel === 'MEDIO' ? 'M' : 'T');
-              
-              // Disabled if another class of a different level is already selected!
-              const isTapDisabled = activeLevel !== null && (t.nivel || 'FUNDAMENTAL') !== activeLevel;
+        <View className="flex-row items-center mb-3">
+          {Platform.OS === 'web' && (
+            <TouchableOpacity onPress={() => { sounds.playSelect(); scrollList(scrollRef3, 'left'); }} className="p-2 bg-black/50 border border-neonBlue/20 rounded-sm mr-2 active:bg-neonBlue/20">
+              <Feather name="chevron-left" size={16} color="#00f3ff" />
+            </TouchableOpacity>
+          )}
+          <ScrollView ref={scrollRef3} horizontal showsHorizontalScrollIndicator={false} className="flex-1" contentContainerStyle={{ paddingHorizontal: 4 }}>
+            <View className="flex-row gap-2">
+              {turmas.map(t => {
+                const isSelected = selectedLinkTurmaIds.includes(t.id);
+                const levelBadge = t.nivel === 'FUNDAMENTAL' ? 'F' : (t.nivel === 'MEDIO' ? 'M' : 'T');
+                
+                // Disabled if another class of a different level is already selected!
+                const isTapDisabled = activeLevel !== null && (t.nivel || 'FUNDAMENTAL') !== activeLevel;
 
-              return (
-                <TouchableOpacity
-                  key={t.id}
-                  onPress={() => {
-                    if (isTapDisabled) return;
-                    sounds.playSelect();
-                    handleToggleLinkTurma(t.id);
-                  }}
-                  disabled={isTapDisabled}
-                  className={`px-3 py-2 rounded-sm border flex-row items-center gap-1.5 ${
-                    isSelected 
-                      ? 'bg-neonBlue/20 border-neonBlue' 
-                      : (isTapDisabled ? 'bg-black/20 border-white/5 opacity-25' : 'bg-black/50 border-neonBlue/20')
-                  }`}
-                  activeOpacity={isTapDisabled ? 1 : 0.7}
-                >
-                  {isSelected && <Feather name="check-square" size={10} color="#00f3ff" />}
-                  <View className={`px-1.5 py-0.5 rounded-sm border ${
-                    isSelected 
-                      ? 'bg-neonBlue/25 border-neonBlue' 
-                      : (isTapDisabled ? 'border-white/10' : 'bg-white/10 border-white/20')
-                  }`}>
-                    <Text className={`text-[8px] font-bold font-mono ${isTapDisabled ? 'text-white/20' : 'text-white'}`}>{levelBadge}</Text>
-                  </View>
-                  <Text className={`text-xs font-mono ${
-                    isSelected 
-                      ? 'text-white font-bold' 
-                      : (isTapDisabled ? 'text-white/20' : 'text-neonBlue/40')
-                  }`}>
-                    {t.nome}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </ScrollView>
+                return (
+                  <TouchableOpacity
+                    key={t.id}
+                    onPress={() => {
+                      if (isTapDisabled) return;
+                      sounds.playSelect();
+                      handleToggleLinkTurma(t.id);
+                    }}
+                    disabled={isTapDisabled}
+                    className={`px-3 py-2 rounded-sm border flex-row items-center gap-1.5 ${
+                      isSelected 
+                        ? 'bg-neonBlue/20 border-neonBlue' 
+                        : (isTapDisabled ? 'bg-black/20 border-white/5 opacity-25' : 'bg-black/50 border-neonBlue/20')
+                    }`}
+                    activeOpacity={isTapDisabled ? 1 : 0.7}
+                  >
+                    {isSelected && <Feather name="check-square" size={10} color="#00f3ff" />}
+                    <View className={`px-1.5 py-0.5 rounded-sm border ${
+                      isSelected 
+                        ? 'bg-neonBlue/25 border-neonBlue' 
+                        : (isTapDisabled ? 'border-white/10' : 'bg-white/10 border-white/20')
+                    }`}>
+                      <Text className={`text-[8px] font-bold font-mono ${isTapDisabled ? 'text-white/20' : 'text-white'}`}>{levelBadge}</Text>
+                    </View>
+                    <Text className={`text-xs font-mono ${
+                      isSelected 
+                        ? 'text-white font-bold' 
+                        : (isTapDisabled ? 'text-white/20' : 'text-neonBlue/40')
+                    }`}>
+                      {t.nome}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+          {Platform.OS === 'web' && (
+            <TouchableOpacity onPress={() => { sounds.playSelect(); scrollList(scrollRef3, 'right'); }} className="p-2 bg-black/50 border border-neonBlue/20 rounded-sm ml-2 active:bg-neonBlue/20">
+              <Feather name="chevron-right" size={16} color="#00f3ff" />
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Painel Real-Time de Carga Horária do Mestre */}
         {selectedTeacher && (() => {

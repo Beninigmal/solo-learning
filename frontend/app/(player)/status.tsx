@@ -604,6 +604,7 @@ export default function StatusScreen() {
         isCalculation={state.isCalculation}
         answer={state.answer}
         setAnswer={state.setAnswer}
+        questCooldownUntil={state.questCooldownUntil}
         eliminatedOption={state.eliminatedOption}
         submitting={state.submitting}
         waiting={state.waiting}

@@ -21,6 +21,9 @@ import { SystemAlert } from '../../components/SystemAlert';
 import { CyberSubmitButton } from '../../components/CyberSubmitButton';
 import { ACTIVE_ANIMATION_TYPE } from '../../config';
 import { useSolenSounds } from '../../hooks/useSolenSounds';
+import { SaasFinancialsTab } from '../../components/superadmin/SaasFinancialsTab';
+import { MatrixAuditTab } from '../../components/admin/MatrixAuditTab';
+import { LogsTab } from '../../components/admin/LogsTab';
 
 export default function SuperAdminDashboard() {
   const router = useRouter();
@@ -49,6 +52,10 @@ export default function SuperAdminDashboard() {
   const [selectedSchool, setSelectedSchool] = useState('');
   const [loadingArchitects, setLoadingArchitects] = useState(false);
   const [editingArchitectId, setEditingArchitectId] = useState<string | null>(null);
+
+  // Architect filter states
+  const [filterArchSchool, setFilterArchSchool] = useState<string>('');
+  const [filterArchName, setFilterArchName] = useState<string>('');
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -169,7 +176,14 @@ export default function SuperAdminDashboard() {
     setNewSchoolNome(school.nome);
     setNewSchoolTipo(school.tipo || 'MUNICIPAL');
     setNewSchoolPlano(school.plano || 'TRIAL');
-    setNewSchoolMaxTurmas(String(school.maxTurmasMonarch ?? 2));
+    
+    if (school.maxTurmasMonarch === 9999) {
+      setNewSchoolMaxTurmas('Ilimitado');
+    } else if (school.maxTurmasMonarch !== null && school.maxTurmasMonarch !== undefined) {
+      setNewSchoolMaxTurmas(String(school.maxTurmasMonarch));
+    } else {
+      setNewSchoolMaxTurmas((school.plano || 'TRIAL') === 'TRIAL' ? '2' : '');
+    }
     
     // Smoothly scroll to the top of the terminal and focus the input for editing
     setTimeout(() => {
@@ -193,14 +207,21 @@ export default function SuperAdminDashboard() {
       return;
     }
 
+    let parsedMax = parseInt(newSchoolMaxTurmas);
+    if (newSchoolMaxTurmas === 'Ilimitado' || newSchoolPlano === 'RANK_A' || newSchoolPlano === 'RANK_S') {
+      parsedMax = 9999;
+    } else if (isNaN(parsedMax)) {
+      parsedMax = newSchoolPlano === 'TRIAL' ? 2 : 0;
+    }
+
     try {
       setLoadingSchools(true);
       if (editingSchoolId) {
-        await updateInstitution(editingSchoolId, newSchoolNome.trim(), newSchoolTipo, newSchoolPlano, parseInt(newSchoolMaxTurmas) || 2);
+        await updateInstitution(editingSchoolId, newSchoolNome.trim(), newSchoolTipo, newSchoolPlano, parsedMax);
         showAlert('SUCESSO', 'Instituição atualizada com sucesso!', 'success');
         setEditingSchoolId(null);
       } else {
-        await createInstitution(newSchoolNome, newSchoolTipo, newSchoolPlano, parseInt(newSchoolMaxTurmas) || 2);
+        await createInstitution(newSchoolNome, newSchoolTipo, newSchoolPlano, parsedMax);
         showAlert('SUCESSO', 'Instituição cadastrada no sistema!', 'success');
       }
       setNewSchoolNome('');
@@ -378,6 +399,12 @@ export default function SuperAdminDashboard() {
             <RefreshControl refreshing={refreshing} onRefresh={loadAllData} tintColor="#00f3ff" colors={['#00f3ff']} />
           }
         >
+          {/* ================= SEÇÃO FINANCEIRA SAAS ================= */}
+          <SaasFinancialsTab />
+
+          {/* ================= MATRIZ GLOBAL DE AUDITORIA ================= */}
+          <MatrixAuditTab />
+
           {/* ================= SEÇÃO DE INSTITUIÇÕES ================= */}
           <View className="bg-[#0a1128]/90 border border-neonBlue p-6 rounded-sm mb-6">
             <View className="flex-row items-center gap-2 mb-6">
@@ -438,7 +465,17 @@ export default function SuperAdminDashboard() {
                     return (
                       <TouchableOpacity
                         key={p.id}
-                        onPress={() => { setNewSchoolPlano(p.id); sounds.playSelect(); }}
+                        onPress={() => {
+                          setNewSchoolPlano(p.id);
+                          if (p.id === 'TRIAL') {
+                            setNewSchoolMaxTurmas('2');
+                          } else if (p.id === 'RANK_A' || p.id === 'RANK_S') {
+                            setNewSchoolMaxTurmas('Ilimitado');
+                          } else {
+                            setNewSchoolMaxTurmas('');
+                          }
+                          sounds.playSelect();
+                        }}
                         className={`px-3 py-2 rounded-sm border ${isSelected ? 'bg-neonBlue/30 border-neonBlue' : 'bg-black/60 border-neonBlue/30'}`}
                       >
                         <Text className={`text-[10px] font-mono uppercase font-bold ${isSelected ? 'text-white' : 'text-neonBlue/60'}`}>
@@ -456,8 +493,9 @@ export default function SuperAdminDashboard() {
                 placeholderTextColor="#00f3ff80"
                 value={newSchoolMaxTurmas}
                 onChangeText={setNewSchoolMaxTurmas}
-                keyboardType="numeric"
-                className="w-full bg-black/60 border border-neonBlue text-white text-center text-sm py-3 rounded-sm mb-6 font-mono"
+                editable={newSchoolPlano !== 'RANK_A' && newSchoolPlano !== 'RANK_S'}
+                keyboardType={newSchoolPlano === 'RANK_A' || newSchoolPlano === 'RANK_S' ? 'default' : 'numeric'}
+                className={`w-full bg-black/60 border border-neonBlue text-white text-center text-sm py-3 rounded-sm mb-6 font-mono ${newSchoolPlano === 'RANK_A' || newSchoolPlano === 'RANK_S' ? 'opacity-50' : ''}`}
                 keyboardAppearance="dark"
               />
 
@@ -499,7 +537,7 @@ export default function SuperAdminDashboard() {
                       <View className="w-2.5 h-2.5 rounded-full bg-neonBlue" style={{ shadowColor: '#00f3ff', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 4, elevation: 5 }} />
                       <View>
                         <Text className="text-white text-xs font-mono font-bold uppercase">{item.nome}</Text>
-                        <Text className="text-neonBlue/60 text-[9px] font-mono uppercase mt-0.5">{item.tipo || 'MUNICIPAL'} • {item.plano || 'TRIAL'} ({item.maxTurmasMonarch ?? 2} Turmas)</Text>
+                        <Text className="text-neonBlue/60 text-[9px] font-mono uppercase mt-0.5">{item.tipo || 'MUNICIPAL'} • {item.plano || 'TRIAL'} ({item.maxTurmasMonarch === 9999 ? 'Ilimitado' : (item.maxTurmasMonarch ?? 2)} Turmas)</Text>
                       </View>
                     </View>
                     <View className="flex-row items-center gap-2">
@@ -629,12 +667,73 @@ export default function SuperAdminDashboard() {
 
             {/* Listar Arquitetos */}
             <View>
-              <Text className="text-white/50 font-bold uppercase text-[10px] tracking-wider mb-4 font-mono">Arquitetos no Sistema ({architects.length})</Text>
+              <Text className="text-white/50 font-bold uppercase text-[10px] tracking-wider mb-3 font-mono">
+                Arquitetos no Sistema ({architects.length})
+              </Text>
+
+              {/* Filtros para Arquitetos */}
+              <View className="bg-black/40 border border-neonBlue/20 p-3 rounded-sm mb-4">
+                <TextInput
+                  placeholder="Pesquisar arquiteto por nome, matrícula ou apelido..."
+                  placeholderTextColor="#00f3ff50"
+                  value={filterArchName}
+                  onChangeText={setFilterArchName}
+                  className="w-full bg-black/60 border border-neonBlue/40 text-white text-xs px-3 py-2 rounded-sm mb-3 font-mono"
+                />
+
+                {schools.length > 0 && (
+                  <>
+                    <Text className="text-white/40 text-[9px] uppercase font-mono mb-1.5">Filtrar por Instituição:</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <View className="flex-row gap-1.5">
+                        <TouchableOpacity
+                          onPress={() => { setFilterArchSchool(''); sounds.playSelect(); }}
+                          className={`px-3 py-1.5 rounded-sm border ${filterArchSchool === '' ? 'bg-neonBlue/30 border-neonBlue' : 'bg-black/60 border-neonBlue/30'}`}
+                        >
+                          <Text className={`text-[9px] font-mono uppercase font-bold ${filterArchSchool === '' ? 'text-white' : 'text-neonBlue/60'}`}>
+                            Todas as Escolas
+                          </Text>
+                        </TouchableOpacity>
+                        {schools.map(s => {
+                          const isSelected = filterArchSchool === s.nome;
+                          return (
+                            <TouchableOpacity
+                              key={s.id}
+                              onPress={() => { setFilterArchSchool(s.nome); sounds.playSelect(); }}
+                              className={`px-3 py-1.5 rounded-sm border ${isSelected ? 'bg-neonBlue/30 border-neonBlue' : 'bg-black/60 border-neonBlue/30'}`}
+                            >
+                              <Text className={`text-[9px] font-mono uppercase font-bold ${isSelected ? 'text-white' : 'text-neonBlue/60'}`}>
+                                {s.nome}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </ScrollView>
+                  </>
+                )}
+              </View>
               
-              {architects.length === 0 ? (
-                <Text className="text-white/30 text-center font-mono py-6 text-xs">Nenhum arquiteto cadastrado.</Text>
-              ) : (
-                architects.map((item) => (
+              {(() => {
+                const filteredArchitects = architects.filter(arch => {
+                  const matchSchool = filterArchSchool ? arch.instituicao === filterArchSchool : true;
+                  const matchName = filterArchName
+                    ? (arch.nome?.toLowerCase().includes(filterArchName.toLowerCase()) ||
+                       arch.matricula?.toLowerCase().includes(filterArchName.toLowerCase()) ||
+                       arch.nickname?.toLowerCase().includes(filterArchName.toLowerCase()))
+                    : true;
+                  return matchSchool && matchName;
+                });
+
+                if (filteredArchitects.length === 0) {
+                  return (
+                    <Text className="text-white/30 text-center font-mono py-6 text-xs">
+                      Nenhum arquiteto encontrado para o filtro selecionado.
+                    </Text>
+                  );
+                }
+
+                return filteredArchitects.map((item) => (
                   <View 
                     key={item.id} 
                     className="bg-black/50 border border-neonBlue/30 p-4 rounded-sm mb-3"
@@ -693,75 +792,14 @@ export default function SuperAdminDashboard() {
                       </View>
                     </View>
                   </View>
-                ))
-              )}
+                ));
+              })()}
             </View>
           </View>
 
-          {/* ================= SEÇÃO DE LOGS ================= */}
+          {/* ================= SEÇÃO DE LOGS DE AUDITORIA ================= */}
           <View className="bg-[#0a1128]/90 border border-neonBlue p-6 rounded-sm mb-6">
-            <View className="flex-row items-center justify-between mb-6">
-              <View className="flex-row items-center gap-2">
-                <Feather name="activity" size={18} color="#00f3ff" />
-                <Text className="text-white text-base font-bold uppercase tracking-widest">Registro de Ações</Text>
-              </View>
-            </View>
-
-            {/* Filtro de Instituição para Logs */}
-            <Text className="text-white/50 text-[10px] uppercase font-mono mb-3">Filtrar por Instituição:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
-              <View className="flex-row gap-2">
-                <TouchableOpacity
-                  onPress={() => { setLogFilterInstId(null); fetchLogs(null); sounds.playSelect(); }}
-                  className={`px-3 py-2 rounded-sm border ${logFilterInstId === null ? 'bg-neonBlue/30 border-neonBlue' : 'bg-black/60 border-neonBlue/30'}`}
-                >
-                  <Text className={`text-[10px] font-mono uppercase font-bold ${logFilterInstId === null ? 'text-white' : 'text-neonBlue/60'}`}>
-                    Todas
-                  </Text>
-                </TouchableOpacity>
-                {schools.map(s => {
-                  const isSelected = logFilterInstId === s.id;
-                  return (
-                    <TouchableOpacity
-                      key={s.id}
-                      onPress={() => { setLogFilterInstId(s.id); fetchLogs(s.id); sounds.playSelect(); }}
-                      className={`px-3 py-2 rounded-sm border ${isSelected ? 'bg-neonBlue/30 border-neonBlue' : 'bg-black/60 border-neonBlue/30'}`}
-                    >
-                      <Text className={`text-[10px] font-mono uppercase font-bold ${isSelected ? 'text-white' : 'text-neonBlue/60'}`}>
-                        {s.nome}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </ScrollView>
-
-            <View>
-              {loadingLogs ? (
-                <Text className="text-neonBlue text-center font-mono py-6 text-xs animate-pulse">Carregando logs...</Text>
-              ) : logs.length === 0 ? (
-                <Text className="text-white/30 text-center font-mono py-6 text-xs">Nenhum log encontrado.</Text>
-              ) : (
-                logs.map((log) => (
-                  <View key={log.id} className="bg-black/40 border border-neonBlue/20 p-4 rounded-sm flex-row items-start mb-3">
-                    <View className="flex-1">
-                      <Text className="text-white font-bold text-sm mb-1">{log.action}</Text>
-                      {log.details && (
-                        <Text className="text-white/70 text-xs font-mono mb-2">{log.details}</Text>
-                      )}
-                      {log.user && (
-                        <Text className="text-neonBlue/70 text-[10px] font-mono uppercase mt-1">
-                          Operador: {log.user.nome} ({log.user.role}) - Matrícula: {log.user.matricula}
-                        </Text>
-                      )}
-                      <Text className="text-white/40 text-[9px] mt-1 text-right">
-                        {new Date(log.createdAt).toLocaleString('pt-BR')}
-                      </Text>
-                    </View>
-                  </View>
-                ))
-              )}
-            </View>
+            <LogsTab schools={schools} />
           </View>
         </ScrollView>
 

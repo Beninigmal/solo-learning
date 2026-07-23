@@ -332,8 +332,16 @@ export const registerStudentAsProfessor = async (matricula: string, nome: string
 };
 
 // Quest Generation
-export const generateQuest = async (semana: string, turmaId: string, tema: string, complexidade: string, exigeCalculo: boolean, disciplinaId: string, tipoQuest?: string) => {
-  const response = await api.post('/quests/generate', { semana, turmaId, tema, complexidade, exigeCalculo, disciplinaId, tipoQuest });
+export const generateQuest = async (semana: string, turmaIds: string[], tema: string, complexidade: string, exigeCalculo: boolean, disciplinaId: string, tipoQuest?: string) => {
+  const response = await api.post('/quests/generate', {
+    semana,
+    turmaIds,
+    tema,
+    complexidade,
+    exigeCalculo,
+    disciplinaId,
+    tipoQuest
+  });
   return response.data;
 };
 
@@ -601,8 +609,8 @@ export const getCalendarEvents = async () => {
   return response.data;
 };
 
-export const createCalendarEvent = async (titulo: string, data: string, tipo: string, turmaId: string, descricao?: string) => {
-  const response = await api.post('/quests/calendar/events', { titulo, data, tipo, turmaId, descricao });
+export const createCalendarEvent = async (titulo: string, data: string, tipo: string, turmaIds: string[], descricao?: string) => {
+  const response = await api.post('/quests/calendar/events', { titulo, data, tipo, turmaIds, descricao });
   return response.data;
 };
 

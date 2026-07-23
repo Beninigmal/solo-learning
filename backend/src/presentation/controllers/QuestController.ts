@@ -14,7 +14,7 @@ export class QuestController {
     request: FastifyRequest<{
       Body: {
         semana: string;
-        turmaId: string;
+        turmaIds: string[];
         tema: string;
         complexidade: string;
         exigeCalculo: boolean;
@@ -24,14 +24,14 @@ export class QuestController {
     }>,
     reply: FastifyReply
   ) {
-    const { semana, turmaId, tema, complexidade, exigeCalculo, disciplinaId, tipoQuest } = request.body;
+    const { semana, turmaIds, tema, complexidade, exigeCalculo, disciplinaId, tipoQuest } = request.body;
     const userRole = (request.user as any).role;
     const userId = (request.user as any).id;
 
     try {
       const result = await this.generateAIQuestsUseCase.execute({
         semana,
-        turmaId,
+        turmaIds,
         tema,
         complexidade,
         exigeCalculo,

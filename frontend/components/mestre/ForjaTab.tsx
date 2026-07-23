@@ -6,8 +6,8 @@ import { CyberSubmitButton } from '../CyberSubmitButton';
 interface ForjaTabProps {
   turmas: any[];
   disciplinas: any[];
-  forjaTurmaId: string | null;
-  setForjaTurmaId: (id: string | null) => void;
+  forjaTurmaIds: string[];
+  setForjaTurmaIds: (ids: string[] | ((prev: string[]) => string[])) => void;
   forjaDisciplinaId: string | null;
   setForjaDisciplinaId: (id: string | null) => void;
   complexidade: string;
@@ -46,8 +46,8 @@ interface ForjaTabProps {
 export const ForjaTab: React.FC<ForjaTabProps> = ({
   turmas,
   disciplinas,
-  forjaTurmaId,
-  setForjaTurmaId,
+  forjaTurmaIds,
+  setForjaTurmaIds,
   forjaDisciplinaId,
   setForjaDisciplinaId,
   complexidade,
@@ -96,10 +96,13 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
           {turmas.map((t) => (
             <TouchableOpacity
               key={t.id}
-              className={`px-4 py-2 rounded-sm border ${forjaTurmaId === t.id ? 'bg-neonBlue/20 border-neonBlue' : 'bg-black/50 border-neonBlue/20'}`}
-              onPress={() => { setForjaTurmaId(t.id); sounds.playSelect(); }}
+              className={`px-4 py-2 rounded-sm border ${forjaTurmaIds.includes(t.id) ? 'bg-neonBlue/20 border-neonBlue' : 'bg-black/50 border-neonBlue/20'}`}
+              onPress={() => {
+                setForjaTurmaIds((prev: string[]) => prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]);
+                sounds.playSelect();
+              }}
             >
-              <Text className={`text-xs font-bold uppercase ${forjaTurmaId === t.id ? 'text-white' : 'text-neonBlue/50'}`}>
+              <Text className={`text-xs font-bold uppercase ${forjaTurmaIds.includes(t.id) ? 'text-white' : 'text-neonBlue/50'}`}>
                 {t.nome}
               </Text>
             </TouchableOpacity>

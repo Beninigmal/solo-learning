@@ -360,4 +360,88 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
       return reply.status(500).send({ error: 'Erro ao resetar arquiteto.' });
     }
   });
+
+  // ─── GET /matrix/saas-financials ──────────────────────────────────────────
+  fastify.get('/matrix/saas-financials', async (request, reply) => {
+    try {
+      const institutions = await prisma.institution.findMany({
+        include: {
+          _count: {
+            select: {
+              turmas: true,
+              users: true
+            }
+          }
+        }
+      });
+
+      const PLAN_VALUES: Record<string, number> = {
+        TRIAL: 0,
+        RANK_B: 499,
+        RANK_A: 1299,
+        RANK_S: 2999
+      };
+
+      let totalMrr = 0;
+      let activeCount = 0;
+      let trialCount = 0;
+      let delinquentCount = 0;
+
+      const planBreakdown: Record<string, number> = { TRIAL: 0, RANK_B: 0, RANK_A: 0, RANK_S: 0 };
+      const statusBreakdown: Record<string, number> = { ATIVO: 0, INADIMPLENTE: 0, CANCELADO: 0 };
+
+      const now = new Date();
+      const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const expiringTrials: any[] = [];
+
+      institutions.forEach((inst) => {
+        const plan = inst.plano || 'TRIAL';
+        const status = inst.status || 'ATIVO';
+
+        planBreakdown[plan] = (planBreakdown[plan] || 0) + 1;
+        statusBreakdown[status] = (statusBreakdown[status] || 0) + 1;
+
+        if (status === 'ATIVO') {
+          totalMrr += PLAN_VALUES[plan] || 0;
+          activeCount++;
+        } else if (status === 'INADIMPLENTE') {
+          delinquentCount++;
+        }
+
+        if (plan === 'TRIAL') {
+          trialCount++;
+          if (inst.trialExpiration && inst.trialExpiration <= thirtyDaysFromNow && inst.trialExpiration >= now) {
+            expiringTrials.push({
+              id: inst.id,
+              nome: inst.nome,
+              trialExpiration: inst.trialExpiration
+            });
+          }
+        }
+      });
+
+      const totalTurmasAllocated = institutions.reduce((acc, i) => acc + i._count.turmas, 0);
+      const totalTurmasCapacity = institutions.reduce((acc, i) => acc + (i.maxTurmasMonarch || 2), 0);
+      const totalActiveUsers = institutions.reduce((acc, i) => acc + i._count.users, 0);
+
+      return reply.status(200).send({
+        summary: {
+          totalInstitutions: institutions.length,
+          activeCount,
+          trialCount,
+          delinquentCount,
+          totalMrr,
+          totalTurmasAllocated,
+          totalTurmasCapacity,
+          totalActiveUsers
+        },
+        planBreakdown,
+        statusBreakdown,
+        expiringTrials
+      });
+    } catch (error: any) {
+      request.log.error(error);
+      return reply.status(500).send({ error: 'Erro ao gerar relatórios financeiros SaaS.' });
+    }
+  });
 };

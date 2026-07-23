@@ -26,6 +26,8 @@ import { RecrutarTab } from '../../components/admin/RecrutarTab';
 import { GradeTab } from '../../components/admin/GradeTab';
 import { OrdinatorTab } from '../../components/admin/OrdinatorTab';
 import { LogsTab } from '../../components/admin/LogsTab';
+import { MatrixAuditTab } from '../../components/admin/MatrixAuditTab';
+import { AcademicReportsTab } from '../../components/admin/AcademicReportsTab';
 
 export default function AdminDashboard() {
   const sounds = useSolenSounds();
@@ -101,7 +103,7 @@ export default function AdminDashboard() {
           <View className="flex-row items-center mb-6">
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="max-h-12 flex-1">
               <View className="flex-row bg-black/40 border border-neonBlue/20 rounded-sm p-1">
-                {['RECRUTAR', 'TURMAS', 'MATÉRIAS', 'ARQUITETO', 'GRADE', 'ORDINATOR', 'LOGS'].map((tab) => (
+                {['RECRUTAR', 'TURMAS', 'MATÉRIAS', 'ARQUITETO', 'GRADE', 'MATRIZ', 'RELATÓRIOS', 'ORDINATOR', 'LOGS'].map((tab) => (
                   <TouchableOpacity
                     key={tab}
                     className={`px-6 py-2 items-center rounded-sm ${
@@ -295,6 +297,7 @@ export default function AdminDashboard() {
                 handleSelectExcel={state.handleSelectExcel}
                 handleUploadFile={state.handleUploadFile}
                 excelData={state.excelData}
+                setExcelData={state.setExcelData}
                 handleBatchRecrutarExcel={state.handleBatchRecrutarExcel}
                 sounds={sounds}
                 editingMasterId={state.editingMasterId}
@@ -347,6 +350,20 @@ export default function AdminDashboard() {
                 handleBatchGenerateTimetable={state.handleBatchGenerateTimetable}
                 fetchDisciplinaConfig={state.fetchDisciplinaConfig}
                 handleSaveDisciplinaConfig={state.handleSaveDisciplinaConfig}
+              />
+            )}
+
+            {state.activeTab === 'MATRIZ' && (
+              <MatrixAuditTab
+                currentUser={state.currentUser}
+                turmas={state.turmas}
+                disciplinas={state.allDisciplinasList}
+              />
+            )}
+
+            {state.activeTab === 'RELATÓRIOS' && (
+              <AcademicReportsTab
+                turmas={state.turmas}
               />
             )}
 
