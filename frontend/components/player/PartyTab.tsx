@@ -367,6 +367,6 @@ export function PartyTab({
           </View>
         </View>
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
