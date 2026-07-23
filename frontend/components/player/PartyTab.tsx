@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 interface PartyTabProps {
@@ -56,8 +56,31 @@ export function PartyTab({
   handleToggleRaidMode,
   handleJoinRaidQuest
 }: PartyTabProps) {
+  const [keyboardPadding, setKeyboardPadding] = useState(0);
+  const chatScrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardPadding(e.endCoordinates.height ? Math.min(e.endCoordinates.height, 280) : 240);
+        setTimeout(() => {
+          chatScrollRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardPadding(0)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   return (
-    <View className="flex-1">
+    <View style={{ flex: 1, paddingBottom: keyboardPadding }}>
       <Text className="text-white text-lg font-bold uppercase tracking-widest mb-2">Party System</Text>
       <Text className="text-white/40 text-xs mb-6 font-mono">Una-se a aventureiros da sua turma para enfrentar Raids!</Text>
 
@@ -207,9 +230,10 @@ export function PartyTab({
               }}
             >
               <ScrollView 
+                ref={chatScrollRef}
                 nestedScrollEnabled={true}
-                ref={ref => { if (ref) { ref.scrollToEnd({ animated: true }); } }}
                 showsVerticalScrollIndicator={true}
+                onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}
               >
                 {chatMessages.length === 0 ? (
                   <Text className="text-white/20 text-[10px] font-mono italic text-center mt-12">Nenhuma transmissão registrada neste canal...</Text>
@@ -246,6 +270,11 @@ export function PartyTab({
               <TextInput
                 value={chatInput}
                 onChangeText={setChatInput}
+                onFocus={() => {
+                  setTimeout(() => {
+                    chatScrollRef.current?.scrollToEnd({ animated: true });
+                  }, 100);
+                }}
                 placeholder="Transmitir mensagem..."
                 placeholderTextColor="#00f3ff20"
                 className="flex-1 bg-black/50 border border-neonBlue/30 text-white px-3 py-2 rounded-sm text-xs font-mono"

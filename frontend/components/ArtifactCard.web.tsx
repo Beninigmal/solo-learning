@@ -70,9 +70,9 @@ export function ArtifactCard({ artifact, size = 'normal', animated = true, isCon
   const fireOverlayOpacity = useSharedValue(0);
 
   const sizes = {
-    small: { width: 140, height: 230, padding: 8, imgWidth: 124, imgHeight: 84, iconBoxSize: 20, iconSize: 10, title: 'text-xs', desc: 'text-[7.5px]', badge: 6 },
-    normal: { width: 180, height: 310, padding: 12, imgWidth: 156, imgHeight: 114, iconBoxSize: 26, iconSize: 13, title: 'text-sm', desc: 'text-[8.5px]', badge: 8 },
-    large: { width: 250, height: 420, padding: 16, imgWidth: 218, imgHeight: 170, iconBoxSize: 36, iconSize: 18, title: 'text-xl', desc: 'text-xs', badge: 12 },
+    small: { width: 140, height: 230, padding: 8, imgWidth: 124, imgHeight: 84, iconBoxSize: 20, iconSize: 10, title: 'text-xs', desc: 'text-[9.5px]', badge: 6 },
+    normal: { width: 180, height: 310, padding: 12, imgWidth: 156, imgHeight: 114, iconBoxSize: 26, iconSize: 13, title: 'text-sm', desc: 'text-[11px]', badge: 8 },
+    large: { width: 250, height: 420, padding: 16, imgWidth: 218, imgHeight: 170, iconBoxSize: 36, iconSize: 18, title: 'text-xl', desc: 'text-sm', badge: 12 },
   };
 
   const config = sizes[size];

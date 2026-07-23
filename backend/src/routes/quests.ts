@@ -1378,17 +1378,19 @@ function getGradeDifficultyPrompt(turma?: { nome: string; ano?: string | null; n
         return reply.status(404).send({ error: 'Entrega não encontrada.' });
       }
 
-      if (isRaidQuest && isRaidQuest.currentResponderId && isRaidQuest.currentResponderId !== userId) {
+      const isDesignatedRaidResponder = isRaidQuest && isRaidQuest.currentResponderId === userId;
+
+      if (isRaidQuest && isRaidQuest.currentResponderId && !isDesignatedRaidResponder) {
         return reply.status(403).send({ error: 'Apenas o caçador designado pode responder esta missão na Raid!' });
       }
       
-      if (delivery.cooldownUntil && delivery.cooldownUntil > now) {
-        return reply.status(403).send({ error: 'Você está no cooldown de 30 minutos por errar. Aguarde para tentar novamente.' });
+      if (!isDesignatedRaidResponder && delivery.cooldownUntil && delivery.cooldownUntil > now) {
+        return reply.status(403).send({ error: 'Você está no cooldown por errar. Aguarde para tentar novamente.' });
       }
 
       const checkUser = await prisma.user.findUnique({ where: { id: userId }, select: { partyCooldownUntil: true } });
-      if (checkUser?.partyCooldownUntil && checkUser.partyCooldownUntil > now) {
-        return reply.status(403).send({ error: 'Sua alma está fragilizada por uma falha em grupo (Party Wipe)! Você está em cooldown de 30 minutos e não pode participar de masmorras.' });
+      if (!isDesignatedRaidResponder && checkUser?.partyCooldownUntil && checkUser.partyCooldownUntil > now) {
+        return reply.status(403).send({ error: 'Sua alma está fragilizada por uma falha em grupo (Party Wipe)! Você está em cooldown e não pode participar de masmorras.' });
       }
 
       // Passa a resposta do aluno pelo Agente Defensor (Anti-Prompt Injection para Aluno)
@@ -1728,14 +1730,32 @@ Retorne APENAS um JSON no seguinte formato:
         if (isRaidQuest) {
           const participants = await prisma.raidParticipant.findMany({
             where: { raidId: isRaidQuest.id },
+            include: { user: true },
             orderBy: { joinedAt: 'asc' }
           });
           
+          // Aplica um cooldown individual de 5 minutos ao jogador que errou nesta tentativa
+          const indCooldownTime = new Date(now.getTime() + 5 * 60 * 1000);
+          await prisma.user.update({
+            where: { id: userId },
+            data: { partyCooldownUntil: indCooldownTime }
+          });
+
+          // Encontra o próximo jogador elegível na fila que não esteja em cooldown ativo
           const currentIndex = participants.findIndex(p => p.userId === userId);
-          const nextIndex = (currentIndex + 1) % participants.length;
-          const nextUserId = participants[nextIndex].userId;
-          
-          const isPartyWipe = novosErros >= participants.length;
+          let nextUserId: string | null = null;
+          for (let i = 1; i <= participants.length; i++) {
+            const idx = (currentIndex + i) % participants.length;
+            const candidate = participants[idx];
+            const candCooldown = candidate.user.partyCooldownUntil;
+            if (!candCooldown || new Date(candCooldown) <= now) {
+              nextUserId = candidate.userId;
+              break;
+            }
+          }
+
+          // Se nenhum jogador estiver disponível ou o limite de erros tiver sido atingido por todos -> Party Wipe
+          const isPartyWipe = novosErros >= participants.length || !nextUserId;
 
           if (isPartyWipe) {
             // Propagar falha para os outros membros da Party
@@ -1809,7 +1829,7 @@ Retorne APENAS um JSON no seguinte formato:
               }
             });
           } else {
-             // Passa a vez
+             // Passa a vez para o próximo aliado elegível
              await prisma.raid.update({
                where: { id: isRaidQuest.id },
                data: {
@@ -5095,29 +5115,63 @@ Retorne APENAS o JSON.`;
         }
 
         if (artifactId === 'poeira_estelar') {
-          const prompt = `Você é um assistente de RPG educativo para alunos de escola pública brasileira.
-Dada a questão de múltipla escolha: "${enunciado}"
-O gabarito oficial (resposta correta) é: "${delivery.quest.gabarito || ''}"
-
-Identifique as alternativas (geralmente A, B, C, D ou E) contidas nela.
-Ache uma única alternativa INCORRETA (que NÃO é a resposta correta do gabarito) que possamos eliminar com segurança para ajudar o aluno.
-Retorne APENAS a letra maiúscula correspondente a essa opção incorreta (ex: "B" ou "C") dentro do campo "eliminate" do JSON.
-
-Exemplo de retorno:
-{
-  "eliminate": "C"
-}
-
-Retorne APENAS o JSON.`;
-          let raw = await callGemini(prompt);
-          raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
-          const firstBrace = raw.indexOf('{');
-          const lastBrace = raw.lastIndexOf('}');
-          if (firstBrace !== -1 && lastBrace !== -1) {
-            raw = raw.substring(firstBrace, lastBrace + 1);
+          // Verifica se a questão possui opções de múltipla escolha (A, B, C, D, E)
+          const optionRegex = /(?:^|\n)\s*([A-E])[\.\)\-]\s+(.*)/gi;
+          const optionsList: { key: string; text: string }[] = [];
+          let match;
+          while ((match = optionRegex.exec(enunciado)) !== null) {
+            optionsList.push({ key: match[1].toUpperCase(), text: match[2].trim() });
           }
-          const parsed = JSON.parse(raw);
-          const eliminate = String(parsed.eliminate || 'C').toUpperCase();
+
+          if (optionsList.length < 2) {
+            return reply.status(400).send({ error: 'A Poeira Estelar só pode ser aplicada em missões de Múltipla Escolha.' });
+          }
+
+          const gabarito = (delivery.quest.gabarito || '').trim().toUpperCase();
+          let correctLetter = 'A';
+
+          if (/^[A-E]$/.test(gabarito)) {
+            correctLetter = gabarito;
+          } else {
+            const foundOpt = optionsList.find(o => 
+              o.text.toUpperCase() === gabarito || 
+              gabarito.includes(o.text.toUpperCase()) || 
+              o.text.toUpperCase().includes(gabarito)
+            );
+            if (foundOpt) {
+              correctLetter = foundOpt.key;
+            }
+          }
+
+          const wrongLetters = optionsList.map(o => o.key).filter(k => k !== correctLetter);
+          let eliminate = wrongLetters[Math.floor(Math.random() * wrongLetters.length)] || 'C';
+
+          try {
+            const prompt = `Você é um assistente de RPG educativo.
+Questão: "${enunciado}"
+Alternativas incorretas registradas: ${wrongLetters.join(', ')}
+
+Escolha EXATAMENTE UMA das alternativas incorretas (${wrongLetters.join(', ')}) para eliminar.
+Retorne APENAS um JSON no formato: { "eliminate": "LETRA" }`;
+
+            let raw = await callGemini(prompt);
+            raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+            const firstBrace = raw.indexOf('{');
+            const lastBrace = raw.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1) raw = raw.substring(firstBrace, lastBrace + 1);
+            const parsed = JSON.parse(raw);
+            if (parsed.eliminate && wrongLetters.includes(parsed.eliminate.toUpperCase())) {
+              eliminate = parsed.eliminate.toUpperCase();
+            }
+          } catch (e) {
+            // Usa fallback seguro para a primeira letra incorreta
+          }
+
+          // Trava final: Garantia absoluta de que eliminate JAMAIS será a letra correta
+          if (eliminate === correctLetter && wrongLetters.length > 0) {
+            eliminate = wrongLetters[0];
+          }
+
           await prisma.questDelivery.update({
             where: { id: delivery.id },
             data: { 
@@ -6023,6 +6077,21 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
           });
         }
 
+        const requestingUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { partyCooldownUntil: true }
+        });
+
+        const penalizedXp = Math.max(Math.round(delivery.quest.xp * Math.pow(0.75, delivery.erros)), 25);
+        const isMyTurnInRaid = activeRaid && activeRaid.currentResponderId === userId;
+        const activeCooldown = isMyTurnInRaid ? null : (
+          requestingUser?.partyCooldownUntil && new Date(requestingUser.partyCooldownUntil) > new Date()
+            ? requestingUser.partyCooldownUntil
+            : activeRaid?.partyCooldownUntil && new Date(activeRaid.partyCooldownUntil) > new Date()
+              ? activeRaid.partyCooldownUntil
+              : null
+        );
+
         return reply.send({
           id: delivery.id,
           deliveryId: delivery.id,
@@ -6032,9 +6101,10 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
           question: delivery.quest.enunciado,
           tags: delivery.quest.tags,
           nivel: delivery.quest.nivel,
-          xp: delivery.quest.xp,
+          xp: penalizedXp,
           erros: delivery.erros,
           expiresAt: delivery.expiresAt || delivery.quest.expiresAt,
+          cooldownUntil: activeCooldown,
           usedHelpers: delivery.usedHelpers ? delivery.usedHelpers.split(',').filter(Boolean) : [],
           helpRequested: delivery.helpRequested,
           helpResponse: delivery.helpResponse,
