@@ -1378,17 +1378,19 @@ function getGradeDifficultyPrompt(turma?: { nome: string; ano?: string | null; n
         return reply.status(404).send({ error: 'Entrega não encontrada.' });
       }
 
-      if (isRaidQuest && isRaidQuest.currentResponderId && isRaidQuest.currentResponderId !== userId) {
+      const isDesignatedRaidResponder = isRaidQuest && isRaidQuest.currentResponderId === userId;
+
+      if (isRaidQuest && isRaidQuest.currentResponderId && !isDesignatedRaidResponder) {
         return reply.status(403).send({ error: 'Apenas o caçador designado pode responder esta missão na Raid!' });
       }
       
-      if (delivery.cooldownUntil && delivery.cooldownUntil > now) {
-        return reply.status(403).send({ error: 'Você está no cooldown de 30 minutos por errar. Aguarde para tentar novamente.' });
+      if (!isDesignatedRaidResponder && delivery.cooldownUntil && delivery.cooldownUntil > now) {
+        return reply.status(403).send({ error: 'Você está no cooldown por errar. Aguarde para tentar novamente.' });
       }
 
       const checkUser = await prisma.user.findUnique({ where: { id: userId }, select: { partyCooldownUntil: true } });
-      if (checkUser?.partyCooldownUntil && checkUser.partyCooldownUntil > now) {
-        return reply.status(403).send({ error: 'Sua alma está fragilizada por uma falha em grupo (Party Wipe)! Você está em cooldown de 30 minutos e não pode participar de masmorras.' });
+      if (!isDesignatedRaidResponder && checkUser?.partyCooldownUntil && checkUser.partyCooldownUntil > now) {
+        return reply.status(403).send({ error: 'Sua alma está fragilizada por uma falha em grupo (Party Wipe)! Você está em cooldown e não pode participar de masmorras.' });
       }
 
       // Passa a resposta do aluno pelo Agente Defensor (Anti-Prompt Injection para Aluno)
@@ -6081,11 +6083,14 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
         });
 
         const penalizedXp = Math.max(Math.round(delivery.quest.xp * Math.pow(0.75, delivery.erros)), 25);
-        const activeCooldown = requestingUser?.partyCooldownUntil && new Date(requestingUser.partyCooldownUntil) > new Date()
-          ? requestingUser.partyCooldownUntil
-          : activeRaid?.partyCooldownUntil && new Date(activeRaid.partyCooldownUntil) > new Date()
-            ? activeRaid.partyCooldownUntil
-            : null;
+        const isMyTurnInRaid = activeRaid && activeRaid.currentResponderId === userId;
+        const activeCooldown = isMyTurnInRaid ? null : (
+          requestingUser?.partyCooldownUntil && new Date(requestingUser.partyCooldownUntil) > new Date()
+            ? requestingUser.partyCooldownUntil
+            : activeRaid?.partyCooldownUntil && new Date(activeRaid.partyCooldownUntil) > new Date()
+              ? activeRaid.partyCooldownUntil
+              : null
+        );
 
         return reply.send({
           id: delivery.id,
