@@ -6,6 +6,7 @@ import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
 import { useSolenSounds } from './useSolenSounds';
 import { ACTIVE_ANIMATION_TYPE } from '../config';
+import { getAvailableAdminTabs } from '../utils/planPermissions';
 import {
   registerMaster,
   getMasters,
@@ -199,6 +200,16 @@ export function useAdminState() {
   const [expandedLinkId, setExpandedLinkId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState('RECRUTAR');
+
+  useEffect(() => {
+    if (currentUser) {
+      const plan = currentUser?.institution?.plano || currentUser?.plano;
+      const allowed = getAvailableAdminTabs(plan);
+      if (!allowed.includes(activeTab)) {
+        setActiveTab(allowed[0] || 'RECRUTAR');
+      }
+    }
+  }, [currentUser, activeTab]);
   const [showTerms, setShowTerms] = useState(false);
   const [termsLoading, setTermsLoading] = useState(false);
 
@@ -746,6 +757,23 @@ export function useAdminState() {
   }, [selectedTurmaId, fetchStudents]);
 
   useEffect(() => {
+    if (selectedProfessorId && allDisciplinasList.length > 0) {
+      const currentDiscBelongs = allDisciplinasList.some(
+        d => d.id === selectedDisciplinaId && d.professores?.some((p: any) => p.id === selectedProfessorId)
+      );
+
+      if (!currentDiscBelongs) {
+        const associatedDisc = allDisciplinasList.find(
+          d => d.professores?.some((p: any) => p.id === selectedProfessorId)
+        );
+        if (associatedDisc) {
+          setSelectedDisciplinaId(associatedDisc.id);
+        }
+      }
+    }
+  }, [selectedProfessorId, allDisciplinasList]);
+
+  useEffect(() => {
     if (selectedProfessorId && selectedDisciplinaId && allDisciplinasList.length > 0) {
       const disc = allDisciplinasList.find(d => d.id === selectedDisciplinaId);
       if (disc) {
@@ -753,12 +781,23 @@ export function useAdminState() {
         if (prof && Array.isArray(prof.turmas)) {
           setSelectedLinkTurmaIds(prof.turmas.map((t: any) => t.id));
           setIsLinkTemp(prof.temp || false);
+
+          const existingAulas = prof.turmas.find(
+            (t: any) => t.aulasSemanais !== undefined && t.aulasSemanais !== null && t.aulasSemanais > 0
+          )?.aulasSemanais;
+
+          if (existingAulas !== undefined && existingAulas !== null) {
+            setAulasSemanais(String(existingAulas));
+          } else {
+            setAulasSemanais('0');
+          }
           return;
         }
       }
     }
     setSelectedLinkTurmaIds([]);
     setIsLinkTemp(false);
+    setAulasSemanais('0');
   }, [selectedProfessorId, selectedDisciplinaId, allDisciplinasList]);
 
   const handleToggleLinkTurma = (turmaId: string) => {

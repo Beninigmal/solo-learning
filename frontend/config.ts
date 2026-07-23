@@ -1,15 +1,45 @@
+import { Platform } from 'react-native';
+
+let Constants: any = {};
+try {
+  Constants = require('expo-constants').default || require('expo-constants');
+} catch (e) {}
+
 /**
- * Configuração da URL do Backend
- *
- * 🚀 PRODUÇÃO (Render): URL padrão compilada no APK
- *
- * Para desenvolvimento local (Expo Go na mesma rede Wi-Fi):
- *   Na tela de login, toque na engrenagem (⚙️) e coloque:
- *   http://SEU_IP_LOCAL:3333
- *
- * Para APK com túnel:
- *   Na tela de login, toque na engrenagem (⚙️) e coloque a URL do túnel.
+ * Detecta automaticamente o IP da máquina local no Wi-Fi atual durante o desenvolvimento.
+ * 
+ * Funciona via Metro bundler hostUri (Expo Go / Dev Client) e via window.location (Web).
+ * Ao alternar entre redes Wi-Fi (ex: casa, namorada, trabalho), o IP é resolvido dinamicamente.
  */
+export const getAutoDiscoveredLocalBackendUrl = (): string => {
+  // 1. Navegador Web (Expo Web)
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.hostname) {
+    const hostname = window.location.hostname;
+    if (hostname && hostname !== '0.0.0.0') {
+      return `http://${hostname}:3333`;
+    }
+  }
+
+  // 2. Mobile (Expo Go / Dev Client): extrai IP do servidor Metro
+  const hostUri =
+    Constants.expoConfig?.hostUri ||
+    (Constants as any).manifest?.debuggerHost ||
+    (Constants as any).manifest2?.extra?.expoGo?.debuggerHost;
+
+  if (hostUri && typeof hostUri === 'string') {
+    const hostIp = hostUri.split(':')[0];
+    if (hostIp && hostIp !== 'localhost' && hostIp !== '127.0.0.1') {
+      return `http://${hostIp}:3333`;
+    }
+  }
+
+  // 3. Fallback para emuladores (Android Studio)
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:3333';
+  }
+
+  return 'http://localhost:3333';
+};
 
 // URL do backend no Render — padrão de produção
 export const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://solo-learning-api.onrender.com';

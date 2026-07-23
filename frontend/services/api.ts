@@ -1,14 +1,20 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native';
-import { BASE_URL } from '../config';
+import { Platform } from 'react-native';
+import { BASE_URL, getAutoDiscoveredLocalBackendUrl } from '../config';
 
 const SERVER_URL_KEY = '@Solen:serverUrl';
 
-// Retorna a URL ativa (AsyncStorage tem prioridade sobre a do build)
+// Retorna a URL ativa (Suporta auto-detecção de IP local no Wi-Fi)
 export const getServerUrl = async (): Promise<string> => {
   const saved = await AsyncStorage.getItem(SERVER_URL_KEY);
-  return saved || BASE_URL;
+  if (!saved || saved === 'AUTO' || saved === 'AUTO_LOCAL') {
+    if (__DEV__ || Platform.OS === 'web') {
+      return getAutoDiscoveredLocalBackendUrl();
+    }
+    return BASE_URL;
+  }
+  return saved;
 };
 
 // Salva uma nova URL de servidor (sem rebuild)

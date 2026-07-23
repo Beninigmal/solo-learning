@@ -13,6 +13,15 @@ export const ordinatorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
     if (request.user.role !== 'ARQUITETO') {
       return reply.status(403).send({ error: 'Acesso negado. Apenas o Arquiteto tem permissão.' });
     }
+
+    if (request.user.institutionId || request.user.instituicao) {
+      const inst = request.user.institutionId
+        ? await prisma.institution.findUnique({ where: { id: request.user.institutionId } })
+        : await prisma.institution.findFirst({ where: { nome: request.user.instituicao || '' } });
+      if (inst && inst.plano !== 'RANK_S') {
+        return reply.status(403).send({ error: 'O assistente Ordinator está disponível exclusivamente no Plano RANK S. Atualize seu plano para utilizar o Ordinator.' });
+      }
+    }
   });
 
   const ordinatorPersona = `

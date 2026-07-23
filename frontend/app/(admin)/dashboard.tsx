@@ -17,6 +17,7 @@ import { TermsModal } from '../../components/TermsModal';
 import { ACTIVE_ANIMATION_TYPE } from '../../config';
 import { useSolenSounds } from '../../hooks/useSolenSounds';
 import { useAdminState } from '../../hooks/useAdminState';
+import { getAvailableAdminTabs } from '../../utils/planPermissions';
 
 // Modular Tab Components
 import { TurmasTab } from '../../components/admin/TurmasTab';
@@ -32,6 +33,7 @@ import { AcademicReportsTab } from '../../components/admin/AcademicReportsTab';
 export default function AdminDashboard() {
   const sounds = useSolenSounds();
   const state = useAdminState();
+  const availableTabs = getAvailableAdminTabs(state.currentUser?.institution?.plano || state.currentUser?.plano);
 
   const spinStyle = state.rotateAnim.interpolate({
     inputRange: [0, 1],
@@ -103,7 +105,7 @@ export default function AdminDashboard() {
           <View className="flex-row items-center mb-6">
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="max-h-12 flex-1">
               <View className="flex-row bg-black/40 border border-neonBlue/20 rounded-sm p-1">
-                {['RECRUTAR', 'TURMAS', 'MATÉRIAS', 'ARQUITETO', 'GRADE', 'MATRIZ', 'RELATÓRIOS', 'ORDINATOR', 'LOGS'].map((tab) => (
+                {availableTabs.map((tab) => (
                   <TouchableOpacity
                     key={tab}
                     className={`px-6 py-2 items-center rounded-sm ${
@@ -177,6 +179,22 @@ export default function AdminDashboard() {
                 sounds={sounds}
                 currentUser={state.currentUser}
                 handleUpdateUnidade={state.handleUpdateUnidade}
+                allDisciplinasList={state.allDisciplinasList}
+                masters={state.masters}
+                selectedProfessorId={state.selectedProfessorId}
+                setSelectedProfessorId={state.setSelectedProfessorId}
+                selectedDisciplinaId={state.selectedDisciplinaId}
+                setSelectedDisciplinaId={state.setSelectedDisciplinaId}
+                selectedLinkTurmaIds={state.selectedLinkTurmaIds}
+                setSelectedLinkTurmaIds={state.setSelectedLinkTurmaIds}
+                handleToggleLinkTurma={state.handleToggleLinkTurma}
+                isLinkTemp={state.isLinkTemp}
+                setIsLinkTemp={state.setIsLinkTemp}
+                handleLinkProfessor={state.handleLinkProfessor}
+                loadingLinkProfessor={state.loadingLinkProfessor}
+                aulasSemanais={state.aulasSemanais}
+                setAulasSemanais={state.setAulasSemanais}
+                handleUnlinkProfessor={state.handleUnlinkProfessor}
               />
             )}
 

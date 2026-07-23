@@ -76,6 +76,7 @@ export function MateriasTab({
   const scrollRef1 = useWebDragScroll();
   const scrollRef2 = useWebDragScroll();
   const scrollRef3 = useWebDragScroll();
+  const scrollRef4 = useWebDragScroll();
 
   const firstSelectedTurmaId = selectedLinkTurmaIds[0];
   const firstSelectedTurma = turmas.find(t => t.id === firstSelectedTurmaId);
@@ -397,17 +398,47 @@ export function MateriasTab({
           );
         })()}
 
-        {/* Aulas Semanais Input */}
-        <Text className="text-white/50 text-[10px] uppercase font-bold mb-1">4. Quantidade de Aulas Semanais (0 = automático):</Text>
-        <TextInput
-          placeholder="Ex: 4"
-          placeholderTextColor="#ffffff33"
-          value={aulasSemanais}
-          onChangeText={setAulasSemanais}
-          keyboardType="numeric"
-          className="bg-black/60 border border-neonBlue/30 text-white px-4 py-3 rounded-sm text-sm mb-4 font-mono"
-          keyboardAppearance="dark"
-        />
+        {/* Aulas Semanais Selector (0 a 10) */}
+        <Text className="text-white/50 text-[10px] uppercase font-bold mb-1">4. Quantidade de Aulas Semanais (0 = Padrão da matéria):</Text>
+        <View className="flex-row items-center mb-4">
+          {Platform.OS === 'web' && (
+            <TouchableOpacity onPress={() => { sounds.playSelect(); scrollList(scrollRef4, 'left'); }} className="p-2 bg-black/50 border border-neonBlue/20 rounded-sm mr-2 active:bg-neonBlue/20">
+              <Feather name="chevron-left" size={16} color="#00f3ff" />
+            </TouchableOpacity>
+          )}
+          <ScrollView ref={scrollRef4} horizontal showsHorizontalScrollIndicator={false} className="flex-1" contentContainerStyle={{ paddingHorizontal: 4 }}>
+            <View className="flex-row gap-2">
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(val => {
+                const strVal = String(val);
+                const isSelected = (aulasSemanais || '0') === strVal;
+                const label = val === 0 ? '0 (Padrão)' : `${val} ${val === 1 ? 'aula' : 'aulas'}`;
+
+                return (
+                  <TouchableOpacity
+                    key={val}
+                    onPress={() => {
+                      setAulasSemanais(strVal);
+                      sounds.playSelect();
+                    }}
+                    className={`px-3 py-2 rounded-sm border ${
+                      isSelected ? 'bg-neonBlue/20 border-neonBlue' : 'bg-black/50 border-neonBlue/20'
+                    }`}
+                    activeOpacity={0.7}
+                  >
+                    <Text className={`text-xs font-mono ${isSelected ? 'text-white font-bold' : 'text-neonBlue/40'}`}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+          {Platform.OS === 'web' && (
+            <TouchableOpacity onPress={() => { sounds.playSelect(); scrollList(scrollRef4, 'right'); }} className="p-2 bg-black/50 border border-neonBlue/20 rounded-sm ml-2 active:bg-neonBlue/20">
+              <Feather name="chevron-right" size={16} color="#00f3ff" />
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Toggle de Vínculo Temporário (TEMP) */}
         <TouchableOpacity

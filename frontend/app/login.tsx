@@ -13,7 +13,7 @@ import Constants from 'expo-constants';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { Fingerprint } from 'lucide-react-native';
 import { login, saveCredentials, loadCredentials, getServerUrl, setServerUrl, resetServerUrl, getErrorMessage, registerPushToken } from '../services/api';
-import { BASE_URL } from '../config';
+import { BASE_URL, getAutoDiscoveredLocalBackendUrl } from '../config';
 import { SystemAlert } from '../components/SystemAlert';
 import { CyberSubmitButton } from '../components/CyberSubmitButton';
 import { useSolenSounds } from '../hooks/useSolenSounds';
@@ -292,8 +292,9 @@ export default function LoginScreen() {
 
   const handleResetServerUrl = async () => {
     await resetServerUrl();
-    setActiveServerUrl(BASE_URL);
-    setServerUrlInput(BASE_URL);
+    const url = await getServerUrl();
+    setActiveServerUrl(url);
+    setServerUrlInput(url);
     setShowServerModal(false);
   };
 
@@ -554,19 +555,29 @@ export default function LoginScreen() {
               {/* Exemplos rápidos */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3">
                 <View className="flex-row gap-2">
-                  {[
-                    { label: '🚀 Render (Produção)', url: 'https://solo-learning-api.onrender.com' },
-                    { label: '🏠 Local (Wi-Fi)', url: 'http://192.168.18.115:3333' },
-                    { label: '🌐 Tunnel', url: 'https://' }
-                  ].map(preset => (
-                    <TouchableOpacity
-                      key={preset.label}
-                      className="bg-neonBlue/10 border border-neonBlue/30 px-2 py-1 rounded-sm"
-                      onPress={() => setServerUrlInput(preset.url)}
-                    >
-                      <Text className="text-neonBlue/70 text-[10px]">{preset.label}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  <TouchableOpacity
+                    className="bg-neonBlue/20 border border-neonBlue px-2.5 py-1 rounded-sm"
+                    onPress={async () => {
+                      await setServerUrl('AUTO');
+                      const autoUrl = await getServerUrl();
+                      setActiveServerUrl(autoUrl);
+                      setServerUrlInput(autoUrl);
+                    }}
+                  >
+                    <Text className="text-neonBlue text-[10px] font-bold">🔍 Auto-Detect (Wi-Fi)</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className="bg-neonBlue/10 border border-neonBlue/30 px-2 py-1 rounded-sm"
+                    onPress={() => setServerUrlInput('https://solo-learning-api.onrender.com')}
+                  >
+                    <Text className="text-neonBlue/70 text-[10px]">🚀 Render (Produção)</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className="bg-neonBlue/10 border border-neonBlue/30 px-2 py-1 rounded-sm"
+                    onPress={() => setServerUrlInput('https://')}
+                  >
+                    <Text className="text-neonBlue/70 text-[10px]">🌐 Tunnel</Text>
+                  </TouchableOpacity>
                 </View>
               </ScrollView>
             </View>
