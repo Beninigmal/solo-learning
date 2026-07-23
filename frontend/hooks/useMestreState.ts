@@ -849,6 +849,23 @@ export function useMestreState() {
   }, [selectedTurmaId]);
 
   useEffect(() => {
+    if (selectedProfessorId && allDisciplinasList.length > 0) {
+      const currentDiscBelongs = allDisciplinasList.some(
+        d => d.id === selectedDisciplinaId && d.professores?.some((p: any) => p.id === selectedProfessorId)
+      );
+
+      if (!currentDiscBelongs) {
+        const associatedDisc = allDisciplinasList.find(
+          d => d.professores?.some((p: any) => p.id === selectedProfessorId)
+        );
+        if (associatedDisc) {
+          setSelectedDisciplinaId(associatedDisc.id);
+        }
+      }
+    }
+  }, [selectedProfessorId, allDisciplinasList]);
+
+  useEffect(() => {
     if (activeTab === 'HISTÓRICO') {
       fetchHistory();
     }

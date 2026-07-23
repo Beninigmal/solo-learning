@@ -21,7 +21,7 @@ export class PrismaUserRepository implements IUserRepository {
           { nickname: { equals: cleanKey, mode: 'insensitive' } }
         ]
       },
-      include: { turma: true }
+      include: { turma: true, institution: true }
     });
   }
 

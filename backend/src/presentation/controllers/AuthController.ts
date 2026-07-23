@@ -35,6 +35,7 @@ export class AuthController {
           nickname: user.nickname,
           role: user.role,
           instituicao: user.instituicao,
+          institution: user.institution,
           xp: user.xp,
           level: user.level,
           isFirstAccess: user.isFirstAccess,
