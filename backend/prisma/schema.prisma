@@ -51,6 +51,7 @@ model User {
   anelSerpenteExpires   DateTime?
   bolsaSorteExpires     DateTime?
   chapeuArcanistExpires DateTime?
+  cooldownReducerExpires DateTime?
 
   lastActiveAt DateTime @default(now())
   restrictions ProfessorRestriction[]
