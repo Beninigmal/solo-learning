@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { ChronosphereEffect } from '../ChronosphereEffect';
 
 interface PartyTabProps {
   activeParty: any | null;
@@ -220,101 +221,91 @@ export function PartyTab({
             
             {/* Messages Scroller */}
             {(() => {
-              const hasChronosphere = chatMessages.some((m: any) => m.content?.includes('[CHRONOSPHERE INVOCADA!]'));
-              const borderColor = hasChronosphere 
-                ? '#a855f7' 
-                : activeParty.bandeiraGuerraActive 
-                ? '#ffca28' 
-                : '#00f3ff20';
-              const shadowColor = hasChronosphere 
-                ? '#a855f7' 
-                : activeParty.bandeiraGuerraActive 
-                ? '#ffca28' 
-                : 'transparent';
+              const hasChronosphere = chatMessages.some((m: any) => m.content?.includes('[CHRONOSPHERE INVOCADA!]')) || (user?.cooldownReducerExpires && new Date(user.cooldownReducerExpires) > new Date());
 
               return (
-                <View 
-                  className="h-44 bg-black/70 p-3 rounded-sm mb-3"
-                  style={{
-                    borderWidth: 1.5,
-                    borderColor,
-                    shadowColor,
-                    shadowRadius: (hasChronosphere || activeParty.bandeiraGuerraActive) ? 12 : 0,
-                    shadowOpacity: (hasChronosphere || activeParty.bandeiraGuerraActive) ? 0.85 : 0,
-                  }}
-                >
-                  <ScrollView 
-                    ref={chatScrollRef}
-                    nestedScrollEnabled={true}
-                    showsVerticalScrollIndicator={true}
-                    onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}
+                <ChronosphereEffect active={hasChronosphere}>
+                  <View 
+                    className="h-44 p-3 rounded-sm mb-3"
+                    style={{
+                      backgroundColor: hasChronosphere ? 'transparent' : 'rgba(0, 0, 0, 0.7)',
+                      borderWidth: hasChronosphere ? 0 : 1.5,
+                      borderColor: activeParty.bandeiraGuerraActive ? '#ffca28' : '#00f3ff20',
+                    }}
                   >
-                    {chatMessages.length === 0 ? (
-                      <Text className="text-white/20 text-[10px] font-mono italic text-center mt-12">Nenhuma transmissão registrada neste canal...</Text>
-                    ) : (
-                      chatMessages.map((m: any) => {
-                        const isMe = m.userId === user?.id;
-                        const isChronosphere = m.content?.includes('[CHRONOSPHERE INVOCADA!]');
+                    <ScrollView 
+                      ref={chatScrollRef}
+                      nestedScrollEnabled={true}
+                      showsVerticalScrollIndicator={true}
+                      onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}
+                    >
+                      {chatMessages.length === 0 ? (
+                        <Text className="text-white/20 text-[10px] font-mono italic text-center mt-12">Nenhuma transmissão registrada neste canal...</Text>
+                      ) : (
+                        chatMessages.map((m: any) => {
+                          const isMe = m.userId === user?.id;
+                          const isChronosphere = m.content?.includes('[CHRONOSPHERE INVOCADA!]');
 
-                        if (isChronosphere) {
-                          const cleanContent = m.content.replace(/^🌀\s*\[CHRONOSPHERE INVOCADA!\]\s*/, '');
-                          return (
-                            <View 
-                              key={m.id} 
-                              className="mb-3 p-3 rounded-sm border"
-                              style={{
-                                backgroundColor: '#1a0933',
-                                borderColor: '#c084fc',
-                                shadowColor: '#a855f7',
-                                shadowRadius: 10,
-                                shadowOpacity: 0.9,
-                                borderWidth: 1.5
-                              }}
-                            >
-                              <View className="flex-row items-center gap-1.5 mb-1.5 flex-wrap">
-                                <View className="bg-purple-900/80 px-2 py-0.5 border border-purple-400/60 rounded-sm flex-row items-center gap-1">
-                                  <Feather name="clock" size={10} color="#e9d5ff" />
-                                  <Text className="text-[#e9d5ff] text-[8.5px] font-extrabold font-mono uppercase tracking-widest">
-                                    🌀 CHRONOSPHERE (ESFERA CRONOLÓGICA)
-                                  </Text>
+                          if (isChronosphere) {
+                            const cleanContent = m.content.replace(/^🌀\s*\[CHRONOSPHERE INVOCADA!\]\s*/, '');
+                            return (
+                              <View 
+                                key={m.id} 
+                                className="mb-3 p-3 rounded-sm border"
+                                style={{
+                                  backgroundColor: 'rgba(26, 9, 51, 0.9)',
+                                  borderColor: '#c084fc',
+                                  shadowColor: '#a855f7',
+                                  shadowRadius: 10,
+                                  shadowOpacity: 0.9,
+                                  borderWidth: 1.5
+                                }}
+                              >
+                                <View className="flex-row items-center gap-1.5 mb-1.5 flex-wrap">
+                                  <View className="bg-purple-900/80 px-2 py-0.5 border border-purple-400/60 rounded-sm flex-row items-center gap-1">
+                                    <Feather name="clock" size={10} color="#e9d5ff" />
+                                    <Text className="text-[#e9d5ff] text-[8.5px] font-extrabold font-mono uppercase tracking-widest">
+                                      🌀 CHRONOSPHERE INVOCADA
+                                    </Text>
+                                  </View>
                                 </View>
+
+                                <Text className="text-purple-100 text-xs font-mono font-bold leading-5">
+                                  {cleanContent}
+                                </Text>
+
+                                <Text className="text-[8px] text-purple-300/50 font-mono mt-1 text-right">
+                                  {new Date(m.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                </Text>
                               </View>
+                            );
+                          }
 
-                              <Text className="text-purple-100 text-xs font-mono font-bold leading-5">
-                                {cleanContent}
-                              </Text>
-
-                              <Text className="text-[8px] text-purple-300/50 font-mono mt-1 text-right">
+                          return (
+                            <View key={m.id} className="mb-2">
+                              <View className="flex-row items-center gap-1.5 flex-wrap">
+                                <View className={`w-1.5 h-1.5 rounded-full ${getUserStatusColor(m.user?.lastActiveAt)}`} />
+                                {(() => {
+                                  const participant = activeParty?.participantes?.find((p: any) => p.userId === m.userId);
+                                  const isInvasorMsg = participant?.isInvasor === true;
+                                  return (
+                                    <Text className={`text-[10px] font-bold font-mono ${isInvasorMsg ? 'text-red-500 font-extrabold' : isMe ? 'text-neonBlue' : 'text-yellow-500'}`}>
+                                      {isInvasorMsg ? '⚔️ [INVASOR] ' : ''}[{m.user?.nickname || m.user?.nome}]:
+                                    </Text>
+                                  );
+                                })()}
+                                <Text className="text-white text-xs font-sans leading-4">{m.content}</Text>
+                              </View>
+                              <Text className="text-[8px] text-white/20 font-mono mt-0.5">
                                 {new Date(m.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                               </Text>
                             </View>
                           );
-                        }
-
-                        return (
-                          <View key={m.id} className="mb-2">
-                            <View className="flex-row items-center gap-1.5 flex-wrap">
-                              <View className={`w-1.5 h-1.5 rounded-full ${getUserStatusColor(m.user?.lastActiveAt)}`} />
-                              {(() => {
-                                const participant = activeParty?.participantes?.find((p: any) => p.userId === m.userId);
-                                const isInvasorMsg = participant?.isInvasor === true;
-                                return (
-                                  <Text className={`text-[10px] font-bold font-mono ${isInvasorMsg ? 'text-red-500 font-extrabold' : isMe ? 'text-neonBlue' : 'text-yellow-500'}`}>
-                                    {isInvasorMsg ? '⚔️ [INVASOR] ' : ''}[{m.user?.nickname || m.user?.nome}]:
-                                  </Text>
-                                );
-                              })()}
-                              <Text className="text-white text-xs font-sans leading-4">{m.content}</Text>
-                            </View>
-                            <Text className="text-[8px] text-white/20 font-mono mt-0.5">
-                              {new Date(m.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                            </Text>
-                          </View>
-                        );
-                      })
-                    )}
-                  </ScrollView>
-                </View>
+                        })
+                      )}
+                    </ScrollView>
+                  </View>
+                </ChronosphereEffect>
               );
             })()}
 
