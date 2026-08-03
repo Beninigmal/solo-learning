@@ -52,6 +52,7 @@ const artifactImages: { [id: string]: any } = {
   cetro_exilio: require('../assets/cetro_exilio.png'),
   varinha_pinheiro: require('../assets/varinha_pinheiro.png'),
   chapeu_arcanista: require('../assets/chapeu_arcanista.png'),
+  chronomancia_netheril: require('../assets/chronomancia_netheril.png'),
 };
 
 export function ArtifactCard({ artifact, size = 'normal', animated = true, isConsumed = false, onPress }: ArtifactCardProps) {
