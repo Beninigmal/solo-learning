@@ -139,6 +139,7 @@ export function ArtifactCard({ artifact, size = 'normal', animated = true, isCon
       case 'cetro_exilio': return 'shield-off';
       case 'varinha_pinheiro': return 'zap';
       case 'chapeu_arcanista': return 'cpu';
+      case 'ampulheta_istus': return 'clock';
       default: return 'star';
     }
   };

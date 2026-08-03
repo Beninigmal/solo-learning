@@ -134,7 +134,8 @@ const allAvailableArtifacts = [
   { id: 'mao_midas', name: 'Mão de Midas', type: 'magic', description: 'Oferece 50% de chance de transmutar um item Mágico em um Épico aleatório (falha destrói o item).' },
   { id: 'pena_escriba', name: 'Pena do Escriba', type: 'magic', description: 'Em perguntas teóricas dissertativas, revela as 3 principais palavras-chave esperadas para aprovação.' },
   { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo discursiva em múltipla escolha com opções.' },
-  { id: 'chapeu_arcanista', name: 'Chapéu do Arcanista', type: 'legendary', description: 'Aumenta a chance de dropar itens Épicos em missões comuns e Lendários em Bosses por 7 dias.' }
+  { id: 'chapeu_arcanista', name: 'Chapéu do Arcanista', type: 'legendary', description: 'Aumenta a chance de dropar itens Épicos em missões comuns e Lendários em Bosses por 7 dias.' },
+  { id: 'chronomancia_netheril', name: 'Pedra de Chronomancia de Netheril', type: 'legendary', description: 'Reduz o tempo de recarga de missões falhadas em 50% (para 15 minutos) durante 2 horas.' }
 ];
 
 export function usePlayerState() {
@@ -1839,7 +1840,8 @@ export function usePlayerState() {
         'orbe_perspicacia',
         'chave_mestra',
         'cetro_exilio',
-        'chapeu_arcanista'
+        'chapeu_arcanista',
+        'chronomancia_netheril'
       ];
 
       if (directIds.includes(artId)) {

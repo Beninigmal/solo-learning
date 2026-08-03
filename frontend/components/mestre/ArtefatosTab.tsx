@@ -46,7 +46,8 @@ export const ArtefatosTab: React.FC<ArtefatosTabProps> = ({
     { id: 'pena_escriba', name: 'Pena do Escriba', type: 'magic', icon: 'edit-3', description: 'Decodifica e exibe as palavras-chaves essenciais esperadas pelo validador.' },
     { id: 'pergaminho_oraculo', name: 'Pergaminho do Oráculo', type: 'magic', icon: 'eye', description: 'Concede uma dica enigmática e conceitual sobre a questão.' },
     { id: 'poeira_estelar', name: 'Poeira Estelar', type: 'magic', icon: 'sparkles', description: 'Elimina uma alternativa incorreta em qualquer missão de múltipla escolha.' },
-    { id: 'chapeu_arcanista', name: 'Chapéu do Arcanista', type: 'legendary', icon: 'cpu', description: 'Aumenta a chance de dropar itens Épicos em missões comuns e Lendários em Bosses por 7 dias.' }
+    { id: 'chapeu_arcanista', name: 'Chapéu do Arcanista', type: 'legendary', icon: 'cpu', description: 'Aumenta a chance de dropar itens Épicos em missões comuns e Lendários em Bosses por 7 dias.' },
+    { id: 'chronomancia_netheril', name: 'Pedra de Chronomancia de Netheril', type: 'legendary', icon: 'clock', description: 'Reduz o tempo de recarga de missões falhadas em 50% (para 15 minutos) durante 2 horas.' }
   ];
 
   const handleGift = async (artifactId: string) => {

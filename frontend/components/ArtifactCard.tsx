@@ -171,6 +171,8 @@ export function ArtifactCard({ artifact, size = 'normal', animated = true, isCon
         return 'zap';
       case 'chapeu_arcanista':
         return 'cpu';
+      case 'ampulheta_istus':
+        return 'clock';
       default:
         return 'star';
     }
