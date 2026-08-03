@@ -52,6 +52,7 @@ const artifactImages: { [id: string]: any } = {
   cetro_exilio: require('../assets/cetro_exilio.png'),
   varinha_pinheiro: require('../assets/varinha_pinheiro.png'),
   chapeu_arcanista: require('../assets/chapeu_arcanista.png'),
+  chronomancia_netheril: require('../assets/chronomancia_netheril.png'),
 };
 
 export function ArtifactCard({ artifact, size = 'normal', animated = true, isConsumed = false, onPress }: ArtifactCardProps) {
@@ -139,6 +140,7 @@ export function ArtifactCard({ artifact, size = 'normal', animated = true, isCon
       case 'cetro_exilio': return 'shield-off';
       case 'varinha_pinheiro': return 'zap';
       case 'chapeu_arcanista': return 'cpu';
+      case 'ampulheta_istus': return 'clock';
       default: return 'star';
     }
   };

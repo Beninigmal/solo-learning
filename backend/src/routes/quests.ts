@@ -232,6 +232,26 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
     const now = new Date();
 
     try {
+      // Expirar quests ultrapassadas (respeitando prazo estendido individual se houver)
+      const activeDeliveries = await prisma.questDelivery.findMany({
+        where: {
+          userId,
+          status: { in: ['SCHEDULED', 'DELIVERED', 'WAITING'] }
+        },
+        include: { quest: true }
+      });
+
+      for (const d of activeDeliveries) {
+        // O prazo individual da entrega (expiresAt do QuestDelivery) tem prioridade sobre o prazo global da Quest
+        const limitDate = d.expiresAt || d.quest.expiresAt;
+        if (limitDate && limitDate <= now) {
+          await prisma.questDelivery.update({
+            where: { id: d.id },
+            data: { status: 'EXPIRED' }
+          }).catch(console.error);
+        }
+      }
+
       // 1. VERIFICAR SE O USUÁRIO ESTÁ EM UMA RAID ATIVA COM MISSÃO COMPARTILHADA
       const activeRaidParticipant = await prisma.raidParticipant.findFirst({
         where: { userId, raid: { status: 'OPEN', raidModeActive: true } },
@@ -318,26 +338,6 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
             };
           })
         });
-      }
-
-      // Expirar quests ultrapassadas (respeitando prazo estendido individual se houver)
-      const activeDeliveries = await prisma.questDelivery.findMany({
-        where: {
-          userId,
-          status: { in: ['SCHEDULED', 'DELIVERED', 'WAITING'] }
-        },
-        include: { quest: true }
-      });
-
-      for (const d of activeDeliveries) {
-        // O prazo individual da entrega (expiresAt do QuestDelivery) tem prioridade sobre o prazo global da Quest
-        const limitDate = d.expiresAt || d.quest.expiresAt;
-        if (limitDate && limitDate <= now) {
-          await prisma.questDelivery.update({
-            where: { id: d.id },
-            data: { status: 'EXPIRED' }
-          }).catch(console.error);
-        }
       }
 
       const delivered = await prisma.questDelivery.findFirst({
@@ -1388,7 +1388,7 @@ function getGradeDifficultyPrompt(turma?: { nome: string; ano?: string | null; n
         return reply.status(403).send({ error: 'Você está no cooldown por errar. Aguarde para tentar novamente.' });
       }
 
-      const checkUser = await prisma.user.findUnique({ where: { id: userId }, select: { partyCooldownUntil: true } });
+      const checkUser = await prisma.user.findUnique({ where: { id: userId }, select: { partyCooldownUntil: true, cooldownReducerExpires: true } });
       if (!isDesignatedRaidResponder && checkUser?.partyCooldownUntil && checkUser.partyCooldownUntil > now) {
         return reply.status(403).send({ error: 'Sua alma está fragilizada por uma falha em grupo (Party Wipe)! Você está em cooldown e não pode participar de masmorras.' });
       }
@@ -1799,7 +1799,9 @@ Retorne APENAS um JSON no seguinte formato:
               });
             }
 
-            const cooldownTime = new Date(now.getTime() + 30 * 60 * 1000);
+            const hasCooldownReducer = !!(checkUser?.cooldownReducerExpires && new Date(checkUser.cooldownReducerExpires) > now);
+            const cooldownMinutes = hasCooldownReducer ? 15 : 30;
+            const cooldownTime = new Date(now.getTime() + cooldownMinutes * 60 * 1000);
             await prisma.raid.update({
               where: { id: isRaidQuest.id },
               data: {
@@ -1825,7 +1827,7 @@ Retorne APENAS um JSON no seguinte formato:
               data: {
                 raidId: isRaidQuest.id,
                 userId,
-                content: `❌ [Mural do Sistema] ${userName} falhou e a Party Wipe aconteceu! Vocês estão em cooldown de 30 minutos.`
+                content: `❌ [Mural do Sistema] ${userName} falhou e a Party Wipe aconteceu! Vocês estão em cooldown de ${cooldownMinutes} minutos.`
               }
             });
           } else {
@@ -1858,7 +1860,9 @@ Retorne APENAS um JSON no seguinte formato:
           ? delivery.quest.xp
           : Math.max(Math.round(delivery.quest.xp * Math.pow(0.75, novosErros)), 25);
           
-        const cooldownTime = new Date(now.getTime() + 30 * 60 * 1000);
+        const hasCooldownReducer = !!(checkUser?.cooldownReducerExpires && new Date(checkUser.cooldownReducerExpires) > now);
+        const cooldownMinutes = hasCooldownReducer ? 15 : 30;
+        const cooldownTime = new Date(now.getTime() + cooldownMinutes * 60 * 1000);
         await prisma.questDelivery.update({
           where: { id: deliveryId },
           data: { cooldownUntil: cooldownTime }
@@ -5925,6 +5929,46 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
           return reply.send({
             success: true,
             message: '🎩 Chapéu do Archmago equipado! Por 7 dias, missões comuns podem dropar itens Épicos e Mini Bosses podem dropar itens Lendários!'
+          });
+        }
+
+        if (artifactId === 'chronomancia_netheril') {
+          const activeRaidParticipant = await prisma.raidParticipant.findFirst({
+            where: { userId, raid: { status: 'OPEN' } },
+            include: { raid: true }
+          });
+
+          if (!activeRaidParticipant) {
+            return reply.status(400).send({
+              error: 'A Pedra de Chronomancia de Netheril exige a ressonância de uma guilda! Você precisa estar em uma Party ativa para invocar a Esfera Cronológica.'
+            });
+          }
+
+          const expiresAt = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 horas
+          await prisma.user.update({
+            where: { id: userId },
+            data: { cooldownReducerExpires: expiresAt }
+          });
+
+          const userObj = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { nickname: true, nome: true }
+          });
+          const userName = userObj?.nickname || userObj?.nome || 'Caçador';
+
+          await prisma.raidMessage.create({
+            data: {
+              raidId: activeRaidParticipant.raidId,
+              userId,
+              content: `🌀 [CHRONOSPHERE INVOCADA!] @${userName} canalizou a Pedra de Chronomancia de Netheril e capturou a guilda na Esfera Cronológica! Durante 2 horas, o tempo de recarga por erro foi reduzido em 50% (para 15 minutos)!`
+            }
+          });
+
+          await consumeArtifactIfPresent(userId, artifactId);
+          return reply.send({
+            success: true,
+            expiresAt,
+            message: '🌀 CHRONOSPHERE INVOCADA! A Pedra de Chronomancia de Netheril capturou a guilda numa cúpula temporal! Durante 2 horas, o tempo de recarga por erro caiu para 15 minutos!'
           });
         }
 
