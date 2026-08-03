@@ -278,6 +278,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.9,
     elevation: 10,
     backgroundColor: '#0c051a',
+    marginBottom: 16,
   },
   voidBackground: {
     ...StyleSheet.absoluteFillObject,
@@ -311,8 +312,8 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   badgeHeader: {
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 14,
+    paddingBottom: 10,
     paddingHorizontal: 12,
     alignItems: 'center',
     zIndex: 10,
@@ -321,7 +322,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(59, 7, 100, 0.95)',
     borderColor: '#c084fc',
     borderWidth: 1,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 4,
     flexDirection: 'row',
@@ -342,7 +343,7 @@ const styles = StyleSheet.create({
   content: {
     position: 'relative',
     zIndex: 10,
-    paddingHorizontal: 10,
-    paddingBottom: 10,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
   },
 });

@@ -226,9 +226,9 @@ export function PartyTab({
               return (
                 <ChronosphereEffect active={hasChronosphere}>
                   <View 
-                    className="h-44 p-3 rounded-sm"
+                    className="h-44 p-3 rounded-sm mb-3"
                     style={{
-                      marginTop: hasChronosphere ? 6 : 0,
+                      marginTop: hasChronosphere ? 4 : 0,
                       backgroundColor: hasChronosphere ? 'transparent' : 'rgba(0, 0, 0, 0.7)',
                       borderWidth: hasChronosphere ? 0 : 1.5,
                       borderColor: activeParty.bandeiraGuerraActive ? '#ffca28' : '#00f3ff20',
