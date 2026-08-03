@@ -9,6 +9,7 @@
     "web": "expo start --web",
     "tunnel": "node scripts/tunnel.js",
     "bump": "node scripts/bump-version.js",
+    "preview": "eas build -p android --profile preview --local",
     "test": "jest",
     "test:watch": "jest --watch"
   },
