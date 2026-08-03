@@ -232,6 +232,26 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
     const now = new Date();
 
     try {
+      // Expirar quests ultrapassadas (respeitando prazo estendido individual se houver)
+      const activeDeliveries = await prisma.questDelivery.findMany({
+        where: {
+          userId,
+          status: { in: ['SCHEDULED', 'DELIVERED', 'WAITING'] }
+        },
+        include: { quest: true }
+      });
+
+      for (const d of activeDeliveries) {
+        // O prazo individual da entrega (expiresAt do QuestDelivery) tem prioridade sobre o prazo global da Quest
+        const limitDate = d.expiresAt || d.quest.expiresAt;
+        if (limitDate && limitDate <= now) {
+          await prisma.questDelivery.update({
+            where: { id: d.id },
+            data: { status: 'EXPIRED' }
+          }).catch(console.error);
+        }
+      }
+
       // 1. VERIFICAR SE O USUÁRIO ESTÁ EM UMA RAID ATIVA COM MISSÃO COMPARTILHADA
       const activeRaidParticipant = await prisma.raidParticipant.findFirst({
         where: { userId, raid: { status: 'OPEN', raidModeActive: true } },
@@ -318,26 +338,6 @@ export const questsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
             };
           })
         });
-      }
-
-      // Expirar quests ultrapassadas (respeitando prazo estendido individual se houver)
-      const activeDeliveries = await prisma.questDelivery.findMany({
-        where: {
-          userId,
-          status: { in: ['SCHEDULED', 'DELIVERED', 'WAITING'] }
-        },
-        include: { quest: true }
-      });
-
-      for (const d of activeDeliveries) {
-        // O prazo individual da entrega (expiresAt do QuestDelivery) tem prioridade sobre o prazo global da Quest
-        const limitDate = d.expiresAt || d.quest.expiresAt;
-        if (limitDate && limitDate <= now) {
-          await prisma.questDelivery.update({
-            where: { id: d.id },
-            data: { status: 'EXPIRED' }
-          }).catch(console.error);
-        }
       }
 
       const delivered = await prisma.questDelivery.findFirst({

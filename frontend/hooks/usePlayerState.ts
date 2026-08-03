@@ -555,12 +555,16 @@ export function usePlayerState() {
     }
   };
 
+  const notifiedExpiredRef = useRef<Set<string>>(new Set());
+
   const handleTimerFinish = useCallback(() => {
     setTimeRemainingText('EXPIRADA');
     setShowWindow(false);
-    setDeliveryId('');
-    showAlert('TEMPO ESGOTADO', 'O tempo limite da missão expirou! A missão sumiu.', 'error');
-  }, [showAlert]);
+    if (deliveryId && !notifiedExpiredRef.current.has(deliveryId)) {
+      notifiedExpiredRef.current.add(deliveryId);
+      showAlert('TEMPO ESGOTADO', 'O tempo limite da missão expirou! A missão sumiu.', 'error');
+    }
+  }, [deliveryId, showAlert]);
 
   useEffect(() => {
     let timer: any = null;
@@ -1078,6 +1082,16 @@ export function usePlayerState() {
         setIsFromChest(true);
       } else {
         setIsFromChest(false);
+      }
+
+      const isAlreadyExpired = q.expiresAt ? new Date(q.expiresAt).getTime() <= Date.now() : false;
+      if (isAlreadyExpired) {
+        setShowWindow(false);
+        if (q.deliveryId && !notifiedExpiredRef.current.has(q.deliveryId)) {
+          notifiedExpiredRef.current.add(q.deliveryId);
+          showAlert('TEMPO ESGOTADO', 'O tempo limite da missão expirou! A missão sumiu.', 'error');
+        }
+        return;
       }
 
       if (isNewQuest) {
