@@ -44,6 +44,20 @@ import {
   transmuteArtifact,
 } from '../services/api';
 
+// Lista centralizada de artefatos de consumo direto no baú/bolsa
+export const DIRECT_ARTIFACT_IDS = [
+  'becker_alquimista',
+  'olhar_monarca',
+  'anel_serpente',
+  'bolsa_sorte',
+  'bandeira_guerra',
+  'orbe_perspicacia',
+  'chave_mestra',
+  'cetro_exilio',
+  'chapeu_arcanista',
+  'chronomancia_netheril'
+];
+
 // Helper function to dynamically map player XP to Solo Leveling Ranks
 export const getPlayerRankInfo = (xp: number) => {
   if (xp >= 15000) {
@@ -1831,20 +1845,7 @@ export function usePlayerState() {
       }
 
       // 2. OUTROS ITENS DE CONSUMO DIRETO DO BAÚ / BOLSA
-      const directIds = [
-        'becker_alquimista',
-        'olhar_monarca',
-        'anel_serpente',
-        'bolsa_sorte',
-        'bandeira_guerra',
-        'orbe_perspicacia',
-        'chave_mestra',
-        'cetro_exilio',
-        'chapeu_arcanista',
-        'chronomancia_netheril'
-      ];
-
-      if (directIds.includes(artId)) {
+      if (DIRECT_ARTIFACT_IDS.includes(artId)) {
         // Remove optimisticamente antes das chamadas async — bolsa mostra correto se reaberta
         setBagInventory((prev: any[]) => {
           const idx = prev.findIndex((x: any) => x.id === artId);
@@ -1879,7 +1880,7 @@ export function usePlayerState() {
 
         showAlert('Artefato Ativado!', res.message || 'Consumido com sucesso!', 'success');
 
-        if (artId === 'bandeira_guerra' || artId === 'chave_mestra' || artId === 'cetro_exilio') {
+        if (artId === 'bandeira_guerra' || artId === 'chave_mestra' || artId === 'cetro_exilio' || artId === 'chronomancia_netheril') {
           loadPartyData();
         }
         loadInitialData();

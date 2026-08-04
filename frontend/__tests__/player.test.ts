@@ -1,6 +1,14 @@
-import { getPlayerRankInfo } from '../hooks/usePlayerState';
+import { getPlayerRankInfo, DIRECT_ARTIFACT_IDS } from '../hooks/usePlayerState';
 
 describe('Player Screen Unit Tests', () => {
+
+  describe('Direct Artifact IDs Validation (DIRECT_ARTIFACT_IDS)', () => {
+    test('should include chronomancia_netheril and chapeu_arcanista in direct artifact list', () => {
+      expect(DIRECT_ARTIFACT_IDS).toContain('chronomancia_netheril');
+      expect(DIRECT_ARTIFACT_IDS).toContain('chapeu_arcanista');
+      expect(DIRECT_ARTIFACT_IDS.length).toBeGreaterThanOrEqual(10);
+    });
+  });
 
   describe('Rank Mapping and Progress Calculations (getPlayerRankInfo)', () => {
     

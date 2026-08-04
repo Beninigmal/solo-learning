@@ -21,7 +21,7 @@ import { ArtifactBag } from '../../components/ArtifactBag';
 import { ArtifactBurnModal } from '../../components/ArtifactBurnModal';
 import { ACTIVE_ANIMATION_TYPE } from '../../config';
 import { useSolenSounds } from '../../hooks/useSolenSounds';
-import { usePlayerState } from '../../hooks/usePlayerState';
+import { usePlayerState, DIRECT_ARTIFACT_IDS } from '../../hooks/usePlayerState';
 
 // Modularized player presentation subcomponents
 import { StatusTab } from '../../components/player/StatusTab';
@@ -725,17 +725,7 @@ export default function StatusScreen() {
         artifacts={state.bagInventory}
         onUse={(artifact) => {
           sounds.playSelect();
-          const directIds = [
-            'becker_alquimista',
-            'olhar_monarca',
-            'anel_serpente',
-            'bolsa_sorte',
-            'bandeira_guerra',
-            'orbe_perspicacia',
-            'chave_mestra',
-            'cetro_exilio'
-          ];
-          if (!directIds.includes(artifact.id) && state.usedHelpers && state.usedHelpers.includes(artifact.id)) {
+          if (!DIRECT_ARTIFACT_IDS.includes(artifact.id) && state.usedHelpers && state.usedHelpers.includes(artifact.id)) {
             state.setShowUseBag(false);
             state.showAlert('Uso Duplicado!', `O artefato [${artifact.name}] já foi ativado nesta missão! Você não pode usar o mesmo artefato duas vezes no mesmo desafio.`, 'warning');
             return;
@@ -779,17 +769,7 @@ export default function StatusScreen() {
         artifact={state.burnArtifact}
         onAnimationEnd={(art) => {
           if (art) {
-            const directIds = [
-              'becker_alquimista',
-              'olhar_monarca',
-              'anel_serpente',
-              'bolsa_sorte',
-              'bandeira_guerra',
-              'orbe_perspicacia',
-              'chave_mestra',
-              'cetro_exilio'
-            ];
-            if (!state.deliveryId || directIds.includes(art.id)) {
+            if (!state.deliveryId || DIRECT_ARTIFACT_IDS.includes(art.id) || art.id === 'mao_midas') {
               state.handleConfirmVaporization();
             } else {
               state.handleUseHelperArtifact(art);
