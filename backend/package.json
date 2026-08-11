@@ -28,12 +28,14 @@
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
     "fastify": "^5.8.5",
+    "nodemailer": "^9.0.5",
     "pg": "^8.20.0",
     "typescript": "^5.8.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.0",
     "prisma": "^7.8.0",
     "tsx": "^4.19.3"

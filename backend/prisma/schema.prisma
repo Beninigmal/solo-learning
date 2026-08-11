@@ -64,6 +64,7 @@ model User {
   updatedAt DateTime @updatedAt
   actionLogs ActionLog[]
   chatSessions ChatSession[]
+  bountyBugs   BountyBug[]
 }
 
 model Turma {
@@ -447,4 +448,17 @@ model ChatMessage {
   createdAt     DateTime    @default(now())
 }
 
-
+model BountyBug {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  description   String
+  turmaNome     String
+  instituicao   String
+  imageUrl      String?
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  artifactAwarded String?
+  seenByReporter  Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

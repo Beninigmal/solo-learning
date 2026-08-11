@@ -708,3 +708,35 @@ export const deleteUser = async (id: string): Promise<any> => {
   const response = await api.delete(`/admin/users/${id}`);
   return response.data;
 };
+
+// --- BOUNTY HUNTER SERVICES ---
+export const submitBountyReport = async (description: string, imageUrl?: string) => {
+  const response = await api.post('/bounty/report', { description, imageUrl });
+  return response.data;
+};
+
+export const getActiveBounties = async () => {
+  const response = await api.get('/bounty/active');
+  return response.data;
+};
+
+export const getPendingBounties = async () => {
+  const response = await api.get('/bounty/pending');
+  return response.data;
+};
+
+export const approveBounty = async (id: string) => {
+  const response = await api.post(`/bounty/${id}/approve`);
+  return response.data;
+};
+
+export const rejectBounty = async (id: string) => {
+  const response = await api.post(`/bounty/${id}/reject`);
+  return response.data;
+};
+
+export const markBountyAsSeen = async (id: string) => {
+  const response = await api.post(`/bounty/${id}/seen`);
+  return response.data;
+};
+

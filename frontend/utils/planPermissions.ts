@@ -11,6 +11,7 @@ export function getAvailableAdminTabs(plano?: InstitutionPlan): string[] {
     'RELATÓRIOS',
     'ORDINATOR',
     'LOGS',
+    'BOUNTY',
   ];
 
   const plan = plano ? String(plano).toUpperCase().trim() : 'TRIAL';

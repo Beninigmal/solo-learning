@@ -40,7 +40,7 @@ export const ArtefatosTab: React.FC<ArtefatosTabProps> = ({
     { id: 'chave_mestra', name: 'Chave Mestra', type: 'epic', icon: 'key', description: 'Permite entrar em qualquer party ativa, mesmo se o limite já tiver sido atingido.' },
     { id: 'cetro_exilio', name: 'Cetro do Exílio', type: 'epic', icon: 'shield', description: 'Expulsa um invasor indesejado de uma masmorra/party ativa.' },
     { id: 'sapatilhas_veloz', name: 'Sapatilhas do Mundo Lento', type: 'magic', icon: 'feather', description: 'Reduz a dificuldade da missão diária ativa em 1 nível.' },
-    { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', icon: 'wand', description: 'Transforma uma missão discursiva em múltipla escolha.' },
+    { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', icon: 'wand', description: 'Transforma uma missão de cálculo ou discursiva em múltipla escolha com opções.' },
     { id: 'mao_midas', name: 'Mão de Midas', type: 'legendary', icon: 'shuffle', description: 'Consome essência para transmutar um artefato repetido em outro aleatório!' },
     { id: 'martelo_magico', name: 'Martelo Mágico', type: 'magic', icon: 'tool', description: 'Fraciona um problema complexo em 3 pequenos passos passo-a-passo.' },
     { id: 'pena_escriba', name: 'Pena do Escriba', type: 'magic', icon: 'edit-3', description: 'Decodifica e exibe as palavras-chaves essenciais esperadas pelo validador.' },

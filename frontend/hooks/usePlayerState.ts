@@ -42,6 +42,9 @@ import {
   getPendingGiftedArtifacts,
   getArtifactInventory,
   transmuteArtifact,
+  getActiveBounties,
+  submitBountyReport,
+  markBountyAsSeen,
 } from '../services/api';
 
 // Lista centralizada de artefatos de consumo direto no baú/bolsa
@@ -147,7 +150,7 @@ const allAvailableArtifacts = [
   { id: 'bolsa_sorte', name: 'Bolsa da Sorte', type: 'magic', description: 'Aumenta a taxa de drop de artefatos em missões diárias comuns em +15% por 7 dias.' },
   { id: 'mao_midas', name: 'Mão de Midas', type: 'magic', description: 'Oferece 50% de chance de transmutar um item Mágico em um Épico aleatório (falha destrói o item).' },
   { id: 'pena_escriba', name: 'Pena do Escriba', type: 'magic', description: 'Em perguntas teóricas dissertativas, revela as 3 principais palavras-chave esperadas para aprovação.' },
-  { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo discursiva em múltipla escolha com opções.' },
+  { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo ou discursiva em múltipla escolha com opções.' },
   { id: 'chapeu_arcanista', name: 'Chapéu do Arcanista', type: 'legendary', description: 'Aumenta a chance de dropar itens Épicos em missões comuns e Lendários em Bosses por 7 dias.' },
   { id: 'chronomancia_netheril', name: 'Pedra de Chronomancia de Netheril', type: 'legendary', description: 'Reduz o tempo de recarga de missões falhadas em 50% (para 15 minutos) durante 2 horas.' }
 ];
@@ -636,8 +639,8 @@ export function usePlayerState() {
         }
         if (!hasVarinha) {
           currentBag.push(
-            { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo discursiva em múltipla escolha com opções.' },
-            { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo discursiva em múltipla escolha com opções.' }
+            { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo ou discursiva em múltipla escolha com opções.' },
+            { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo ou discursiva em múltipla escolha com opções.' }
           );
           updated = true;
         }
@@ -704,8 +707,8 @@ export function usePlayerState() {
           { id: 'sapatilhas_veloz', name: 'Sapatilhas do Mundo Lento', type: 'magic', description: 'Reduz a dificuldade da missão diária ativa em 1 nível (não afeta Bosses).' },
           { id: 'sapatilhas_veloz', name: 'Sapatilhas do Mundo Lento', type: 'magic', description: 'Reduz a dificuldade da missão diária ativa em 1 nível (não afeta Bosses).' },
           // 2x Varinha de Pinheiro
-          { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo discursiva em múltipla escolha com opções.' },
-          { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo discursiva em múltipla escolha com opções.' },
+          { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo ou discursiva em múltipla escolha com opções.' },
+          { id: 'varinha_pinheiro', name: 'Varinha de Pinheiro', type: 'magic', description: 'Transforma uma missão de cálculo ou discursiva em múltipla escolha com opções.' },
           // 2x Martelo Mágico
           { id: 'martelo_magico', name: 'Martelo Mágico', type: 'magic', description: 'Decompõe o problema active em passos lógicos de raciocínio lógico/pedagógico sequencial.' },
           { id: 'martelo_magico', name: 'Martelo Mágico', type: 'magic', description: 'Decompõe o problema active em passos lógicos de raciocínio lógico/pedagógico sequencial.' },
@@ -2254,6 +2257,7 @@ export function usePlayerState() {
         loadChestData(),
         loadPartyData(),
         fetchSubjectStats(),
+        fetchBounties(),
       ]);
     }
     setRefreshing(false);
@@ -2269,6 +2273,7 @@ export function usePlayerState() {
       loadChestData();
       loadPartyData();
       fetchSubjectStats();
+      fetchBounties();
     }
   }, [user?.id, user?.acceptedTermsAt]);
 
@@ -2421,7 +2426,87 @@ export function usePlayerState() {
     soundsRef.current.playMission?.();
   };
 
+  const [bounties, setBounties] = useState<any[]>([]);
+  const [loadingBounties, setLoadingBounties] = useState(false);
+
+  const fetchBounties = useCallback(async () => {
+    try {
+      setLoadingBounties(true);
+      const data = await getActiveBounties();
+      setBounties(data || []);
+
+      if (user && data && Array.isArray(data)) {
+        const LOCAL_ARTIFACT_NAMES: Record<string, string> = {
+          sussurros_sabios: '📜 Sussurros Sábios',
+          becker_alquimista: '🧪 Becker do Alquimista',
+          olhar_monarca: '👁️ Olhar do Monarca',
+          elixir_dourado: '🏆 Elixir Dourado',
+          pocao_cura: '🧪 Poção de Cura',
+          relogio_tempo: '🕰️ Relógio Ganha Tempo',
+          anel_serpente: '🐍 Anel da Serpente',
+          lagrima_fenix: '💧 Lágrima da Fênix',
+          bandeira_guerra: '🚩 Bandeira de Guerra',
+          orbe_perspicacia: '🔮 Orbe de Perspicácia',
+          chave_mestra: '🔑 Chave Mestra',
+          cetro_exilio: '🚩 Cetro do Exílio',
+          chapeu_arcanista: '🎩 Chapéu do Arcanista',
+          chronomancia_netheril: 'Pedra de Chronomancia de Netheril',
+        };
+
+        const myUnseenResolved = data.filter(
+          (bug: any) =>
+            bug.userId === user.id &&
+            bug.seenByReporter === false &&
+            (bug.status === 'APPROVED' || bug.status === 'REJECTED')
+        );
+
+        for (const bug of myUnseenResolved) {
+          const friendlyName = bug.artifactAwarded ? (LOCAL_ARTIFACT_NAMES[bug.artifactAwarded] || bug.artifactAwarded.replace(/_/g, ' ').toUpperCase()) : 'Artefato Especial';
+          if (bug.status === 'APPROVED') {
+            showAlert(
+              '👾 BUG APROVADO PELA MATRIX!',
+              `Seu relato foi revisado e a recompensa foi creditada!\n\nRecompensa: ${friendlyName}\n\nObrigado por ajudar a limpar o código da matrix!`,
+              'success'
+            );
+          } else {
+            showAlert(
+              '📁 RELATO AVALIADO',
+              `Seu relato de bug foi revisado e arquivado pela coordenação acadêmica como falso alarme ou duplicata.`,
+              'info'
+            );
+          }
+          await markBountyAsSeen(bug.id);
+        }
+
+        if (myUnseenResolved.some((b: any) => b.status === 'APPROVED')) {
+          loadInitialData();
+        }
+      }
+    } catch (e) {
+      console.warn('Erro ao buscar mural de procurados:', e);
+    } finally {
+      setLoadingBounties(false);
+    }
+  }, [user, showAlert, loadInitialData]);
+
+  const submitBounty = async (description: string, imageUrl?: string) => {
+    try {
+      await submitBountyReport(description, imageUrl);
+      showAlert('BUG REPORTADO', 'O bug foi enviado para a Matrix de Análise com sucesso!', 'success');
+      fetchBounties();
+      return true;
+    } catch (e: any) {
+      const msg = e.response?.data?.error || 'Erro ao reportar bug.';
+      showAlert('ERRO DE TRANSMISSÃO', msg, 'error');
+      return false;
+    }
+  };
+
   return {
+    bounties,
+    loadingBounties,
+    fetchBounties,
+    submitBounty,
     user,
     setUser,
     image,

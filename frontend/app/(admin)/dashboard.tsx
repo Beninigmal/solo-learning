@@ -29,6 +29,7 @@ import { OrdinatorTab } from '../../components/admin/OrdinatorTab';
 import { LogsTab } from '../../components/admin/LogsTab';
 import { MatrixAuditTab } from '../../components/admin/MatrixAuditTab';
 import { AcademicReportsTab } from '../../components/admin/AcademicReportsTab';
+import { BountyAdminTab } from '../../components/admin/BountyAdminTab';
 
 export default function AdminDashboard() {
   const sounds = useSolenSounds();
@@ -387,6 +388,17 @@ export default function AdminDashboard() {
 
             {state.activeTab === 'LOGS' && (
               <LogsTab />
+            )}
+
+            {state.activeTab === 'BOUNTY' && (
+              <BountyAdminTab
+                pendingBounties={state.pendingBounties}
+                loadingBounties={state.loadingBounties}
+                fetchPendingBounties={state.fetchPendingBounties}
+                handleApproveBounty={state.handleApproveBounty}
+                handleRejectBounty={state.handleRejectBounty}
+                sounds={sounds}
+              />
             )}
           </ScrollView>
           )}
