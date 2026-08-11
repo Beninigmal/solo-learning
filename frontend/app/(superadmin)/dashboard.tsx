@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Animated, RefreshControl } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Animated, RefreshControl, ActivityIndicator, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -79,6 +79,51 @@ export default function SuperAdminDashboard() {
   const [alertType, setAlertType] = useState<'info' | 'success' | 'error' | 'warning'>('info');
   const alertCallback = useRef<(() => void) | null>(null);
 
+  // Tab selector state
+  const [selectedTab, setSelectedTab] = useState<'FINANCIALS' | 'AUDIT' | 'SCHOOLS' | 'ARCHITECTS' | 'BOUNTY' | 'LOGS'>('SCHOOLS');
+
+  // Bounty Hunter states
+  const [bountyBugs, setBountyBugs] = useState<any[]>([]);
+  const [loadingBounties, setLoadingBounties] = useState(false);
+  const [bountyFilter, setBountyFilter] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL'>('PENDING');
+  const [bountySearchQuery, setBountySearchQuery] = useState('');
+
+  const fetchBounties = async () => {
+    try {
+      setLoadingBounties(true);
+      const res = await api.get('/bounty/pending');
+      setBountyBugs(res.data || []);
+    } catch (e) {
+      console.error('Erro ao buscar bugs do bounty:', e);
+    } finally {
+      setLoadingBounties(false);
+    }
+  };
+
+  const handleApproveBounty = async (id: string) => {
+    try {
+      sounds.playSelect();
+      const res = await api.post(`/bounty/${id}/approve`);
+      showAlert('BUG APROVADO', `Bug aprovado! Recompensa concedida: ${res.data.artifactAwarded}`, 'success');
+      fetchBounties();
+    } catch (e: any) {
+      const msg = e.response?.data?.error || 'Erro ao aprovar bug.';
+      showAlert('ERRO', msg, 'error');
+    }
+  };
+
+  const handleRejectBounty = async (id: string) => {
+    try {
+      sounds.playSelect();
+      await api.post(`/bounty/${id}/reject`);
+      showAlert('BUG REPROVADO', 'O bug foi reprovado.', 'success');
+      fetchBounties();
+    } catch (e: any) {
+      const msg = e.response?.data?.error || 'Erro ao reprovar bug.';
+      showAlert('ERRO', msg, 'error');
+    }
+  };
+
   // Entrance Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -145,6 +190,7 @@ export default function SuperAdminDashboard() {
       setArchitects(fetchedArchitects);
 
       await fetchLogs(null);
+      await fetchBounties();
     } catch (err) {
       console.error('Erro ao carregar dados do superadmin:', err);
     } finally {
@@ -390,7 +436,41 @@ export default function SuperAdminDashboard() {
           </View>
         </View>
 
-        {/* Main Scroll Container */}
+        {/* Tab Menus Row */}
+        <View className="mb-4">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
+            <View className="flex-row gap-2 bg-black/40 border border-neonBlue/20 rounded-sm p-1">
+              {[
+                { id: 'SCHOOLS', label: 'Escolas', icon: 'home' },
+                { id: 'ARCHITECTS', label: 'Arquitetos', icon: 'users' },
+                { id: 'BOUNTY', label: 'Bounty Hunter', icon: 'crosshair' },
+                { id: 'FINANCIALS', label: 'Financeiro', icon: 'dollar-sign' },
+                { id: 'AUDIT', label: 'Auditoria', icon: 'activity' },
+                { id: 'LOGS', label: 'Logs', icon: 'database' }
+              ].map((tab) => {
+                const isSelected = selectedTab === tab.id;
+                return (
+                  <TouchableOpacity
+                    key={tab.id}
+                    onPress={() => {
+                      sounds.playSelect();
+                      setSelectedTab(tab.id as any);
+                    }}
+                    className={`flex-row items-center gap-1.5 px-3 py-2 rounded-sm ${
+                      isSelected ? 'bg-neonBlue/30 border border-neonBlue' : 'bg-transparent border border-transparent'
+                    }`}
+                  >
+                    <Feather name={tab.icon as any} size={11} color={isSelected ? '#fff' : '#00f3ff'} />
+                    <Text className={`text-[9px] font-mono font-bold uppercase tracking-wider ${isSelected ? 'text-white' : 'text-neonBlue/60'}`}>
+                      {tab.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+
         <ScrollView
           ref={scrollViewRef}
           showsVerticalScrollIndicator={false}
@@ -400,17 +480,22 @@ export default function SuperAdminDashboard() {
           }
         >
           {/* ================= SEÇÃO FINANCEIRA SAAS ================= */}
-          <SaasFinancialsTab />
+          {selectedTab === 'FINANCIALS' && (
+            <SaasFinancialsTab />
+          )}
 
           {/* ================= MATRIZ GLOBAL DE AUDITORIA ================= */}
-          <MatrixAuditTab />
+          {selectedTab === 'AUDIT' && (
+            <MatrixAuditTab />
+          )}
 
           {/* ================= SEÇÃO DE INSTITUIÇÕES ================= */}
-          <View className="bg-[#0a1128]/90 border border-neonBlue p-6 rounded-sm mb-6">
-            <View className="flex-row items-center gap-2 mb-6">
-              <Feather name="home" size={18} color="#00f3ff" />
-              <Text className="text-white text-base font-bold uppercase tracking-widest">Instituições</Text>
-            </View>
+          {selectedTab === 'SCHOOLS' && (
+            <View className="bg-[#0a1128]/90 border border-neonBlue p-6 rounded-sm mb-6">
+              <View className="flex-row items-center gap-2 mb-6">
+                <Feather name="home" size={18} color="#00f3ff" />
+                <Text className="text-white text-base font-bold uppercase tracking-widest">Instituições</Text>
+              </View>
 
             {/* Criar Escola */}
             <View className="bg-black/50 border border-neonBlue/30 p-4 rounded-sm mb-6">
@@ -559,13 +644,15 @@ export default function SuperAdminDashboard() {
               )}
             </View>
           </View>
+          )}
 
           {/* ================= SEÇÃO DE ARQUITETOS ================= */}
-          <View className="bg-[#0a1128]/90 border border-neonBlue p-6 rounded-sm mb-6">
-            <View className="flex-row items-center gap-2 mb-6">
-              <Feather name="users" size={18} color="#00f3ff" />
-              <Text className="text-white text-base font-bold uppercase tracking-widest">Arquitetos</Text>
-            </View>
+          {selectedTab === 'ARCHITECTS' && (
+            <View className="bg-[#0a1128]/90 border border-neonBlue p-6 rounded-sm mb-6">
+              <View className="flex-row items-center gap-2 mb-6">
+                <Feather name="users" size={18} color="#00f3ff" />
+                <Text className="text-white text-base font-bold uppercase tracking-widest">Arquitetos</Text>
+              </View>
 
             {/* Criar Arquiteto */}
             <View className="bg-black/50 border border-neonBlue/30 p-4 rounded-sm mb-6">
@@ -796,11 +883,127 @@ export default function SuperAdminDashboard() {
               })()}
             </View>
           </View>
+          )}
+
+          {/* ================= SEÇÃO BOUNTY HUNTER (BUGS REPORTADOS) ================= */}
+          {selectedTab === 'BOUNTY' && (
+            <View className="bg-[#0a1128]/90 border border-neonBlue p-6 rounded-sm mb-6">
+              <View className="flex-row items-center justify-between mb-4">
+                <View className="flex-row items-center gap-2">
+                  <Feather name="crosshair" size={18} color="#00f3ff" />
+                  <Text className="text-white text-base font-bold uppercase tracking-widest font-mono">Bounty Hunter Bugs</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={fetchBounties}
+                  className="bg-neonBlue/10 p-2 border border-neonBlue/30 rounded-full"
+                >
+                  <Feather name="refresh-cw" size={12} color="#00f3ff" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Filter Selector */}
+              <View className="flex-row bg-black/40 border border-neonBlue/20 rounded-sm p-1 mb-4">
+                {(['PENDING', 'APPROVED', 'REJECTED', 'ALL'] as const).map((status) => (
+                  <TouchableOpacity
+                    key={status}
+                    onPress={() => { sounds.playSelect(); setBountyFilter(status); }}
+                    className={`flex-1 py-1.5 items-center rounded-sm ${bountyFilter === status ? 'bg-neonBlue/30 border border-neonBlue' : ''}`}
+                  >
+                    <Text className={`text-[9px] font-bold uppercase font-mono tracking-wider ${bountyFilter === status ? 'text-white' : 'text-neonBlue/50'}`}>
+                      {status === 'PENDING' ? 'Pendentes' : status === 'APPROVED' ? 'Aprovados' : status === 'REJECTED' ? 'Reprovados' : 'Todos'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Search Bar for Ticket Code */}
+              <View className="bg-black/60 border border-neonBlue/30 flex-row items-center px-3 py-2 rounded-sm mb-4">
+                <Feather name="search" size={14} color="#00f3ff" />
+                <TextInput
+                  value={bountySearchQuery}
+                  onChangeText={setBountySearchQuery}
+                  placeholder="Buscar por [BUG-XXXX], descrição ou aluno..."
+                  placeholderTextColor="rgba(0, 243, 255, 0.4)"
+                  className="text-white text-xs ml-2 flex-1 outline-none font-mono py-1"
+                  keyboardAppearance="dark"
+                />
+                {bountySearchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setBountySearchQuery('')}>
+                    <Feather name="x" size={14} color="#00f3ff" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {loadingBounties ? (
+                <ActivityIndicator size="large" color="#00f3ff" className="py-6" />
+              ) : bountyBugs.filter(b => {
+                const code = `BUG-${b.id.slice(0, 8).toUpperCase()}`;
+                const query = bountySearchQuery.toLowerCase().trim();
+                const matchesSearch = !query || code.toLowerCase().includes(query) || (b.description || '').toLowerCase().includes(query) || (b.user?.nome || '').toLowerCase().includes(query);
+                const matchesFilter = bountyFilter === 'ALL' || b.status === bountyFilter;
+                return matchesSearch && matchesFilter;
+              }).length === 0 ? (
+                <Text className="text-white/30 text-center font-mono py-6 text-xs">Nenhum bug reportado encontrado nesta categoria.</Text>
+              ) : (
+                bountyBugs
+                  .filter(b => {
+                    const code = `BUG-${b.id.slice(0, 8).toUpperCase()}`;
+                    const query = bountySearchQuery.toLowerCase().trim();
+                    const matchesSearch = !query || code.toLowerCase().includes(query) || (b.description || '').toLowerCase().includes(query) || (b.user?.nome || '').toLowerCase().includes(query);
+                    const matchesFilter = bountyFilter === 'ALL' || b.status === bountyFilter;
+                    return matchesSearch && matchesFilter;
+                  })
+                  .map((bug) => (
+                    <View key={bug.id} className="bg-black/50 border border-neonBlue/20 p-4 rounded-sm mb-3">
+                      <View className="flex-row justify-between items-start border-b border-neonBlue/10 pb-2 mb-3">
+                        <View className="flex-1 mr-2">
+                          <Text className="text-white font-mono font-bold text-xs uppercase" numberOfLines={1}>
+                            [BUG-{bug.id.slice(0, 8).toUpperCase()}] · {bug.user?.nome || 'Desconhecido'}
+                          </Text>
+                          <Text className="text-neonBlue/60 text-[9px] font-mono uppercase mt-0.5" numberOfLines={1}>Turma: {bug.turmaNome} · Inst: {bug.instituicao}</Text>
+                        </View>
+                        <View className={`border px-1.5 py-0.5 rounded-sm ${bug.status === 'APPROVED' ? 'bg-green-500/10 border-green-500/40' : bug.status === 'REJECTED' ? 'bg-red-500/10 border-red-500/40' : 'bg-yellow-500/10 border-yellow-500/40'}`}>
+                          <Text className={`text-[8px] font-mono font-bold uppercase ${bug.status === 'APPROVED' ? 'text-green-400' : bug.status === 'REJECTED' ? 'text-red-400' : 'text-yellow-400'}`}>{bug.status}</Text>
+                        </View>
+                      </View>
+                      <Text className="text-white/80 text-xs font-mono mb-3 leading-relaxed">{bug.description}</Text>
+                      {/* Generic Insect Cyber placeholder icon */}
+                      <View className="mb-3 border border-neonBlue/20 rounded-sm overflow-hidden h-24 bg-black items-center justify-center">
+                        <Feather name="cpu" size={32} color="#00f3ff" />
+                        {bug.imageUrl === 'HAS_EMAIL_ATTACHMENT' && (
+                          <Text className="text-white/40 text-[8px] font-mono mt-1">SCREENSHOT ENVIADO POR E-MAIL</Text>
+                        )}
+                      </View>
+                      {bug.status === 'PENDING' && (
+                        <View className="flex-row gap-2 mt-1">
+                          <TouchableOpacity
+                            onPress={() => handleApproveBounty(bug.id)}
+                            className="flex-1 bg-green-500/20 border border-green-500 py-2 rounded-sm items-center justify-center flex-row gap-1"
+                          >
+                            <Feather name="check" size={11} color="#4ade80" />
+                            <Text className="text-green-400 font-bold uppercase text-[9px] font-mono tracking-widest">Aprovar</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => handleRejectBounty(bug.id)}
+                            className="flex-1 bg-red-500/20 border border-red-500 py-2 rounded-sm items-center justify-center flex-row gap-1"
+                          >
+                            <Feather name="x" size={11} color="#f87171" />
+                            <Text className="text-red-400 font-bold uppercase text-[9px] font-mono tracking-widest">Reprovar</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  ))
+              )}
+            </View>
+          )}
 
           {/* ================= SEÇÃO DE LOGS DE AUDITORIA ================= */}
-          <View className="bg-[#0a1128]/90 border border-neonBlue p-6 rounded-sm mb-6">
-            <LogsTab schools={schools} />
-          </View>
+          {selectedTab === 'LOGS' && (
+            <View className="bg-[#0a1128]/90 border border-neonBlue p-6 rounded-sm mb-6">
+              <LogsTab schools={schools} />
+            </View>
+          )}
         </ScrollView>
 
         {/* Custom Logout Confirmation Modal */}

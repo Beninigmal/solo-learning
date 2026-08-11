@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "tunnel": "node scripts/tunnel.js",
     "bump": "node scripts/bump-version.js",
-    "preview": "mkdir -p $HOME/.eas-build && EAS_LOCAL_BUILD_WORKINGDIR=$HOME/.eas-build eas build -p android --profile preview --local",
+    "preview": "rm -rf $HOME/.eas-build/* && mkdir -p $HOME/.eas-build && EAS_LOCAL_BUILD_WORKINGDIR=$HOME/.eas-build eas build -p android --profile preview --local",
     "test": "jest",
     "test:watch": "jest --watch"
   },

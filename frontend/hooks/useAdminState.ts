@@ -54,6 +54,9 @@ import {
   confirmDeleteRequest,
   rejectDeleteRequest,
   deleteUser,
+  getPendingBounties,
+  approveBounty,
+  rejectBounty,
 } from '../services/api';
 
 export function useAdminState() {
@@ -695,6 +698,43 @@ export function useAdminState() {
     }
   };
 
+  const [pendingBounties, setPendingBounties] = useState<any[]>([]);
+  const [loadingBounties, setLoadingBounties] = useState(false);
+
+  const fetchPendingBounties = useCallback(async () => {
+    try {
+      setLoadingBounties(true);
+      const data = await getPendingBounties();
+      setPendingBounties(data || []);
+    } catch (e) {
+      console.warn('Erro ao carregar relatos de bugs pendentes:', e);
+    } finally {
+      setLoadingBounties(false);
+    }
+  }, []);
+
+  const handleApproveBounty = async (id: string) => {
+    try {
+      const res = await approveBounty(id);
+      showAlert('BUG APROVADO', `O bug foi aprovado com sucesso! Artefato concedido: ${res.artifactAwarded}`, 'success');
+      fetchPendingBounties();
+    } catch (e: any) {
+      const msg = e.response?.data?.error || 'Erro ao aprovar bug.';
+      showAlert('Erro', msg, 'error');
+    }
+  };
+
+  const handleRejectBounty = async (id: string) => {
+    try {
+      await rejectBounty(id);
+      showAlert('BUG REPROVADO', 'O relato de bug foi reprovado.', 'success');
+      fetchPendingBounties();
+    } catch (e: any) {
+      const msg = e.response?.data?.error || 'Erro ao rejeitar bug.';
+      showAlert('Erro', msg, 'error');
+    }
+  };
+
   const handleDeleteUser = async (id: string, role: string) => {
     try {
       if (role === 'Aluno') setLoadingStudents(true);
@@ -733,7 +773,8 @@ export function useAdminState() {
     fetchShiftSettings();
     fetchProfessorRestrictions();
     fetchDeleteRequests();
-  }, [fetchMasters, fetchTurmas, fetchDisciplinas, fetchGoldenQuestions, fetchDisciplinasWithProfessores, fetchInitialData, fetchShiftSettings, fetchProfessorRestrictions, fetchDeleteRequests]);
+    fetchPendingBounties();
+  }, [fetchMasters, fetchTurmas, fetchDisciplinas, fetchGoldenQuestions, fetchDisciplinasWithProfessores, fetchInitialData, fetchShiftSettings, fetchProfessorRestrictions, fetchDeleteRequests, fetchPendingBounties]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -746,6 +787,7 @@ export function useAdminState() {
       fetchShiftSettings(),
       fetchProfessorRestrictions(),
       fetchDeleteRequests(),
+      fetchPendingBounties(),
       fetchStudents(selectedTurmaId),
       timetableTurmaId ? fetchTimetable(timetableTurmaId) : Promise.resolve(),
     ]);
@@ -1111,7 +1153,7 @@ export function useAdminState() {
       return;
     }
 
-    const studentsList: { nome: string; matricula: string; turno: string; targetTurmaId?: string }[] = [];
+    const studentsList: { nome: string; matricula: string; turno: string; targetTurmaId?: string; targetTurmaNome?: string }[] = [];
     const localValidationErrors: string[] = [];
 
     for (const row of excelData) {
@@ -1131,7 +1173,7 @@ export function useAdminState() {
         finalTurno = 'NOTURNO';
       }
 
-      let targetTurmaId = recrutTurmaId;
+      let targetTurmaId: string | undefined = recrutTurmaId;
       let targetTurmaNome = '';
       if (row.turma) {
         const turmaNomeCSV = String(row.turma).trim();
@@ -1552,6 +1594,7 @@ export function useAdminState() {
     }
   };
 
+
   return {
     fadeAnim,
     slideAnim,
@@ -1751,5 +1794,12 @@ export function useAdminState() {
     handleDeleteUser,
     handleCreateDefaultDisciplinas,
     handleDeleteUnlinkedDisciplinas,
+
+    // Bounty Hunter Admin Actions
+    pendingBounties,
+    loadingBounties,
+    fetchPendingBounties,
+    handleApproveBounty,
+    handleRejectBounty,
   };
 }

@@ -29,6 +29,7 @@ import { BauTab } from '../../components/player/BauTab';
 import { PartyTab } from '../../components/player/PartyTab';
 import { QuestWindowModal } from '../../components/player/QuestWindowModal';
 import { RankUpModal } from '../../components/player/RankUpModal';
+import { BountyTab } from '../../components/player/BountyTab';
 
 // Helper function to dynamically map player XP to Solo Leveling Ranks
 export const getPlayerRankInfo = (xp: number) => {
@@ -240,7 +241,7 @@ export default function StatusScreen() {
         <View className="flex-row items-center mb-4">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="max-h-12 flex-1">
             <View className="flex-row bg-black/40 border border-neonBlue/20 rounded-sm p-0.5">
-              {['STATUS', 'BAÚ', 'PARTY'].map((tab) => (
+              {['STATUS', 'BAÚ', 'PARTY', 'BOUNTY'].map((tab) => (
                 <TouchableOpacity
                   key={tab}
                   className={`px-6 py-2 items-center rounded-sm relative ${
@@ -358,6 +359,17 @@ export default function StatusScreen() {
               sounds={sounds}
               handleToggleRaidMode={state.handleToggleRaidMode}
               handleJoinRaidQuest={state.handleJoinRaidQuest}
+            />
+          )}
+
+          {state.activeTab === 'BOUNTY' && (
+            <BountyTab
+              bounties={state.bounties}
+              loadingBounties={state.loadingBounties}
+              fetchBounties={state.fetchBounties}
+              submitBounty={state.submitBounty}
+              sounds={sounds}
+              showAlert={state.showAlert}
             />
           )}
 

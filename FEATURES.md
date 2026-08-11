@@ -93,6 +93,7 @@ Os artefatos são itens consumíveis que concedem bônus pedagógicos ou estrat�
     1.  `📜 Sussurros Sábios`: Sinaliza a quest como **"Pergunta Dourada"** para o Mestre. O professor gera um rascunho de dica pedagógica (scaffolding) via IA ou manual. Concede +50% de XP ao acertar.
     2.  `🧪 Becker do Alquimista`: Concede instantaneamente **+500 XP** ao jogador.
     3.  `👁️ Olhar do Monarca`: Revela fórmulas e tópicos das próximas quests do Boss/Mini Boss para a Party estudar.
+    4. `Pedra de Chronomacia de Netheril`: Reduz o tempo de recarga de missões falhadas em 50% (de 30 min. para 15 min durante 2 horas)
 *   **Épicos (5% em Bosses)**:
     1.  `🏆 Elixir Dourado`: Dobra o XP ganho na Quest atual.
     2.  `🕰️ Relógio Ganha Tempo`: Estende o prazo de expiração da quest ativa por 24 horas.
@@ -111,7 +112,7 @@ Os artefatos são itens consumíveis que concedem bônus pedagógicos ou estrat�
     5.  `🛡️ Bracelete de Cristal`: Absorve a maldição de XP de um erro (possui 2 cargas).
     6.  `🛡️ Escudo Arcano`: Cancela a perda de 25% de XP na próxima tentativa incorreta.
     7.  `🪶 Pena do Escriba`: Em dissertativas, revela as 3 principais palavras-chave que a IA busca na resposta.
-    8.  `🪄 Varinha de Pinheiro`: Transmuta uma questão de cálculo discursiva em múltipla escolha.
+    8.  `🪄 Varinha de Pinheiro`: Transmuta uma missão de cálculo ou discursiva em múltipla escolha com opções.
     9.  `🪙 Mão de Midas`: Concede 50% de chance de transmutar um item mágico em épico (destrói se falhar).
     10. `🎒 Bolsa da Sorte`: Buff de +15% de drop por 7 dias em missões normais.
 
