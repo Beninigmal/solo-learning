@@ -967,13 +967,19 @@ export default function SuperAdminDashboard() {
                         </View>
                       </View>
                       <Text className="text-white/80 text-xs font-mono mb-3 leading-relaxed">{bug.description}</Text>
-                      {/* Generic Insect Cyber placeholder icon */}
-                      <View className="mb-3 border border-neonBlue/20 rounded-sm overflow-hidden h-24 bg-black items-center justify-center">
-                        <Feather name="cpu" size={32} color="#00f3ff" />
-                        {bug.imageUrl === 'HAS_EMAIL_ATTACHMENT' && (
-                          <Text className="text-white/40 text-[8px] font-mono mt-1">SCREENSHOT ENVIADO POR E-MAIL</Text>
-                        )}
-                      </View>
+                      {/* Render base64 screenshot if available, otherwise show placeholder */}
+                      {bug.imageUrl && (bug.imageUrl.startsWith('data:image') || bug.imageUrl.startsWith('http')) ? (
+                        <View className="mb-3 border border-neonBlue/20 rounded-sm overflow-hidden h-40 bg-black items-center justify-center">
+                          <Image source={{ uri: bug.imageUrl }} className="w-full h-full" style={{ resizeMode: 'contain' }} />
+                        </View>
+                      ) : (
+                        <View className="mb-3 border border-neonBlue/20 rounded-sm overflow-hidden h-24 bg-black items-center justify-center">
+                          <Feather name="cpu" size={32} color="#00f3ff" />
+                          {bug.imageUrl && (
+                            <Text className="text-white/40 text-[8px] font-mono mt-1">{bug.imageUrl}</Text>
+                          )}
+                        </View>
+                      )}
                       {bug.status === 'PENDING' && (
                         <View className="flex-row gap-2 mt-1">
                           <TouchableOpacity
