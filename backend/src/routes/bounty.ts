@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { prisma } from '../prisma';
 import nodemailer from 'nodemailer';
+import dns from 'dns';
 import { logAction } from '../services/actionLog';
 import { sendPushNotification } from '../utils/push';
 
@@ -47,8 +48,12 @@ async function sendBugEmail(bugDetail: any) {
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
+      },
+      // Force IPv4 resolution (bypasses Render IPv6 route unreachability error)
+      lookup: (hostname: string, options: any, callback: any) => {
+        dns.lookup(hostname, { family: 4 }, callback);
       }
-    });
+    } as any);
 
     const attachments: any[] = [];
     if (imageUrl && imageUrl.startsWith('data:image')) {
