@@ -40,18 +40,40 @@ async function sendBugEmail(bugDetail: any) {
     return;
   }
 
+  // Resolve hostname to IPv4 beforehand to bypass Nodemailer's internal IPv6 preference
+  let resolvedHost = process.env.SMTP_HOST;
+  try {
+    const ipList = await new Promise<string[]>((resolvePromise) => {
+      dns.resolve4(resolvedHost, (err, addresses) => {
+        if (err || !addresses || addresses.length === 0) {
+          dns.lookup(resolvedHost, { family: 4 }, (err2, address) => {
+            if (err2 || !address) resolvePromise([]);
+            else resolvePromise([address]);
+          });
+        } else {
+          resolvePromise(addresses);
+        }
+      });
+    });
+    if (ipList && ipList.length > 0) {
+      resolvedHost = ipList[0];
+    }
+  } catch (err) {
+    console.warn('⚠️ Failed to pre-resolve SMTP host to IPv4, relying on default host:', err);
+  }
+
   try {
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
+      host: resolvedHost,
       port: Number(process.env.SMTP_PORT) || 587,
       secure: process.env.SMTP_SECURE === 'true',
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
       },
-      // Force IPv4 resolution (bypasses Render IPv6 route unreachability error)
-      lookup: (hostname: string, options: any, callback: any) => {
-        dns.lookup(hostname, { family: 4 }, callback);
+      tls: {
+        servername: process.env.SMTP_HOST,
+        rejectUnauthorized: false
       }
     } as any);
 
