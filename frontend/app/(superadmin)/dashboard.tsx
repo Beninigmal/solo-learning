@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Animated, RefreshControl, ActivityIndicator, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Animated, RefreshControl, ActivityIndicator, Image, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -87,6 +87,7 @@ export default function SuperAdminDashboard() {
   const [loadingBounties, setLoadingBounties] = useState(false);
   const [bountyFilter, setBountyFilter] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL'>('PENDING');
   const [bountySearchQuery, setBountySearchQuery] = useState('');
+  const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
 
   const fetchBounties = async () => {
     try {
@@ -969,9 +970,13 @@ export default function SuperAdminDashboard() {
                       <Text className="text-white/80 text-xs font-mono mb-3 leading-relaxed">{bug.description}</Text>
                       {/* Render base64 screenshot if available, otherwise show placeholder */}
                       {bug.imageUrl && (bug.imageUrl.startsWith('data:image') || bug.imageUrl.startsWith('http')) ? (
-                        <View className="mb-3 border border-neonBlue/20 rounded-sm overflow-hidden h-40 bg-black items-center justify-center">
+                        <TouchableOpacity
+                          activeOpacity={0.8}
+                          onPress={() => setExpandedImageUrl(bug.imageUrl)}
+                          className="mb-3 border border-neonBlue/20 rounded-sm overflow-hidden h-40 bg-black items-center justify-center"
+                        >
                           <Image source={{ uri: bug.imageUrl }} className="w-full h-full" style={{ resizeMode: 'contain' }} />
-                        </View>
+                        </TouchableOpacity>
                       ) : (
                         <View className="mb-3 border border-neonBlue/20 rounded-sm overflow-hidden h-24 bg-black items-center justify-center">
                           <Feather name="cpu" size={32} color="#00f3ff" />
@@ -1124,6 +1129,42 @@ export default function SuperAdminDashboard() {
               </View>
             </View>
           </View>
+        )}
+
+        {/* Fullscreen Image Preview Modal */}
+        {expandedImageUrl && (
+          <Modal
+            visible={!!expandedImageUrl}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setExpandedImageUrl(null)}
+          >
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => setExpandedImageUrl(null)}
+              className="flex-1 bg-black/95 justify-center items-center p-4 z-50"
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' }}
+            >
+              <View className="absolute top-10 right-10 z-50" style={{ position: 'absolute', top: 40, right: 20, zIndex: 100 }}>
+                <TouchableOpacity
+                  onPress={() => setExpandedImageUrl(null)}
+                  className="bg-white/10 p-2.5 rounded-full border border-white/20"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.1)', padding: 10, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}
+                >
+                  <Feather name="x" size={24} color="#fff" />
+                </TouchableOpacity>
+              </View>
+              
+              <Image
+                source={{ uri: expandedImageUrl }}
+                className="w-full h-[80%] rounded-sm"
+                style={{ width: '90%', height: '80%', resizeMode: 'contain' }}
+              />
+              <Text className="text-white/40 text-[10px] font-mono uppercase mt-4 tracking-widest" style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace', fontSize: 10, marginTop: 16, letterSpacing: 2 }}>
+                Toque em qualquer lugar para fechar
+              </Text>
+            </TouchableOpacity>
+          </Modal>
         )}
 
         {/* Cyber Alert */}
