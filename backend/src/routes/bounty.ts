@@ -163,7 +163,7 @@ export const bountyRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
           description: description.trim(),
           turmaNome,
           instituicao,
-          imageUrl: imageUrl ? 'HAS_EMAIL_ATTACHMENT' : null,
+          imageUrl: imageUrl || null,
           artifactAwarded: randomArtifactId,
           status: 'PENDING'
         }
