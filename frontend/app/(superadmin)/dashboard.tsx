@@ -15,7 +15,8 @@ import {
   blockArchitect,
   deleteArchitect,
   resetArchitectAccess,
-  api
+  api,
+  sendBountyQuestion
 } from '../../services/api';
 import { SystemAlert } from '../../components/SystemAlert';
 import { CyberSubmitButton } from '../../components/CyberSubmitButton';
@@ -121,6 +122,27 @@ export default function SuperAdminDashboard() {
       fetchBounties();
     } catch (e: any) {
       const msg = e.response?.data?.error || 'Erro ao reprovar bug.';
+      showAlert('ERRO', msg, 'error');
+    }
+  };
+
+  const [bountyQuestionTexts, setBountyQuestionTexts] = useState<Record<string, string>>({});
+
+  const handleSendBountyQuestion = async (id: string) => {
+    const question = bountyQuestionTexts[id];
+    if (!question || question.trim().length === 0) {
+      showAlert('CAMPO VAZIO', 'Digite uma pergunta antes de enviar.', 'warning');
+      return;
+    }
+
+    try {
+      sounds.playSelect();
+      await sendBountyQuestion(id, question);
+      showAlert('PERGUNTA ENVIADA', 'Pergunta enviada ao aluno com sucesso!', 'success');
+      setBountyQuestionTexts(prev => ({ ...prev, [id]: '' }));
+      fetchBounties();
+    } catch (e: any) {
+      const msg = e.response?.data?.error || 'Erro ao enviar pergunta.';
       showAlert('ERRO', msg, 'error');
     }
   };
@@ -985,6 +1007,50 @@ export default function SuperAdminDashboard() {
                           )}
                         </View>
                       )}
+
+                      {/* Chat de Feedback / Pergunta do Dev */}
+                      <View className="mb-3 border border-yellow-500/20 bg-yellow-500/5 p-3 rounded-sm">
+                        <View className="flex-row items-center gap-1.5 mb-1.5">
+                          <Feather name="message-square" size={12} color="#eab308" />
+                          <Text className="text-yellow-500 text-[10px] font-bold font-mono uppercase tracking-wider">Feedback / Dúvida do Dev</Text>
+                        </View>
+
+                        {bug.devQuestion ? (
+                          <View className="gap-2">
+                            <View className="bg-black/30 p-2.5 rounded-sm border border-yellow-500/20">
+                              <Text className="text-white/40 text-[8px] font-mono uppercase">Pergunta Enviada:</Text>
+                              <Text className="text-yellow-200/90 text-xs mt-0.5 font-mono">{bug.devQuestion}</Text>
+                            </View>
+
+                            {bug.studentResponse ? (
+                              <View className="bg-black/30 p-2.5 rounded-sm border border-green-500/20">
+                                <Text className="text-white/40 text-[8px] font-mono uppercase">Resposta do Aluno:</Text>
+                                <Text className="text-green-300 text-xs mt-0.5 font-mono">"{bug.studentResponse}"</Text>
+                              </View>
+                            ) : (
+                              <Text className="text-white/30 text-[9px] font-mono italic">Aguardando resposta do caçador...</Text>
+                            )}
+                          </View>
+                        ) : (
+                          <View className="flex-row gap-2 items-center mt-1">
+                            <TextInput
+                              className="flex-1 bg-black/60 border border-yellow-500/30 text-white px-3 py-1.5 rounded-sm text-xs font-mono"
+                              placeholder="Não conseguiu reproduzir? Pergunte ao caçador..."
+                              placeholderTextColor="#eab30830"
+                              value={bountyQuestionTexts[bug.id] || ''}
+                              onChangeText={(val) => setBountyQuestionTexts(prev => ({ ...prev, [bug.id]: val }))}
+                            />
+                            <TouchableOpacity
+                              onPress={() => handleSendBountyQuestion(bug.id)}
+                              className="bg-yellow-500/20 border border-yellow-500 px-3 py-2 rounded-sm items-center justify-center"
+                              activeOpacity={0.7}
+                            >
+                              <Text className="text-yellow-400 font-bold uppercase text-[9px] font-mono">Perguntar</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+
                       {bug.status === 'PENDING' && (
                         <View className="flex-row gap-2 mt-1">
                           <TouchableOpacity

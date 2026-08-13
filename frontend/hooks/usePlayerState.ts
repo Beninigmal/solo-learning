@@ -45,6 +45,7 @@ import {
   getActiveBounties,
   submitBountyReport,
   markBountyAsSeen,
+  sendBountyResponse,
 } from '../services/api';
 
 // Lista centralizada de artefatos de consumo direto no baú/bolsa
@@ -2502,11 +2503,25 @@ export function usePlayerState() {
     }
   };
 
+  const submitBountyResponse = async (id: string, response: string) => {
+    try {
+      await sendBountyResponse(id, response);
+      showAlert('MENSAGEM REGISTRADA', 'Sua resposta foi enviada ao desenvolvedor!', 'success');
+      fetchBounties();
+      return true;
+    } catch (e: any) {
+      const msg = e.response?.data?.error || 'Erro ao enviar resposta.';
+      showAlert('ERRO DE TRANSMISSÃO', msg, 'error');
+      return false;
+    }
+  };
+
   return {
     bounties,
     loadingBounties,
     fetchBounties,
     submitBounty,
+    submitBountyResponse,
     user,
     setUser,
     image,

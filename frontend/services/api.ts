@@ -740,3 +740,13 @@ export const markBountyAsSeen = async (id: string) => {
   return response.data;
 };
 
+export const sendBountyQuestion = async (id: string, question: string) => {
+  const response = await api.post(`/bounty/${id}/question`, { question });
+  return response.data;
+};
+
+export const sendBountyResponse = async (id: string, responseStr: string) => {
+  const response = await api.post(`/bounty/${id}/response`, { response: responseStr });
+  return response.data;
+};
+
