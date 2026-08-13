@@ -368,8 +368,10 @@ export default function StatusScreen() {
               loadingBounties={state.loadingBounties}
               fetchBounties={state.fetchBounties}
               submitBounty={state.submitBounty}
+              submitBountyResponse={state.submitBountyResponse}
               sounds={sounds}
               showAlert={state.showAlert}
+              currentUser={state.user}
             />
           )}
 

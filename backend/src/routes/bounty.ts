@@ -385,4 +385,80 @@ export const bountyRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
       return reply.status(500).send({ error: 'Erro ao marcar relato como visto.' });
     }
   });
+
+  // Submit developer question/feedback about a bug (Apenas Admin/Arquiteto/Superadmin)
+  fastify.post<{ Params: { id: string }; Body: { question: string } }>('/:id/question', async (request, reply) => {
+    if (request.user.role !== 'ARQUITETO' && request.user.role !== 'ADMIN') {
+      return reply.status(403).send({ error: 'Acesso restrito ao Administrador.' });
+    }
+
+    const { id } = request.params;
+    const { question } = request.body;
+
+    if (!question || question.trim().length === 0) {
+      return reply.status(400).send({ error: 'A pergunta não pode ser vazia.' });
+    }
+
+    try {
+      const bug = await prisma.bountyBug.findUnique({ where: { id } });
+      if (!bug) {
+        return reply.status(404).send({ error: 'Relato de bug não encontrado.' });
+      }
+
+      const updatedBug = await prisma.bountyBug.update({
+        where: { id },
+        data: {
+          devQuestion: question.trim(),
+          seenByReporter: false
+        }
+      });
+
+      // Dispara push notification para o aluno
+      try {
+        await sendPushNotification(
+          bug.userId,
+          'Dúvida sobre seu Bug Report',
+          `O desenvolvedor enviou uma dúvida sobre seu relato [BUG-${id.slice(0, 8).toUpperCase()}].`
+        );
+      } catch (pushErr) {
+        console.warn('Erro ao disparar notificação push da dúvida:', pushErr);
+      }
+
+      return reply.status(200).send({ message: 'Dúvida enviada com sucesso.', bug: updatedBug });
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao registrar dúvida do desenvolvedor.' });
+    }
+  });
+
+  // Submit student response/clarification to developer question (Apenas Aluno criador)
+  fastify.post<{ Params: { id: string }; Body: { response: string } }>('/:id/response', async (request, reply) => {
+    const { id } = request.params;
+    const { response } = request.body;
+
+    if (!response || response.trim().length === 0) {
+      return reply.status(400).send({ error: 'A resposta não pode ser vazia.' });
+    }
+
+    try {
+      const bug = await prisma.bountyBug.findUnique({ where: { id } });
+      if (!bug) {
+        return reply.status(404).send({ error: 'Relato de bug não encontrado.' });
+      }
+
+      if (bug.userId !== request.user.id) {
+        return reply.status(403).send({ error: 'Você só pode responder a dúvidas dos seus próprios relatos.' });
+      }
+
+      const updatedBug = await prisma.bountyBug.update({
+        where: { id },
+        data: {
+          studentResponse: response.trim()
+        }
+      });
+
+      return reply.status(200).send({ message: 'Resposta registrada com sucesso.', bug: updatedBug });
+    } catch (error) {
+      return reply.status(500).send({ error: 'Erro ao registrar resposta do aluno.' });
+    }
+  });
 };

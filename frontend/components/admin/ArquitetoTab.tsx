@@ -538,7 +538,11 @@ export function ArquitetoTab({
             const filteredStudents = students.filter(student => {
               const studentYear = student.turma?.ano || new Date(student.createdAt || Date.now()).getFullYear().toString();
               const matchYear = filterPlayerYear ? studentYear === filterPlayerYear : true;
-              const matchName = filterPlayerName ? (student.nome?.toLowerCase().includes(filterPlayerName.toLowerCase()) || student.nickname?.toLowerCase().includes(filterPlayerName.toLowerCase())) : true;
+              const matchName = filterPlayerName ? (
+                student.nome?.toLowerCase().includes(filterPlayerName.toLowerCase()) || 
+                student.nickname?.toLowerCase().includes(filterPlayerName.toLowerCase()) || 
+                student.matricula?.toLowerCase().includes(filterPlayerName.toLowerCase())
+              ) : true;
               const matchTurma = filterPlayerTurma ? student.turma?.nome?.toLowerCase().includes(filterPlayerTurma.toLowerCase()) : true;
               return matchYear && matchName && matchTurma;
             });

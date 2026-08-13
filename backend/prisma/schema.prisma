@@ -459,6 +459,8 @@ model BountyBug {
   status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
   artifactAwarded String?
   seenByReporter  Boolean  @default(false)
+  devQuestion     String?  @db.Text
+  studentResponse String?  @db.Text
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
