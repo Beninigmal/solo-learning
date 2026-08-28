@@ -82,6 +82,13 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
     
     if (unassigned === 'true') {
       where.turmaId = null;
+      if (request.user.role !== 'ADMIN') {
+        if (request.user.institutionId) {
+          where.institutionId = request.user.institutionId;
+        } else if (request.user.instituicao) {
+          where.instituicao = request.user.instituicao;
+        }
+      }
     } else if (turmaId) {
       where.turmaId = turmaId;
       if (request.user.role !== 'ADMIN') {

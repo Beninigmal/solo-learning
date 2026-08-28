@@ -24,16 +24,16 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
   // ─── GESTÃO DE MESTRES ──────────────────────────────────────────────────
 
   // Criar Mestre
-  fastify.post<{ Body: { matricula: string; nome: string; novaMateria?: string; maxAulasSemanais?: number; categoria?: string } }>('/masters', async (request, reply) => {
-    const { matricula, nome, novaMateria, maxAulasSemanais, categoria } = request.body;
+  fastify.post<{ Body: { matricula: string; nome: string; password?: string; novaMateria?: string; maxAulasSemanais?: number; categoria?: string } }>('/masters', async (request, reply) => {
+    const { matricula, nome, password, novaMateria, maxAulasSemanais, categoria } = request.body;
     const instituicao = request.user.instituicao!;
 
-    if (!matricula || !nome) {
-      return reply.status(400).send({ error: 'Matrícula e Nome são obrigatórios.' });
+    if (!matricula || !nome || !password || !password.trim()) {
+      return reply.status(400).send({ error: 'Matrícula, Nome e Senha são obrigatórios para cadastrar um Mestre.' });
     }
 
     try {
-      const defaultPassword = await bcrypt.hash('1234', 10);
+      const defaultPassword = await bcrypt.hash(password.trim(), 10);
       
       // Se tiver nova matéria, criar ou buscar
       if (novaMateria) {
@@ -226,11 +226,12 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         finalNivel = 'FUNDAMENTAL';
       }
 
+      const randomCode = Math.floor(1000 + Math.random() * 9000).toString();
       const turma = await prisma.turma.create({
         data: {
           nome: formattedNome,
           ano: ano.trim(),
-          codigoInvocacao: codigoInvocacao ? codigoInvocacao.trim() : "1234",
+          codigoInvocacao: (codigoInvocacao && codigoInvocacao.trim()) ? codigoInvocacao.trim() : randomCode,
           nivel: finalNivel,
           instituicao,
           institutionId: request.user.institutionId || null
@@ -527,14 +528,21 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       });
 
       if (existingStudent) {
-        // Atualiza a turma e turno do aluno existente
+        const callerInstId = request.user.institutionId;
+        const callerInstName = request.user.instituicao;
+        const isSameInst = (callerInstId && existingStudent.institutionId === callerInstId) ||
+                           (callerInstName && existingStudent.instituicao === callerInstName);
+
+        if (!isSameInst) {
+          return reply.status(403).send({ error: 'Acesso negado. A matrícula informada pertence a um aluno de outra instituição.' });
+        }
+
+        // Atualiza a turma e turno do aluno existente da mesma instituição
         const updatedStudent = await prisma.user.update({
           where: { id: existingStudent.id },
           data: {
             turmaId,
-            turno,
-            instituicao: request.user.instituicao,
-            institutionId: request.user.institutionId || null
+            turno
           }
         });
         return reply.status(200).send(updatedStudent);
@@ -602,12 +610,13 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
                 finalNivel = 'MEDIO';
              }
            }
+           const randomCode = Math.floor(1000 + Math.random() * 9000).toString();
            turma = await prisma.turma.create({
               data: {
                  nome: turmaName,
                  ano: String(new Date().getFullYear()),
                  nivel: finalNivel,
-                 codigoInvocacao: '1234',
+                 codigoInvocacao: randomCode,
                  instituicao: request.user.instituicao,
                  institutionId: request.user.institutionId || null
               }
@@ -646,7 +655,19 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           createdCount++;
         } catch (e: any) {
           if (e.code === 'P2002') {
-            errors.push(`Matrícula ${s.matricula} já existe.`);
+            const existing = await prisma.user.findUnique({
+              where: { matricula: s.matricula.toLowerCase().trim() },
+              select: { instituicao: true, institutionId: true }
+            });
+            const callerInstId = request.user.institutionId;
+            const callerInstName = request.user.instituicao;
+            const isSameInst = existing && ((callerInstId && existing.institutionId === callerInstId) ||
+                                           (callerInstName && existing.instituicao === callerInstName));
+            if (!isSameInst) {
+              errors.push(`Matrícula ${s.matricula} pertence a outra instituição.`);
+            } else {
+              errors.push(`Matrícula ${s.matricula} já está cadastrada nesta instituição.`);
+            }
           } else {
             errors.push(`Erro ao criar ${s.nome}: ${e.message}`);
           }
@@ -690,12 +711,17 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
   });
 
   // Resetar Mestre (Voltar para primeiro acesso)
-  fastify.post<{ Params: { id: string } }>('/masters/:id/reset', async (request, reply) => {
+  fastify.post<{ Params: { id: string }; Body: { newPassword?: string } }>('/masters/:id/reset', async (request, reply) => {
     const { id } = request.params;
+    const { newPassword } = (request.body as any) || {};
     const instituicao = request.user.instituicao!;
 
+    if (!newPassword || !newPassword.trim()) {
+      return reply.status(400).send({ error: 'A nova senha do professor é obrigatória para efetuar o reset.' });
+    }
+
     try {
-      const defaultPassword = await bcrypt.hash('1234', 10);
+      const defaultPassword = await bcrypt.hash(newPassword.trim(), 10);
       await prisma.user.update({
         where: { 
           id, 

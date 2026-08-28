@@ -17,7 +17,11 @@ export default fp(async (fastify: FastifyInstance) => {
     try {
       const queryToken = (request.query as any)?.token;
       if (queryToken && !request.headers.authorization) {
-        request.headers.authorization = `Bearer ${queryToken}`;
+        // AUTH-002: Aceita ?token= na URL exclusivamente para rotas de download de templates
+        const isDownloadRoute = request.url.includes('/admin/templates/');
+        if (isDownloadRoute) {
+          request.headers.authorization = `Bearer ${queryToken}`;
+        }
       }
 
       await request.jwtVerify();
