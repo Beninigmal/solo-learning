@@ -559,6 +559,26 @@ Regras:
     }
 
     try {
+      const existingQuest = await prisma.quest.findUnique({
+        where: { id },
+        select: { id: true, turmaAlvoId: true, disciplinaId: true }
+      });
+      if (!existingQuest) {
+        return reply.status(404).send({ error: 'Quest não encontrada.' });
+      }
+
+      if (request.user.role === 'PROFESSOR') {
+        const link = await prisma.turmaDisciplina.findFirst({
+          where: {
+            professorId: request.user.id,
+            ...(existingQuest.turmaAlvoId ? { turmaId: existingQuest.turmaAlvoId } : {})
+          }
+        });
+        if (!link) {
+          return reply.status(403).send({ error: 'Acesso negado: Você não leciona nesta turma.' });
+        }
+      }
+
       const updated = await prisma.quest.update({
         where: { id },
         data: { enunciado: enunciado.trim() }
@@ -570,6 +590,7 @@ Regras:
       return reply.status(500).send({ error: 'Erro ao atualizar quest.', details: error.message });
     }
   });
+
   // ─── POST /quests/mock-boss ────────────────────────────────────────────────
   fastify.post<{ Body: { turmaId: string; tema: string; semana: string; duracaoDias?: number } }>('/mock-boss', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     if (request.user.role !== 'PROFESSOR' && request.user.role !== 'ADMIN') {
@@ -582,6 +603,15 @@ Regras:
     try {
       const turma = await prisma.turma.findUnique({ where: { id: turmaId } });
       if (!turma) return reply.status(404).send({ error: 'Turma não encontrada.' });
+
+      if (request.user.role === 'PROFESSOR') {
+        const link = await prisma.turmaDisciplina.findFirst({
+          where: { turmaId, professorId: request.user.id }
+        });
+        if (!link) {
+          return reply.status(403).send({ error: 'Acesso negado: Você não leciona nesta turma.' });
+        }
+      }
 
       let disciplina = await prisma.disciplina.findFirst({ where: { nome: 'Missões Gerais', instituicao: request.user.instituicao || null } });
       if (!disciplina) {
@@ -2808,7 +2838,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
     try {
       const student = await prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, nome: true, turmaId: true }
+        select: { id: true, nome: true, turmaId: true, institutionId: true, instituicao: true }
       });
 
       console.log(`[Backend] Student found:`, student);
@@ -2816,6 +2846,17 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       if (!student || !student.turmaId) {
         console.log(`[Backend] Student has no turmaId or was not found.`);
         return reply.send([]);
+      }
+
+      // Validação de Tenant: PROFESSOR e ARQUITETO só podem ver alunos da própria instituição
+      if (request.user.role !== 'ADMIN') {
+        const callerInstId = request.user.institutionId;
+        const callerInstName = request.user.instituicao;
+        const isSameTenant = (callerInstId && student.institutionId === callerInstId) ||
+                             (callerInstName && student.instituicao === callerInstName);
+        if (!isSameTenant) {
+          return reply.status(403).send({ error: 'Acesso negado. O aluno não pertence à sua instituição.' });
+        }
       }
 
       const turmaDisciplinas = await prisma.turmaDisciplina.findMany({

@@ -540,6 +540,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         return reply.status(200).send(updatedStudent);
       }
 
+      const initialPasswordHash = await bcrypt.hash('SUMMONING_CODE', 10);
       const student = await prisma.user.create({
         data: {
           matricula: matricula.toLowerCase().trim(),
@@ -547,7 +548,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           role: 'ALUNO',
           turmaId,
           turno,
-          password: 'INITIAL_SUMMONING_CODE_LOGIN', // Placeholder
+          password: initialPasswordHash, // Hash seguro para primeiro acesso
           isFirstAccess: true,
           instituicao: request.user.instituicao,
           institutionId: request.user.institutionId || null
@@ -620,6 +621,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
 
       let createdCount = 0;
       let errors: string[] = [];
+      const batchPasswordHash = await bcrypt.hash('SUMMONING_CODE', 10);
 
       for (const s of students) {
         if (!s.nome || !s.matricula) {
@@ -635,7 +637,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
               role: 'ALUNO',
               turno: s.turno || 'MATUTINO',
               turmaId: turma.id,
-              password: 'SUMMONING_CODE',
+              password: batchPasswordHash,
               isFirstAccess: true,
               instituicao: request.user.instituicao,
               institutionId: request.user.institutionId || null
@@ -668,6 +670,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     const { id } = request.params;
 
     try {
+      const resetPasswordHash = await bcrypt.hash('SUMMONING_CODE', 10);
       await prisma.user.update({
         where: { 
           id, 
@@ -677,7 +680,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         data: { 
           isFirstAccess: true,
           nickname: null,
-          password: 'RESET_TO_SUMMONING_CODE'
+          password: resetPasswordHash
         }
       });
       return reply.send({ message: 'Acesso do aluno resetado com sucesso! Ele deve usar o Código de Invocação da Turma.' });
@@ -1044,9 +1047,11 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
 
       try {
         let targetInst: any = null;
-        if (institutionId) {
+        const isSuperAdmin = request.user.role === 'ADMIN';
+
+        if (isSuperAdmin && institutionId) {
           targetInst = await prisma.institution.findUnique({ where: { id: institutionId } });
-        } else if (targetInstName) {
+        } else if (isSuperAdmin && targetInstName) {
           targetInst = await prisma.institution.findUnique({ where: { nome: targetInstName } });
         } else if (request.user.institutionId) {
           targetInst = await prisma.institution.findUnique({ where: { id: request.user.institutionId } });

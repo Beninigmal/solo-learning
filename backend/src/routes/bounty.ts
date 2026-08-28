@@ -191,7 +191,9 @@ export const bountyRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
   // Get active wanted bugs (wanted posters for students/all roles)
   fastify.get('/active', async (request, reply) => {
     try {
+      const userInst = request.user.instituicao;
       const bugs = await prisma.bountyBug.findMany({
+        where: request.user.role === 'ADMIN' ? {} : (userInst ? { instituicao: userInst } : {}),
         include: {
           user: {
             select: {

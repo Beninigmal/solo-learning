@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { prisma } from '../prisma';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { logAction } from '../services/actionLog';
 
 export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
@@ -96,7 +97,7 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
           return reply.status(404).send({ error: 'Instituição não encontrada.' });
         }
 
-        const rawPassword = password || 'Solen2026';
+        const rawPassword = password || `Solen#${crypto.randomBytes(4).toString('hex')}`;
         const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
         const architect = await prisma.user.create({
@@ -113,12 +114,16 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
         });
 
         return reply.status(201).send({
-          id: architect.id,
-          matricula: architect.matricula,
-          nome: architect.nome,
-          nickname: architect.nickname,
-          role: architect.role,
-          instituicao: architect.instituicao
+          message: 'Arquiteto criado com sucesso!',
+          temporaryPassword: rawPassword,
+          architect: {
+            id: architect.id,
+            matricula: architect.matricula,
+            nome: architect.nome,
+            nickname: architect.nickname,
+            role: architect.role,
+            instituicao: architect.instituicao
+          }
         });
       } catch (error: any) {
         if (error.code === 'P2002') {
@@ -345,7 +350,8 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
         return reply.status(404).send({ error: 'Arquiteto não encontrado.' });
       }
 
-      const defaultPassword = await bcrypt.hash('Solen2026', 10);
+      const rawPassword = `Solen#${crypto.randomBytes(4).toString('hex')}`;
+      const defaultPassword = await bcrypt.hash(rawPassword, 10);
       await prisma.user.update({
         where: { id },
         data: { 
@@ -355,7 +361,7 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
         }
       });
 
-      return reply.send({ message: 'Acesso do arquiteto resetado com sucesso! A senha padrão voltou a ser "Solen2026" e ele fará o primeiro acesso novamente.' });
+      return reply.send({ message: `Acesso do arquiteto resetado com sucesso! A nova senha temporária é "${rawPassword}".`, temporaryPassword: rawPassword });
     } catch (error) {
       return reply.status(500).send({ error: 'Erro ao resetar arquiteto.' });
     }

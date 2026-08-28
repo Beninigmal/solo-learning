@@ -373,8 +373,11 @@ export default function SuperAdminDashboard() {
   const confirmResetArchitect = async () => {
     if (!architectToReset) return;
     try {
-      await resetArchitectAccess(architectToReset.id);
-      showAlert('RESETADO', 'Acesso do arquiteto resetado com sucesso! A senha voltou a ser "Solen2026".', 'success');
+      const res = await resetArchitectAccess(architectToReset.id);
+      const msg = res.temporaryPassword
+        ? `Acesso resetado com sucesso! A nova senha temporária é: ${res.temporaryPassword}`
+        : 'Acesso do arquiteto resetado com sucesso!';
+      showAlert('RESETADO', msg, 'success');
       loadAllData();
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Erro ao resetar arquiteto.';
@@ -404,14 +407,17 @@ export default function SuperAdminDashboard() {
         showAlert('SUCESSO', 'Perfil de Arquiteto atualizado!', 'success');
         setEditingArchitectId(null);
       } else {
-        await createArchitect(
+        const res = await createArchitect(
           newArchMatricula.trim(),
           newArchNome.trim(),
           newArchNickname.trim(),
           newArchPassword || undefined,
           selectedSchool
         );
-        showAlert('SUCESSO', 'Perfil de Arquiteto criado com sucesso!', 'success');
+        const msg = res.temporaryPassword
+          ? `Arquiteto criado! Senha temporária: ${res.temporaryPassword}`
+          : 'Perfil de Arquiteto criado com sucesso!';
+        showAlert('SUCESSO', msg, 'success');
       }
       setNewArchMatricula('');
       setNewArchNome('');
@@ -713,7 +719,7 @@ export default function SuperAdminDashboard() {
               />
 
               <TextInput
-                placeholder={editingArchitectId ? "Nova Senha (deixe vazio para manter atual)" : "Senha (deixe vazio para padrão: Solen2026)"}
+                placeholder={editingArchitectId ? "Nova Senha (deixe vazio para manter atual)" : "Senha (deixe vazio para gerar temporária)"}
                 placeholderTextColor="#00f3ff80"
                 value={newArchPassword}
                 onChangeText={setNewArchPassword}
@@ -1176,7 +1182,7 @@ export default function SuperAdminDashboard() {
               <Feather name="key" size={32} color="#eab308" className="mb-4" />
               <Text className="text-white text-lg font-bold uppercase tracking-wider mb-2 font-mono">Resetar Acesso</Text>
               <Text className="text-white/70 text-xs text-center mb-6 font-mono">
-                Deseja realmente resetar o acesso do arquiteto {architectToReset?.nome} (Matrícula: {architectToReset?.matricula})? A senha padrão voltará a ser "Solen2026" e o apelido será limpo.
+                Deseja realmente resetar o acesso do arquiteto {architectToReset?.nome} (Matrícula: {architectToReset?.matricula})? Uma nova senha temporária será gerada e o apelido será limpo.
               </Text>
               
               <View className="flex-row gap-3 w-full">
