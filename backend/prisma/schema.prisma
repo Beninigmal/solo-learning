@@ -100,6 +100,7 @@ model Disciplina {
   turmaDisciplinas TurmaDisciplina[]
   timetableSlots  TimetableSlot[]
   bossFights    BossFight[]
+  topicos       TopicoCurricular[]
 }
 
 model DisciplinaProfessor {
@@ -112,11 +113,44 @@ model DisciplinaProfessor {
   @@id([professorId, disciplinaId])
 }
 
+model TopicoCurricular {
+  id           String     @id @default(uuid())
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  nome         String
+  ordem        Int        @default(1)
+  descricao    String?
+  dicasEstudo  String?
+  quests       Quest[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model CurriculumTemplate {
+  id              String   @id @default(uuid())
+  institutionType String   // "PUBLICA" ou "PARTICULAR"
+  nivel           String   // "FUNDAMENTAL" ou "MEDIO"
+  ano             String   // ex: "1º Ano", "9º Ano"
+  disciplinaNome  String   // ex: "Matemática", "Português - Gramática"
+  topicosJson     String   // JSON string com array de { nome, ordem, descricao?, dicasEstudo? }
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([institutionType, nivel, ano, disciplinaNome])
+}
+
 model Quest {
   id           String     @id @default(uuid())
   disciplinaId String
   disciplina   Disciplina @relation(fields: [disciplinaId], references: [id])
   
+  topicoId     String?
+  topico       TopicoCurricular? @relation(fields: [topicoId], references: [id])
+
+  unlockedByArtifact       String? // ex: "ORBE_PERSPICACIA"
+  unlockedByPartyId        String?
+  partyMembersSnapshotJson String?
+
   enunciado    String
   gabarito     String?
   xp           Int        @default(200)
@@ -205,6 +239,10 @@ model Raid {
   currentResponderId    String?
   lastResponderId       String?
   partyCooldownUntil    DateTime?
+
+  firstQuestBonusTopicId   String?
+  firstQuestBonusTopicName String?
+  firstQuestBonusActive    Boolean         @default(false)
 }
 
 model RaidMessage {

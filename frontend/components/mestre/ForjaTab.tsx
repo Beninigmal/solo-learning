@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView,
 import { Feather } from '@expo/vector-icons';
 import { CyberSubmitButton } from '../CyberSubmitButton';
 import { DND_MEGA_BOSSES, getRandomMegaBossByHp } from '../../constants/dndBosses';
-import { getMestreBossFights, updateBossQuest, transmuteBossQuest } from '../../services/api';
+import api, { getMestreBossFights, updateBossQuest, transmuteBossQuest } from '../../services/api';
 
 interface ForjaTabProps {
   turmas: any[];
@@ -100,8 +100,14 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
   sounds,
   currentUser,
 }) => {
-  const [forjaMode, setForjaMode] = useState<'DIARIA' | 'BOSS'>('DIARIA');
+  const [forjaMode, setForjaMode] = useState<'DIARIA' | 'BOSS' | 'EMENTA'>('DIARIA');
   const showDifficulty = false;
+
+  const [topicosCurriculares, setTopicosCurriculares] = useState<any[]>([]);
+  const [loadingTopicos, setLoadingTopicos] = useState(false);
+  const [rawEmentaText, setRawEmentaText] = useState('');
+  const [savingEmenta, setSavingEmenta] = useState(false);
+  const [generatingAIEmenta, setGeneratingAIEmenta] = useState(false);
 
   const [mestreBossFights, setMestreBossFights] = useState<any[]>([]);
   const [loadingMestreBosses, setLoadingMestreBosses] = useState(false);
@@ -109,6 +115,70 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
   const [editingBossQuestId, setEditingBossQuestId] = useState<string | null>(null);
   const [editingBossEnunciado, setEditingBossEnunciado] = useState('');
   const [transmutingQuestId, setTransmutingQuestId] = useState<string | null>(null);
+
+  const fetchTopicosCurriculares = React.useCallback(async (discId: string) => {
+    if (!discId) return;
+    try {
+      setLoadingTopicos(true);
+      const res = await api.get(`/curriculum/${discId}`);
+      setTopicosCurriculares(res.data.topicos || []);
+    } catch (e) {
+      console.warn('Erro ao buscar tópicos curriculares:', e);
+    } finally {
+      setLoadingTopicos(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (forjaDisciplinaId) {
+      fetchTopicosCurriculares(forjaDisciplinaId);
+    }
+  }, [forjaDisciplinaId, fetchTopicosCurriculares]);
+
+  const handleSaveEmentaBatch = async () => {
+    if (!forjaDisciplinaId) {
+      Alert.alert('Aviso', 'Selecione uma disciplina primeiro.');
+      return;
+    }
+    try {
+      setSavingEmenta(true);
+      await api.post('/curriculum/batch', { disciplinaId: forjaDisciplinaId, rawText: rawEmentaText });
+      Alert.alert('Sucesso', 'Ementa curricular salva com sucesso!');
+      fetchTopicosCurriculares(forjaDisciplinaId);
+      setRawEmentaText('');
+    } catch (err: any) {
+      Alert.alert('Erro', err.response?.data?.error || 'Erro ao salvar ementa.');
+    } finally {
+      setSavingEmenta(false);
+    }
+  };
+
+  const handleGenerateAIEmenta = async () => {
+    if (!forjaDisciplinaId) {
+      Alert.alert('Aviso', 'Selecione uma disciplina primeiro.');
+      return;
+    }
+    try {
+      setGeneratingAIEmenta(true);
+      const selectedTurma = turmas.find(t => forjaTurmaIds.includes(t.id));
+      const ano = selectedTurma?.ano || '1º Ano';
+      const nivel = selectedTurma?.nivel || 'MEDIO';
+      const instType = currentUser?.institutionType || 'PARTICULAR';
+
+      const res = await api.post('/curriculum/generate-ai', {
+        disciplinaId: forjaDisciplinaId,
+        ano,
+        nivel,
+        institutionType: instType
+      });
+      Alert.alert('Sucesso', res.data.message || 'Ementa gerada!');
+      setTopicosCurriculares(res.data.topicos || []);
+    } catch (err: any) {
+      Alert.alert('Erro', err.response?.data?.error || 'Erro ao gerar ementa.');
+    } finally {
+      setGeneratingAIEmenta(false);
+    }
+  };
 
   const fetchActiveMestreBosses = React.useCallback(async () => {
     try {
@@ -127,7 +197,7 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
 
   React.useEffect(() => {
     fetchActiveMestreBosses();
-  }, []);
+  }, [fetchActiveMestreBosses]);
 
   const handleTransmuteBossQuest = async (questId: string) => {
     try {
@@ -182,7 +252,26 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
               forjaMode === 'DIARIA' ? 'text-white' : 'text-neonBlue/50'
             }`}
           >
-            📜 Missão Diária (IA)
+            📜 Missão Diária
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          className={`flex-1 py-3 items-center justify-center rounded-sm flex-row gap-2 ${
+            forjaMode === 'EMENTA' ? 'bg-purple-900/60 border border-purple-400' : 'border border-transparent'
+          }`}
+          onPress={() => {
+            setForjaMode('EMENTA');
+            sounds.playSelect?.();
+          }}
+        >
+          <Feather name="book-open" size={15} color={forjaMode === 'EMENTA' ? '#c084fc' : 'rgba(192,132,252,0.4)'} />
+          <Text
+            className={`font-mono text-xs font-bold uppercase tracking-widest ${
+              forjaMode === 'EMENTA' ? 'text-purple-300 font-bold' : 'text-purple-400/50'
+            }`}
+          >
+            📚 Ementa Curricular
           </Text>
         </TouchableOpacity>
 
@@ -205,6 +294,105 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* ───────────────── MODAL 0: EMENTA CURRICULAR (TÓPICOS DO ANO) ───────────────── */}
+      {forjaMode === 'EMENTA' && (
+        <View className="bg-[#120826]/90 border border-purple-500/50 p-5 sm:p-6 rounded-sm mb-6 shadow-xl">
+          <View className="flex-row justify-between items-center mb-2">
+            <Text className="text-white text-base sm:text-lg font-bold uppercase tracking-widest font-mono">
+              📚 Gestão da Ementa Curricular
+            </Text>
+            {loadingTopicos && <ActivityIndicator size="small" color="#c084fc" />}
+          </View>
+          <Text className="text-white/40 text-xs mb-5 font-mono leading-relaxed">
+            Cadastre os tópicos do ano letivo por linha ou use a IA para gerar a matriz recomendada (MEC/BNCC). O sistema reusará este padrão para futuras turmas!
+          </Text>
+
+          {/* Selecionar Disciplina */}
+          <Text className="text-purple-300 text-xs mb-2 uppercase font-bold font-mono">1. Selecionar Matéria:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4" contentContainerStyle={{ paddingHorizontal: 2 }}>
+            <View className="flex-row gap-2">
+              {disciplinas.map((d) => (
+                <TouchableOpacity
+                  key={d.id}
+                  className={`px-4 py-2.5 rounded-sm border ${
+                    forjaDisciplinaId === d.id ? 'bg-purple-600/30 border-purple-400' : 'bg-black/50 border-purple-500/20'
+                  }`}
+                  onPress={() => {
+                    setForjaDisciplinaId(d.id);
+                    sounds.playSelect?.();
+                  }}
+                >
+                  <Text className={`text-xs font-bold font-mono uppercase ${forjaDisciplinaId === d.id ? 'text-white' : 'text-purple-300/50'}`}>
+                    {d.nome}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* Ações: Gerar por IA ou Colar por Linha */}
+          <View className="flex-row gap-3 mb-4">
+            <TouchableOpacity
+              onPress={handleGenerateAIEmenta}
+              disabled={generatingAIEmenta || !forjaDisciplinaId}
+              className="flex-1 bg-purple-900/40 border border-purple-400 py-3 rounded-sm items-center justify-center flex-row gap-2"
+            >
+              {generatingAIEmenta ? (
+                <ActivityIndicator color="#c084fc" size="small" />
+              ) : (
+                <>
+                  <Feather name="cpu" size={14} color="#c084fc" />
+                  <Text className="text-purple-300 font-bold text-xs uppercase font-mono tracking-widest">
+                    ✨ Gerar Ementa MEC via IA
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Text Area para Colar em Lote */}
+          <Text className="text-purple-300 text-xs mb-2 uppercase font-bold font-mono">2. Colar ou Editar Tópicos por Linha:</Text>
+          <TextInput
+            className="w-full bg-black/60 border border-purple-500/40 text-white p-3 rounded-sm font-mono text-xs mb-3"
+            placeholder={`1. Equações do 2º Grau e Quadráticas\n2. Funções Exponenciais\n3. Geometria Espacial`}
+            placeholderTextColor="rgba(192, 132, 252, 0.3)"
+            multiline={true}
+            numberOfLines={6}
+            textAlignVertical="top"
+            value={rawEmentaText}
+            onChangeText={setRawEmentaText}
+          />
+
+          <CyberSubmitButton
+            title="💾 SALVAR EMENTA DA DISCIPLINA"
+            loadingTitle="Salvando Ementa..."
+            loading={savingEmenta}
+            onPress={handleSaveEmentaBatch}
+          />
+
+          {/* Lista de Tópicos Cadastrados */}
+          {topicosCurriculares.length > 0 && (
+            <View className="mt-6 border-t border-purple-500/20 pt-4">
+              <Text className="text-purple-300 text-xs uppercase font-bold font-mono mb-3">
+                📋 Tópicos Ativos ({topicosCurriculares.length}):
+              </Text>
+              {topicosCurriculares.map((t, idx) => (
+                <View key={t.id} className="bg-black/40 border border-purple-500/20 p-2.5 rounded-sm mb-2 flex-row justify-between items-center">
+                  <Text className="text-white text-xs font-mono">
+                    <Text className="text-purple-400 font-bold">{idx + 1}.</Text> {t.nome}
+                  </Text>
+                  {t.dicasEstudo && (
+                    <Text className="text-purple-300/50 text-[10px] font-mono italic max-w-[200px]" numberOfLines={1}>
+                      💡 {t.dicasEstudo}
+                    </Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
 
       {/* ───────────────── MODAL 1: FORMULÁRIO DE MISSÃO DIÁRIA ───────────────── */}
       {forjaMode === 'DIARIA' && (
@@ -325,10 +513,35 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
           </View>
 
           {/* Campo de Tema */}
-          <Text className="text-neonBlue/80 text-xs mb-1 uppercase font-bold font-mono">4. Tema / Assunto Pedagogico:</Text>
+          <Text className="text-neonBlue/80 text-xs mb-1 uppercase font-bold font-mono">4. Tema / Assunto Pedagógico:</Text>
+
+          {topicosCurriculares.length > 0 && (
+            <View className="mb-2">
+              <Text className="text-neonBlue/50 text-[10px] uppercase font-mono mb-1">Tópicos da Ementa (Clique para selecionar):</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row gap-1.5 py-1">
+                {topicosCurriculares.map((t) => (
+                  <TouchableOpacity
+                    key={t.id}
+                    onPress={() => {
+                      setTema(t.nome);
+                      sounds.playSelect?.();
+                    }}
+                    className={`px-3 py-1.5 rounded-sm border ${
+                      tema === t.nome ? 'bg-neonBlue/30 border-neonBlue' : 'bg-black/40 border-neonBlue/20'
+                    }`}
+                  >
+                    <Text className={`text-[11px] font-mono ${tema === t.nome ? 'text-white font-bold' : 'text-neonBlue/70'}`}>
+                      {t.nome}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
           <TextInput
             className="w-full bg-black/60 border border-neonBlue/50 text-white text-sm px-4 py-3 rounded-sm mb-6 font-mono"
-            placeholder="Ex: Regra de Três Simples e Composta"
+            placeholder="Ex: Regra de Três Simples e Composta ou selecione acima"
             placeholderTextColor="#00f3ff40"
             keyboardAppearance="dark"
             value={tema}

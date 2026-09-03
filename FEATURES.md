@@ -105,7 +105,7 @@ Os artefatos são itens consumíveis que concedem bônus pedagógicos ou estrat�
 *   **Lendários (0.5% em Bosses / Ganho por Rank Up B, A, S)**:
     1.  `📜 Sussurros Sábios`: Sinaliza a quest como **"Pergunta Dourada"** para o Mestre. O professor gera um rascunho de dica pedagógica (scaffolding) via IA ou manual. Concede +50% de XP ao acertar.
     2.  `🧪 Becker do Alquimista`: Concede instantaneamente **+500 XP** ao jogador.
-    3.  `👁️ Olhar do Monarca`: Revela fórmulas e tópicos das próximas quests do Boss/Mini Boss para a Party estudar.
+    3.  `👁️ Olhar do Monarca`: Revela o próximo tópico curricular da disciplina com dicas de estudo. Se a 1ª quest desse novo tópico for respondida corretamente pela Party, todos ganham +25% de XP bônus.
     4.  `Pedra de Chronomacia de Netheril`: Reduz o tempo de recarga de missões falhadas em 50% (de 30 min. para 15 min durante 2 horas).
 *   **Épicos (5% em Bosses)**:
     1.  `🏆 Elixir Dourado`: Dobra o XP ganho na Quest atual.
@@ -116,7 +116,7 @@ Os artefatos são itens consumíveis que concedem bônus pedagógicos ou estrat�
     6.  `🚩 Cetro do Exílio`: Bane um invasor da Party e reverte o XP roubado.
     7.  `🐍 Anel da Serpente`: Aumenta a taxa de drop de itens em combates em +35% por 7 dias.
     8.  `🚩 Bandeira de Guerra`: Buff passivo de +20% de XP nas próximas 24h para toda a Party.
-    9.  `🔮 Orbe de Perspicácia`: Revela o próximo tópico de estudo na rota da Party.
+    9.  `🔮 Orbe de Perspicácia`: Dispara um Pack de 3 Quests Nível Difícil do tópico atual para a Party por 24h (XP 300 padrão difícil), com taxa de drop elevada e evidenciação em cor de destaque com os integrantes no histórico do Mestre.
 *   **Mágicos (37% de drop em Quests Diárias Comuns)**:
     1.  `👟 Sapatilhas do Mundo Lento`: Reduz a complexidade da quest em 1 nível (ex: Difícil para Médio).
     2.  `🔨 Martelo Mágico`: Quebra a questão exibindo os passos lógicos de resolução.
