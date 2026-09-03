@@ -641,8 +641,8 @@ export const getInstitutions = async () => {
   return response.data;
 };
 
-export const createInstitution = async (nome: string, tipo?: string, plano?: string, maxTurmasMonarch?: number) => {
-  const response = await api.post('/superadmin/institutions', { nome, tipo, plano, maxTurmasMonarch });
+export const createInstitution = async (nome: string, tipo?: string, plano?: string, maxTurmasMonarch?: number, qtdUnidades?: number, tipoDivisao?: string) => {
+  const response = await api.post('/superadmin/institutions', { nome, tipo, plano, maxTurmasMonarch, qtdUnidades, tipoDivisao });
   return response.data;
 };
 
@@ -656,8 +656,18 @@ export const createArchitect = async (matricula: string, nome: string, nickname:
   return response.data;
 };
 
-export const updateInstitution = async (id: string, nome: string, tipo?: string, plano?: string, maxTurmasMonarch?: number) => {
-  const response = await api.put(`/superadmin/institutions/${id}`, { nome, tipo, plano, maxTurmasMonarch });
+export const updateInstitution = async (id: string, nome: string, tipo?: string, plano?: string, maxTurmasMonarch?: number, qtdUnidades?: number, tipoDivisao?: string) => {
+  const response = await api.put(`/superadmin/institutions/${id}`, { nome, tipo, plano, maxTurmasMonarch, qtdUnidades, tipoDivisao });
+  return response.data;
+};
+
+export const getCurrentInstitution = async () => {
+  const response = await api.get('/admin/institution/current');
+  return response.data;
+};
+
+export const updateInstitutionRegimeLetivo = async (qtdUnidades: number, tipoDivisao: string) => {
+  const response = await api.patch('/admin/institution/regime-letivo', { qtdUnidades, tipoDivisao });
   return response.data;
 };
 

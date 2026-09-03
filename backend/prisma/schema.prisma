@@ -372,6 +372,10 @@ model Institution {
   trialExpiration DateTime?
   maxTurmasMonarch Int         @default(2)
   actionLogs      ActionLog[]
+
+  // Regime Letivo
+  qtdUnidades     Int          @default(3) // Ex: 3 (Público/Trimestre), 4 (Bimestre), 2 (Semestre)
+  tipoDivisao     String       @default("UNIDADE") // UNIDADE, BIMESTRE, TRIMESTRE, SEMESTRE
 }
 
 model InstitutionShiftSetting {

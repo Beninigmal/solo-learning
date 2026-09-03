@@ -3118,9 +3118,22 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       }
       const { id } = request.params;
       const { unidade } = request.body;
-      if (unidade < 1 || unidade > 3) {
-        return reply.status(400).send({ error: 'Unidade inválida. Escolha entre 1, 2 ou 3.' });
+
+      const turma = await prisma.turma.findUnique({
+        where: { id },
+        include: { institution: true }
+      });
+      if (!turma) {
+        return reply.status(404).send({ error: 'Turma não encontrada.' });
       }
+
+      const maxUnidades = turma.institution?.qtdUnidades || 3;
+      if (unidade < 1 || unidade > maxUnidades) {
+        return reply.status(400).send({
+          error: `Período letivo inválido. Deve ser entre 1 e ${maxUnidades}.`
+        });
+      }
+
       const updated = await prisma.turma.update({
         where: { id },
         data: { unidade }

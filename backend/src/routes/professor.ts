@@ -29,6 +29,9 @@ export const professorRoutes: FastifyPluginAsync = async (fastify: FastifyInstan
         }
       },
       include: { 
+        institution: {
+          select: { id: true, nome: true, tipo: true, qtdUnidades: true, tipoDivisao: true }
+        },
         _count: { select: { users: true } },
         turmaDisciplinas: {
           where: request.user.role === 'ADMIN' ? {} : {

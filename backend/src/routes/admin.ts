@@ -21,6 +21,61 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     }
   });
 
+  // ─── GESTÃO DO REGIME LETIVO DA INSTITUIÇÃO ─────────────────────────────
+  fastify.get('/institution/current', async (request, reply) => {
+    try {
+      const instId = request.user.institutionId;
+      const inst = instId
+        ? await prisma.institution.findUnique({ where: { id: instId } })
+        : await prisma.institution.findFirst({ where: { nome: request.user.instituicao } });
+      if (!inst) {
+        return reply.status(404).send({ error: 'Instituição não encontrada.' });
+      }
+      return reply.status(200).send(inst);
+    } catch (e: any) {
+      return reply.status(500).send({ error: 'Erro ao buscar dados da instituição.' });
+    }
+  });
+
+  fastify.patch<{ Body: { qtdUnidades: number; tipoDivisao: string } }>('/institution/regime-letivo', async (request, reply) => {
+    const { qtdUnidades, tipoDivisao } = request.body;
+    const instId = request.user.institutionId;
+
+    try {
+      const inst = instId
+        ? await prisma.institution.findUnique({ where: { id: instId } })
+        : await prisma.institution.findFirst({ where: { nome: request.user.instituicao } });
+      if (!inst) {
+        return reply.status(404).send({ error: 'Instituição não encontrada.' });
+      }
+
+      if (inst.tipo === 'MUNICIPAL' || inst.tipo === 'ESTADUAL') {
+        return reply.status(400).send({ error: 'Instituições públicas seguem o regime padrão MEC fixado em 3 unidades.' });
+      }
+
+      if (!qtdUnidades || qtdUnidades < 1 || qtdUnidades > 6) {
+        return reply.status(400).send({ error: 'A quantidade de períodos deve ser entre 1 e 6.' });
+      }
+
+      const validDivisoes = ['UNIDADE', 'BIMESTRE', 'TRIMESTRE', 'SEMESTRE'];
+      const finalDivisao = validDivisoes.includes(tipoDivisao) ? tipoDivisao : 'UNIDADE';
+
+      const updated = await prisma.institution.update({
+        where: { id: inst.id },
+        data: {
+          qtdUnidades,
+          tipoDivisao: finalDivisao,
+        }
+      });
+
+      await logAction('Regime Letivo Atualizado', `Regime alterado para ${qtdUnidades} ${finalDivisao}s`, request.user.id, inst.id);
+
+      return reply.status(200).send(updated);
+    } catch (e: any) {
+      return reply.status(500).send({ error: 'Erro ao atualizar regime letivo.' });
+    }
+  });
+
   // ─── GESTÃO DE MESTRES ──────────────────────────────────────────────────
 
   // Criar Mestre
@@ -250,6 +305,9 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     const turmas = await prisma.turma.findMany({
       where: { instituicao },
       include: {
+        institution: {
+          select: { id: true, nome: true, tipo: true, qtdUnidades: true, tipoDivisao: true }
+        },
         users: {
           where: { role: 'ALUNO' },
           orderBy: { nome: 'asc' }
@@ -1353,7 +1411,13 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         };
         if (disciplinaId) deliveryWhere.quest = { disciplinaId };
 
-        const unitPerformance = await Promise.all([1, 2, 3].map(async (u) => {
+        const inst = request.user.institutionId
+          ? await prisma.institution.findUnique({ where: { id: request.user.institutionId }, select: { qtdUnidades: true, tipoDivisao: true } })
+          : await prisma.institution.findFirst({ where: { nome: instituicao }, select: { qtdUnidades: true, tipoDivisao: true } });
+        const maxU = inst?.qtdUnidades || 3;
+        const unitsList = Array.from({ length: maxU }, (_, i) => i + 1);
+
+        const unitPerformance = await Promise.all(unitsList.map(async (u) => {
           const uTurmas = turmas.filter(t => t.unidade === u).map(t => t.id);
           if (uTurmas.length === 0) return { unidade: u, total: 0, correct: 0, hitRate: 0 };
 

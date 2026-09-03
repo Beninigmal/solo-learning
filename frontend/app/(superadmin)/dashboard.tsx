@@ -37,6 +37,8 @@ export default function SuperAdminDashboard() {
   const [newSchoolTipo, setNewSchoolTipo] = useState('MUNICIPAL');
   const [newSchoolPlano, setNewSchoolPlano] = useState('TRIAL');
   const [newSchoolMaxTurmas, setNewSchoolMaxTurmas] = useState('2');
+  const [newSchoolQtdUnidades, setNewSchoolQtdUnidades] = useState<number>(3);
+  const [newSchoolTipoDivisao, setNewSchoolTipoDivisao] = useState<string>('UNIDADE');
   const [loadingSchools, setLoadingSchools] = useState(false);
   const [editingSchoolId, setEditingSchoolId] = useState<string | null>(null);
 
@@ -245,6 +247,8 @@ export default function SuperAdminDashboard() {
     setNewSchoolNome(school.nome);
     setNewSchoolTipo(school.tipo || 'MUNICIPAL');
     setNewSchoolPlano(school.plano || 'TRIAL');
+    setNewSchoolQtdUnidades(school.qtdUnidades || 3);
+    setNewSchoolTipoDivisao(school.tipoDivisao || 'UNIDADE');
     
     if (school.maxTurmasMonarch === 9999) {
       setNewSchoolMaxTurmas('Ilimitado');
@@ -268,6 +272,8 @@ export default function SuperAdminDashboard() {
     setNewSchoolTipo('MUNICIPAL');
     setNewSchoolPlano('TRIAL');
     setNewSchoolMaxTurmas('2');
+    setNewSchoolQtdUnidades(3);
+    setNewSchoolTipoDivisao('UNIDADE');
   };
 
   const handleCreateSchool = async () => {
@@ -286,17 +292,19 @@ export default function SuperAdminDashboard() {
     try {
       setLoadingSchools(true);
       if (editingSchoolId) {
-        await updateInstitution(editingSchoolId, newSchoolNome.trim(), newSchoolTipo, newSchoolPlano, parsedMax);
+        await updateInstitution(editingSchoolId, newSchoolNome.trim(), newSchoolTipo, newSchoolPlano, parsedMax, newSchoolQtdUnidades, newSchoolTipoDivisao);
         showAlert('SUCESSO', 'Instituição atualizada com sucesso!', 'success');
         setEditingSchoolId(null);
       } else {
-        await createInstitution(newSchoolNome, newSchoolTipo, newSchoolPlano, parsedMax);
+        await createInstitution(newSchoolNome, newSchoolTipo, newSchoolPlano, parsedMax, newSchoolQtdUnidades, newSchoolTipoDivisao);
         showAlert('SUCESSO', 'Instituição cadastrada no sistema!', 'success');
       }
       setNewSchoolNome('');
       setNewSchoolTipo('MUNICIPAL');
       setNewSchoolPlano('TRIAL');
       setNewSchoolMaxTurmas('2');
+      setNewSchoolQtdUnidades(3);
+      setNewSchoolTipoDivisao('UNIDADE');
       loadAllData();
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Erro ao processar requisição.';
@@ -554,7 +562,20 @@ export default function SuperAdminDashboard() {
                     return (
                       <TouchableOpacity
                         key={t.id}
-                        onPress={() => { setNewSchoolTipo(t.id); sounds.playSelect(); }}
+                        onPress={() => {
+                          setNewSchoolTipo(t.id);
+                          if (t.id === 'MUNICIPAL' || t.id === 'ESTADUAL') {
+                            setNewSchoolQtdUnidades(3);
+                            setNewSchoolTipoDivisao('UNIDADE');
+                          } else if (t.id === 'PRIVADO') {
+                            setNewSchoolQtdUnidades(4);
+                            setNewSchoolTipoDivisao('BIMESTRE');
+                          } else if (t.id === 'PRIVADO_LIVRE') {
+                            setNewSchoolQtdUnidades(4);
+                            setNewSchoolTipoDivisao('BIMESTRE');
+                          }
+                          sounds.playSelect();
+                        }}
                         className={`px-3 py-2 rounded-sm border ${isSelected ? 'bg-neonBlue/30 border-neonBlue' : 'bg-black/60 border-neonBlue/30'}`}
                       >
                         <Text className={`text-[10px] font-mono uppercase font-bold ${isSelected ? 'text-white' : 'text-neonBlue/60'}`}>
@@ -565,6 +586,98 @@ export default function SuperAdminDashboard() {
                   })}
                 </View>
               </ScrollView>
+
+              {/* Bloco de Regime Letivo (Unidades / Bimestres / Trimestres / Semestres) */}
+              {(newSchoolTipo === 'MUNICIPAL' || newSchoolTipo === 'ESTADUAL') && (
+                <View className="bg-neonBlue/10 border border-neonBlue/30 p-3 rounded-sm mb-4">
+                  <View className="flex-row items-center gap-2 mb-1">
+                    <Feather name="lock" size={13} color="#00f3ff" />
+                    <Text className="text-neonBlue font-mono text-xs font-bold uppercase">Regime Público Padrão MEC</Text>
+                  </View>
+                  <Text className="text-white/70 text-[10px] font-mono">
+                    Instituição pública fixada automaticamente em <Text className="text-neonBlue font-bold">3 Unidades</Text> anuais conforme a matriz unificada BNCC / MEC.
+                  </Text>
+                </View>
+              )}
+
+              {newSchoolTipo === 'PRIVADO' && (
+                <View className="bg-black/60 border border-neonBlue/30 p-3 rounded-sm mb-4">
+                  <Text className="text-white/60 text-[10px] uppercase font-mono mb-2 text-center">Regime Letivo da Escola Privada:</Text>
+                  <View className="flex-row gap-2 justify-center">
+                    {[
+                      { label: '4 Bimestres (Padrão)', qtd: 4, tipo: 'BIMESTRE' },
+                      { label: '3 Trimestres', qtd: 3, tipo: 'TRIMESTRE' },
+                      { label: '3 Unidades', qtd: 3, tipo: 'UNIDADE' },
+                    ].map((r) => {
+                      const isSelected = newSchoolQtdUnidades === r.qtd && newSchoolTipoDivisao === r.tipo;
+                      return (
+                        <TouchableOpacity
+                          key={r.label}
+                          onPress={() => {
+                            setNewSchoolQtdUnidades(r.qtd);
+                            setNewSchoolTipoDivisao(r.tipo);
+                            sounds.playSelect();
+                          }}
+                          className={`px-3 py-2 rounded-sm border ${isSelected ? 'bg-neonBlue/30 border-neonBlue' : 'bg-black/80 border-neonBlue/20'}`}
+                        >
+                          <Text className={`text-[10px] font-mono uppercase font-bold ${isSelected ? 'text-white' : 'text-neonBlue/60'}`}>
+                            {r.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {newSchoolTipo === 'PRIVADO_LIVRE' && (
+                <View className="bg-black/60 border border-neonBlue/30 p-3 rounded-sm mb-4">
+                  <Text className="text-white/60 text-[10px] uppercase font-mono mb-2 text-center">Divisão do Ano/Curso Livre:</Text>
+                  <View className="flex-row flex-wrap gap-2 justify-center mb-3">
+                    {[
+                      { id: 'BIMESTRE', label: 'Bimestres (4)', defaultQtd: 4 },
+                      { id: 'TRIMESTRE', label: 'Trimestres (3)', defaultQtd: 3 },
+                      { id: 'SEMESTRE', label: 'Semestres (2)', defaultQtd: 2 },
+                      { id: 'UNIDADE', label: 'Unidades', defaultQtd: 3 }
+                    ].map((d) => {
+                      const isSelected = newSchoolTipoDivisao === d.id;
+                      return (
+                        <TouchableOpacity
+                          key={d.id}
+                          onPress={() => {
+                            setNewSchoolTipoDivisao(d.id);
+                            setNewSchoolQtdUnidades(d.defaultQtd);
+                            sounds.playSelect();
+                          }}
+                          className={`px-3 py-2 rounded-sm border ${isSelected ? 'bg-neonBlue/30 border-neonBlue' : 'bg-black/80 border-neonBlue/20'}`}
+                        >
+                          <Text className={`text-[10px] font-mono uppercase font-bold ${isSelected ? 'text-white' : 'text-neonBlue/60'}`}>
+                            {d.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  {newSchoolTipoDivisao === 'UNIDADE' && (
+                    <View className="flex-row items-center justify-center gap-2 pt-2 border-t border-neonBlue/20">
+                      <Text className="text-white/60 font-mono text-[10px] uppercase">Qtd de Unidades:</Text>
+                      {[2, 3, 4, 5, 6].map((num) => (
+                        <TouchableOpacity
+                          key={num}
+                          onPress={() => { setNewSchoolQtdUnidades(num); sounds.playSelect(); }}
+                          className={`w-7 h-7 rounded-sm items-center justify-center border ${
+                            newSchoolQtdUnidades === num ? 'bg-neonBlue/40 border-neonBlue' : 'bg-black/60 border-neonBlue/30'
+                          }`}
+                        >
+                          <Text className={`font-mono text-xs font-bold ${newSchoolQtdUnidades === num ? 'text-white' : 'text-neonBlue/60'}`}>
+                            {num}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
 
               <Text className="text-white/50 text-[10px] uppercase font-mono mb-2 text-center">Plano SaaS:</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
@@ -651,7 +764,7 @@ export default function SuperAdminDashboard() {
                       <View className="w-2.5 h-2.5 rounded-full bg-neonBlue" style={{ shadowColor: '#00f3ff', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 4, elevation: 5 }} />
                       <View>
                         <Text className="text-white text-xs font-mono font-bold uppercase">{item.nome}</Text>
-                        <Text className="text-neonBlue/60 text-[9px] font-mono uppercase mt-0.5">{item.tipo || 'MUNICIPAL'} • {item.plano || 'TRIAL'} ({item.maxTurmasMonarch === 9999 ? 'Ilimitado' : (item.maxTurmasMonarch ?? 2)} Turmas)</Text>
+                        <Text className="text-neonBlue/60 text-[9px] font-mono uppercase mt-0.5">{item.tipo || 'MUNICIPAL'} • {item.plano || 'TRIAL'} ({item.maxTurmasMonarch === 9999 ? 'Ilimitado' : (item.maxTurmasMonarch ?? 2)} Turmas) • {item.qtdUnidades || 3} {item.tipoDivisao === 'BIMESTRE' ? 'Bimestres' : item.tipoDivisao === 'TRIMESTRE' ? 'Trimestres' : item.tipoDivisao === 'SEMESTRE' ? 'Semestres' : 'Unidades'}</Text>
                       </View>
                     </View>
                     <View className="flex-row items-center gap-2">
