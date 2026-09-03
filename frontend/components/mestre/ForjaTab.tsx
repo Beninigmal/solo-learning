@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Alert, Platform } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { CyberSubmitButton } from '../CyberSubmitButton';
 import { DND_MEGA_BOSSES, getRandomMegaBossByHp } from '../../constants/dndBosses';
@@ -234,7 +234,7 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
   };
 
   return (
-    <View className="w-full max-w-4xl mx-auto">
+    <View className={`w-full ${Platform.OS === 'web' ? '' : 'max-w-4xl'} mx-auto`}>
       {/* ───────────────── SELETOR DE MODO DE FORJA ───────────────── */}
       <View className="flex-row bg-black/60 border border-neonBlue/30 rounded-sm p-1.5 mb-6">
         <TouchableOpacity
