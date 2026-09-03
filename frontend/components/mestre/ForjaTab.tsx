@@ -316,22 +316,25 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
           <Text className="text-purple-300 text-xs mb-2 uppercase font-bold font-mono">1. Selecionar Matéria:</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4" contentContainerStyle={{ paddingHorizontal: 2 }}>
             <View className="flex-row gap-2">
-              {disciplinas.map((d) => (
-                <TouchableOpacity
-                  key={d.id}
-                  className={`px-4 py-2.5 rounded-sm border ${
-                    forjaDisciplinaId === d.id ? 'bg-purple-600/30 border-purple-400' : 'bg-black/50 border-purple-500/20'
-                  }`}
-                  onPress={() => {
-                    setForjaDisciplinaId(d.id);
-                    sounds.playSelect?.();
-                  }}
-                >
-                  <Text className={`text-xs font-bold font-mono uppercase ${forjaDisciplinaId === d.id ? 'text-white' : 'text-purple-300/50'}`}>
-                    {d.nome}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {disciplinas.map((d, idx) => {
+                const isSelected = forjaDisciplinaId === d.id || (!forjaDisciplinaId && idx === 0);
+                return (
+                  <TouchableOpacity
+                    key={d.id}
+                    className={`px-4 py-2.5 rounded-sm border ${
+                      isSelected ? 'bg-purple-600/60 border-purple-400' : 'bg-black/50 border-purple-500/20'
+                    }`}
+                    onPress={() => {
+                      setForjaDisciplinaId(d.id);
+                      sounds.playSelect?.();
+                    }}
+                  >
+                    <Text className={`text-xs font-bold font-mono uppercase ${isSelected ? 'text-white' : 'text-purple-300/50'}`}>
+                      {d.nome}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </ScrollView>
 
@@ -339,15 +342,15 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
           <View className="flex-row gap-3 mb-4">
             <TouchableOpacity
               onPress={handleGenerateAIEmenta}
-              disabled={generatingAIEmenta || !forjaDisciplinaId}
-              className="flex-1 bg-purple-900/40 border border-purple-400 py-3 rounded-sm items-center justify-center flex-row gap-2"
+              disabled={generatingAIEmenta || disciplinas.length === 0}
+              className={`flex-1 ${generatingAIEmenta ? 'bg-purple-950/60' : 'bg-purple-900/50 hover:bg-purple-800/60'} border border-purple-400 py-3 rounded-sm items-center justify-center flex-row gap-2 cursor-pointer`}
             >
               {generatingAIEmenta ? (
                 <ActivityIndicator color="#c084fc" size="small" />
               ) : (
                 <>
                   <Feather name="cpu" size={14} color="#c084fc" />
-                  <Text className="text-purple-300 font-bold text-xs uppercase font-mono tracking-widest">
+                  <Text className="text-purple-200 font-bold text-xs uppercase font-mono tracking-widest">
                     ✨ Gerar Ementa MEC via IA
                   </Text>
                 </>

@@ -719,7 +719,7 @@ export function useMestreState() {
     } else {
       setForjaDisciplinaId('');
     }
-  }, [disciplinasFiltradas]);
+  }, [disciplinasFiltradas, forjaDisciplinaId]);
 
   const fetchPendingQuests = useCallback(async () => {
     try {
