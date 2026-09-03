@@ -995,6 +995,8 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
                               )}
                             </TouchableOpacity>
                           </View>
+                        </View>
+
                         {isEditing ? (
                           <View className="mt-2">
                             <TextInput
