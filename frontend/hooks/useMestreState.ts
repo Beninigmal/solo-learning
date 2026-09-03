@@ -693,7 +693,7 @@ export function useMestreState() {
 
 
   const disciplinasFiltradas = useMemo(() => {
-    if (forjaTurmaIds.length === 0) return [];
+    if (forjaTurmaIds.length === 0) return disciplinas || [];
     
     let allDisciplinas: any[] = [];
     for (const tId of forjaTurmaIds) {

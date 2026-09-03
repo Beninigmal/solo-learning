@@ -130,21 +130,24 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
   }, []);
 
   React.useEffect(() => {
-    if (forjaDisciplinaId) {
+    if (!forjaDisciplinaId && disciplinas && disciplinas.length > 0) {
+      setForjaDisciplinaId(disciplinas[0].id);
+    } else if (forjaDisciplinaId) {
       fetchTopicosCurriculares(forjaDisciplinaId);
     }
-  }, [forjaDisciplinaId, fetchTopicosCurriculares]);
+  }, [forjaDisciplinaId, disciplinas, setForjaDisciplinaId, fetchTopicosCurriculares]);
 
   const handleSaveEmentaBatch = async () => {
-    if (!forjaDisciplinaId) {
+    const targetDiscId = forjaDisciplinaId || (disciplinas.length > 0 ? disciplinas[0].id : null);
+    if (!targetDiscId) {
       Alert.alert('Aviso', 'Selecione uma disciplina primeiro.');
       return;
     }
     try {
       setSavingEmenta(true);
-      await api.post('/curriculum/batch', { disciplinaId: forjaDisciplinaId, rawText: rawEmentaText });
+      await api.post('/curriculum/batch', { disciplinaId: targetDiscId, rawText: rawEmentaText });
       Alert.alert('Sucesso', 'Ementa curricular salva com sucesso!');
-      fetchTopicosCurriculares(forjaDisciplinaId);
+      fetchTopicosCurriculares(targetDiscId);
       setRawEmentaText('');
     } catch (err: any) {
       Alert.alert('Erro', err.response?.data?.error || 'Erro ao salvar ementa.');
@@ -154,7 +157,8 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
   };
 
   const handleGenerateAIEmenta = async () => {
-    if (!forjaDisciplinaId) {
+    const targetDiscId = forjaDisciplinaId || (disciplinas.length > 0 ? disciplinas[0].id : null);
+    if (!targetDiscId) {
       Alert.alert('Aviso', 'Selecione uma disciplina primeiro.');
       return;
     }
@@ -166,13 +170,13 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
       const instType = currentUser?.institutionType || 'PARTICULAR';
 
       const res = await api.post('/curriculum/generate-ai', {
-        disciplinaId: forjaDisciplinaId,
+        disciplinaId: targetDiscId,
         ano,
         nivel,
         institutionType: instType
       });
-      Alert.alert('Sucesso', res.data.message || 'Ementa gerada!');
       setTopicosCurriculares(res.data.topicos || []);
+      Alert.alert('Sucesso', res.data.message || 'Ementa gerada com sucesso!');
     } catch (err: any) {
       Alert.alert('Erro', err.response?.data?.error || 'Erro ao gerar ementa.');
     } finally {
