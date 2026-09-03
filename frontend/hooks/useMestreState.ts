@@ -609,9 +609,11 @@ export function useMestreState() {
         }
       }
 
-      getMasters()
-        .then((data) => setMasters(data))
-        .catch(() => {});
+      if (localUser?.role === 'ADMIN' || freshUser?.role === 'ADMIN') {
+        getMasters()
+          .then((data) => setMasters(data))
+          .catch(() => {});
+      }
       fetchDisciplinasWithProfessores();
       fetchDisciplinas();
       fetchCalendarEvents();

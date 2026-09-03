@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView,
 import { Feather } from '@expo/vector-icons';
 import { CyberSubmitButton } from '../CyberSubmitButton';
 import { DND_MEGA_BOSSES, getRandomMegaBossByHp } from '../../constants/dndBosses';
-import api, { getMestreBossFights, updateBossQuest, transmuteBossQuest } from '../../services/api';
+import { api, getMestreBossFights, updateBossQuest, transmuteBossQuest } from '../../services/api';
 
 interface ForjaTabProps {
   turmas: any[];

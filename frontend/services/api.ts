@@ -800,3 +800,5 @@ export const submitBossQuest = async (questId: string, data: { respostaTexto?: s
   const response = await api.post(`/boss/quests/${questId}/submit`, data);
   return response.data;
 };
+
+export default api;
