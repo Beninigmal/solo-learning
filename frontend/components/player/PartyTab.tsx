@@ -221,7 +221,7 @@ export function PartyTab({
             
             {/* Messages Scroller */}
             {(() => {
-              const hasChronosphere = chatMessages.some((m: any) => m.content?.includes('[CHRONOSPHERE INVOCADA!]')) || (user?.cooldownReducerExpires && new Date(user.cooldownReducerExpires) > new Date());
+              const hasChronosphere = chatMessages.some((m: any) => m.content?.includes('[CHRONOSPHERE ATIVADA!]')) || (user?.cooldownReducerExpires && new Date(user.cooldownReducerExpires) > new Date());
 
               return (
                 <ChronosphereEffect active={hasChronosphere}>
@@ -245,10 +245,10 @@ export function PartyTab({
                       ) : (
                         chatMessages.map((m: any) => {
                           const isMe = m.userId === user?.id;
-                          const isChronosphere = m.content?.includes('[CHRONOSPHERE INVOCADA!]');
+                          const isChronosphere = m.content?.includes('[CHRONOSPHERE ATIVADA!]');
 
                           if (isChronosphere) {
-                            const cleanContent = m.content.replace(/^🌀\s*\[CHRONOSPHERE INVOCADA!\]\s*/, '');
+                            const cleanContent = m.content.replace(/^🌀\s*\[CHRONOSPHERE ATIVADA!\]\s*/, '');
                             return (
                               <View 
                                 key={m.id} 
@@ -266,7 +266,7 @@ export function PartyTab({
                                   <View className="bg-purple-900/80 px-2 py-0.5 border border-purple-400/60 rounded-sm flex-row items-center gap-1">
                                     <Feather name="clock" size={10} color="#e9d5ff" />
                                     <Text className="text-[#e9d5ff] text-[8.5px] font-extrabold font-mono uppercase tracking-widest">
-                                      🌀 CHRONOSPHERE INVOCADA
+                                      🌀 CHRONOSPHERE ATIVADA
                                     </Text>
                                   </View>
                                 </View>

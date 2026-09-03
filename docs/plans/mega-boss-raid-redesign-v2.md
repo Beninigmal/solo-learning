@@ -107,7 +107,7 @@ model BossQuest {
    - Indicador de trava para quests ocupadas por outros grupos.
 3. **Modal de Resposta por Foto / Redação:**
    - Câmera para upload da foto do caderno com feedback da IA e verificação de nota >= 60%.
-4. **Painel do Mestre:** Interface para invocar o Boss e botão de **Transmuta Quest** em caso de bug.
+4. **Painel do Mestre:** Interface para ativar o Boss e botão de **Transmuta Quest** em caso de bug.
 
 ---
 

@@ -10,7 +10,7 @@ export async function bossRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', fastify.validateTenantStatus);
   fastify.addHook('preHandler', fastify.validateInstitution);
 
-  // 1. INVOCAR MEGA BOSS (Mestre / Professor)
+  // 1. ATIVAR MEGA BOSS (Mestre / Professor)
   fastify.post<{
     Body: {
       nomeBoss?: string;
@@ -26,7 +26,7 @@ export async function bossRoutes(fastify: FastifyInstance) {
     }
 
     if (request.user.role !== 'PROFESSOR' && request.user.role !== 'ADMIN') {
-      return reply.status(403).send({ error: 'Apenas professores ou administradores podem invocar o Mega Boss.' });
+      return reply.status(403).send({ error: 'Apenas professores ou administradores podem ativar o Mega Boss.' });
     }
 
     const { disciplinaId, turmaIds, tema } = request.body;

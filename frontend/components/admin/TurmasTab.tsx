@@ -490,7 +490,7 @@ export function TurmasTab({
 
         <TextInput
           className="w-full bg-black/50 border border-neonBlue/50 text-white text-center text-base py-3 rounded-sm mb-4"
-          placeholder="Código de Invocação (Padrão: 1234)"
+          placeholder="Código da Party (Padrão: 1234)"
           placeholderTextColor="#00f3ff40"
           value={turmaCodigo}
           onChangeText={setTurmaCodigo}

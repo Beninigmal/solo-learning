@@ -695,10 +695,10 @@ Exemplo de formato esperado:
         }
       }
 
-      return reply.status(201).send({ message: 'BOSS invocado com sucesso!', batchId });
+      return reply.status(201).send({ message: 'BOSS ativado com sucesso!', batchId });
     } catch (error: any) {
       request.log.error(error);
-      return reply.status(500).send({ error: 'Erro ao invocar BOSS com IA.', details: error.message });
+      return reply.status(500).send({ error: 'Erro ao ativar BOSS com IA.', details: error.message });
     }
   });
   // ─── POST /quests/wait ─────────────────────────────────────────────────────
@@ -871,7 +871,7 @@ Exemplo de formato esperado:
       return reply.status(404).send({ error: 'Todas as dungeons desta matéria estão seladas no momento.' });
     } catch (error: any) {
       request.log.error(error);
-      return reply.status(500).send({ error: 'Erro ao invocar missão.', details: error.message });
+      return reply.status(500).send({ error: 'Erro ao ativar missão.', details: error.message });
     }
   });
 
@@ -5981,7 +5981,7 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
 
           if (!activeRaidParticipant) {
             return reply.status(400).send({
-              error: 'A Pedra de Chronomancia de Netheril exige a ressonância de uma guilda! Você precisa estar em uma Party ativa para invocar a Esfera Cronológica.'
+              error: 'A Pedra de Chronomancia de Netheril exige a ressonância de uma guilda! Você precisa estar em uma Party ativa para ativar a Esfera Cronológica.'
             });
           }
 

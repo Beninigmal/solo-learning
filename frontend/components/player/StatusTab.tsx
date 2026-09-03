@@ -341,7 +341,7 @@ export function StatusTab({
                     {item.disponiveis > 0 ? (
                       <View className="bg-yellow-500/20 px-2 py-1 rounded-sm border border-yellow-500/30 flex-row items-center gap-1">
                         <Feather name="play" size={10} color="#eab308" />
-                        <Text className="text-yellow-500 text-[9px] font-bold uppercase tracking-widest">INVOCAR</Text>
+                        <Text className="text-yellow-500 text-[9px] font-bold uppercase tracking-widest">ATIVAR</Text>
                       </View>
                     ) : (
                       <Feather name="lock" size={12} color="#ffffff" style={{ opacity: 0.3 }} />

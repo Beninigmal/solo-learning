@@ -168,7 +168,7 @@ Interface web de alto nível exclusiva para o operador geral do SaaS (Superadmin
     
     > **⚠️ ALERTA DO SISTEMA DE MANA**
     > 
-    > *Sua reserva de Mana atual é insuficiente para invocar o Monarch Engine em mais de 2 turmas simultâneas.*
+    > *Sua reserva de Mana atual é insuficiente para executar o Monarch Engine em mais de 2 turmas simultâneas.*
     > 
     > *Para expandir os limites da sua Masmorra Escolar e gerenciar todas as suas turmas sem restrições, realize o upgrade para a licença **Premium de Caçador (SaaS Pro)**.*
 

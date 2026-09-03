@@ -201,7 +201,7 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
               forjaMode === 'BOSS' ? 'text-red-400 font-bold' : 'text-red-500/50'
             }`}
           >
-            ⚔️ Invocar Mega Boss
+            ⚔️ Ativar Mega Boss
           </Text>
         </TouchableOpacity>
       </View>
@@ -533,7 +533,7 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
           </View>
 
           <CyberSubmitButton
-            title="⚔️ INVOCAR MEGA BOSS FIGHT"
+            title="⚔️ ATIVAR MEGA BOSS FIGHT"
             loadingTitle="Convocando Mega Boss..."
             loading={loadingBoss}
             onPress={() => {
@@ -577,7 +577,7 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
           <View className="bg-black/40 border border-red-500/15 p-6 rounded-sm items-center justify-center">
             <Feather name="shield" size={24} color="#ef444430" />
             <Text className="text-white/30 text-[10px] font-mono mt-2 text-center uppercase tracking-wider">
-              Nenhum Mega Boss ativo no momento. Use a aba "Invocar Mega Boss" acima para forjar um evento!
+              Nenhum Mega Boss ativo no momento. Use a aba "Ativar Mega Boss" acima para forjar um evento!
             </Text>
           </View>
         ) : (

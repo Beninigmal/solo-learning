@@ -353,7 +353,7 @@ export function usePlayerState() {
         }
 
         setRankUpMessage(
-          `Parabéns Caçador! Você ascendeu para o Rank "${newRankInfo.currentRank}"!\nSeu poder acaba de invocar um novo artefato de poder para o seu inventário!`
+          `Parabéns Caçador! Você ascendeu para o Rank "${newRankInfo.currentRank}"!\nSeu progresso acaba de conceder um novo artefato de poder para o seu inventário!`
         );
         setShowRankUp(true);
         sounds.playSuccess?.() || sounds.playSelect();
@@ -1223,7 +1223,7 @@ export function usePlayerState() {
       loadPartyData();
     } catch (e: any) {
       const msg = e?.response?.data?.error || e?.message || 'Erro ao criar grupo.';
-      showAlert('FALHA DE INVOCAÇÃO', msg, 'error');
+      showAlert('FALHA DE CRIAÇÃO DE GRUPO', msg, 'error');
     } finally {
       setLoadingParty(false);
     }

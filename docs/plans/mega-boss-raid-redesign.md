@@ -101,7 +101,7 @@ graph TD
 > **Por favor, revise os 4 pontos abaixo para ajustarmos o plano de acordo com a sua visão:**
 
 1. **Geração das 300 Quests:**
-   - *Opção A (Gerada por IA em Lote no Invocar):* A IA cria 300 questões com base na disciplina escolhida pelo professor no momento da invocação.
+   - *Opção A (Gerada por IA em Lote no Ativar):* A IA cria 300 questões com base na disciplina escolhida pelo professor no momento da ativação.
    - *Opção B (Banco de Questões Predefinidas + Suporte a IA):* O sistema possui um banco calibrado de questões por série e utiliza IA para preencher/complementar caso necessário.
    *Qual abordagem você prefere?*
 
@@ -112,4 +112,4 @@ graph TD
    - A trava do backlog deve ser exclusiva para grupos (**Parties**), ou um aluno jogando **Solo** também pode reservar e tentar resolver uma quest do Boss?
 
 4. **Tamanho do Pool e HP do Boss:**
-   - 300 HP / 300 Quests é um número ideal para a sua turma, ou deveríamos permitir que o Professor escolha a quantidade ao invocar (ex: 50 Quests para turmas pequenas, 300 para turmas grandes)?
+   - 300 HP / 300 Quests é um número ideal para a sua turma, ou deveríamos permitir que o Professor escolha a quantidade ao ativar (ex: 50 Quests para turmas pequenas, 300 para turmas grandes)?

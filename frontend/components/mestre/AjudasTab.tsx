@@ -26,7 +26,7 @@ export const AjudasTab: React.FC<AjudasTabProps> = ({
         <Text className="text-[#ffca28] text-lg font-bold uppercase tracking-widest">Sussurros Sábios</Text>
       </View>
       <Text className="text-white/60 text-xs font-serif leading-5 mb-6">
-        Alunos invocaram sussurros sábios gastando seus artefatos lendários. Como Mestre, você deve ajudá-los "mastigando" o raciocínio sem fornecer a resposta final direto, incentivando a aprendizagem autônoma.
+        Alunos ativaram sussurros sábios gastando seus artefatos lendários. Como Mestre, você deve ajudá-los "mastigando" o raciocínio sem fornecer a resposta final direto, incentivando a aprendizagem autônoma.
       </Text>
 
       {loadingHelpRequests ? (

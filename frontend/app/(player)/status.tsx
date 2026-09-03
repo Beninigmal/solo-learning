@@ -755,11 +755,11 @@ export default function StatusScreen() {
           >
             <View className="border-b border-yellow-500/30 w-full pb-3 mb-6 items-center">
               <Feather name="shield" size={32} color="#eab308" style={{ marginBottom: 8 }} />
-              <Text className="text-yellow-500 text-lg font-bold uppercase tracking-[0.2em] text-center font-mono">Invocar Dungeon</Text>
+              <Text className="text-yellow-500 text-lg font-bold uppercase tracking-[0.2em] text-center font-mono">Ativar Desafio</Text>
             </View>
 
             <Text className="text-white text-sm text-center mb-8 font-mono leading-relaxed">
-              Gostaria de invocar uma nova missão de{" "}
+              Gostaria de iniciar uma nova missão de{" "}
               <Text className="text-yellow-500 font-bold">{state.selectedSubjectToInvoke?.nome}</Text>?{"\n\n"}
               Esta ação iniciará o portal de desafios para esta matéria!
             </Text>
@@ -773,7 +773,7 @@ export default function StatusScreen() {
                 }}
                 className="flex-1 bg-yellow-500/20 border border-yellow-500 py-3 rounded-sm items-center justify-center"
               >
-                <Text className="text-yellow-500 font-bold uppercase text-xs tracking-widest font-mono">Sim, Invocar</Text>
+                <Text className="text-yellow-500 font-bold uppercase text-xs tracking-widest font-mono">Sim, Ativar</Text>
               </TouchableOpacity>
               
               <TouchableOpacity

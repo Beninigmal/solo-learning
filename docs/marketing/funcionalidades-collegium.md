@@ -53,8 +53,8 @@ O sistema possui **4 perfis de usuários**:
 ### 🔮 A. Forjador de Quests com IA (Gerador de Questões)
 - **O que faz:** O professor não precisa perder horas criando questões. Basta digitar o tema (ex: *"Equações do 2º Grau"*) e a série, e a IA gera questões prontas, alinhadas à BNCC e formatadas para o jogo.
 
-### 👾 B. Invocação de Chefões (Mock Boss)
-- **O que faz:** O professor pode invocar um evento de BOSS em tempo real para a turma, definindo a duração do evento (ex: 3 dias) para movimentar a semana de estudos.
+### 👾 B. Ativação de Chefões (Mock Boss)
+- **O que faz:** O professor pode ativar um evento de BOSS em tempo real para a turma, definindo a duração do evento (ex: 3 dias) para movimentar a semana de estudos.
 
 ### 📊 C. Monitor de Desempenho por Matéria (Subject Stats)
 - **O que faz:** Relatório visual que mostra quais matérias e conteúdos a turma mais domina e onde estão as maiores dúvidas, permitindo planejar aulas de reforço direcionadas.

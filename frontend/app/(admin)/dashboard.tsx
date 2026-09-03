@@ -132,7 +132,7 @@ export default function AdminDashboard() {
               onPress={() => {
                 sounds.playSelect();
                 const txt =
-                  "COMO ARQUITETO:\n\n1- Forja novo mestre (professor).\n2- Forja nova turma (O código de invocação é a senha padrão para o primeiro acesso do professor).\n3- Criar matéria e vincular com o professor.\n4- Na aba 'Arquiteto', ao abrir as turmas ativas, é possível vincular o professor à turma. Em outra seção dessa tela, lance perguntas douradas para coletar feedback.\n5- Recrutar caçador: Pode ser manual ou em lote via CSV. AVISO! O sistema bloqueia a criação de alunos para turmas inexistentes!\n6- Na 'Grade', organize os horários de todos os professores e turnos. Isso refletirá na agenda do professor e do aluno.";
+                  "COMO ARQUITETO:\n\n1- Forja novo mestre (professor).\n2- Forja nova turma (O código da party é a senha padrão para o primeiro acesso do professor).\n3- Criar matéria e vincular com o professor.\n4- Na aba 'Arquiteto', ao abrir as turmas ativas, é possível vincular o professor à turma. Em outra seção dessa tela, lance perguntas douradas para coletar feedback.\n5- Recrutar caçador: Pode ser manual ou em lote via CSV. AVISO! O sistema bloqueia a criação de alunos para turmas inexistentes!\n6- Na 'Grade', organize os horários de todos os professores e turnos. Isso refletirá na agenda do professor e do aluno.";
                 state.showAlert('Guia do Arquiteto', txt, 'info');
               }}
             >
