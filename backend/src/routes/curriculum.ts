@@ -1,11 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { prisma } from '../prisma';
 
 const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
 export async function curriculumRoutes(fastify: FastifyInstance) {
-  const prisma = fastify.prisma;
-
   fastify.addHook('preHandler', fastify.authenticate);
 
   // 1. GET /curriculum/:disciplinaId - Listar tópicos da disciplina
