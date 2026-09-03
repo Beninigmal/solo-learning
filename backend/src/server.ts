@@ -8,6 +8,7 @@ import { ordinatorRoutes } from './routes/ordinator';
 import { webhookRoutes } from './routes/webhooks';
 import { logsRoutes } from './routes/logs';
 import { bountyRoutes } from './routes/bounty';
+import { bossRoutes } from './routes/boss';
 
 import cors from '@fastify/cors';
 import authPlugin from './plugins/auth';
@@ -42,6 +43,7 @@ server.register(superadminRoutes, { prefix: '/superadmin' });
 server.register(webhookRoutes, { prefix: '/webhooks' });
 server.register(logsRoutes, { prefix: '/logs' });
 server.register(bountyRoutes, { prefix: '/bounty' });
+server.register(bossRoutes, { prefix: '/boss' });
 
 
 import { autoMigrateInstitutions } from './utils/autoMigrate';

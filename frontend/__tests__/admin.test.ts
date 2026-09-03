@@ -74,7 +74,7 @@ describe('Arquiteto and Superadmin Screen Unit Tests', () => {
 
   describe('Timetable Slot Positional Shift Index Mapping', () => {
 
-    // Standard school shift positions from SolenGuidelines.md
+    // Standard school shift positions from CollegiumGuidelines.md
     const getShiftNameBySlotPosition = (posicao: number): 'MATUTINO' | 'VESPERTINO' | 'NOTURNO' | 'INVALID' => {
       if (posicao >= 1 && posicao <= 5) return 'MATUTINO';
       if (posicao >= 6 && posicao <= 10) return 'VESPERTINO';

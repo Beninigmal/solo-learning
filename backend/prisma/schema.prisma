@@ -65,6 +65,7 @@ model User {
   actionLogs ActionLog[]
   chatSessions ChatSession[]
   bountyBugs   BountyBug[]
+  bossFightsCreated BossFight[] @relation("MestreBossFights")
 }
 
 model Turma {
@@ -85,6 +86,7 @@ model Turma {
   users           User[]   @relation("TurmaAlunos")
   quests          Quest[]  @relation("TurmaQuests")
   goldenQuestions GoldenQuestion[]
+  bossFights      BossFight[]
 }
 
 model Disciplina {
@@ -97,6 +99,7 @@ model Disciplina {
   quests      Quest[]
   turmaDisciplinas TurmaDisciplina[]
   timetableSlots  TimetableSlot[]
+  bossFights    BossFight[]
 }
 
 model DisciplinaProfessor {
@@ -464,3 +467,52 @@ model BountyBug {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
+
+model BossFight {
+  id              String         @id @default(uuid())
+  turmaId         String
+  turma           Turma          @relation(fields: [turmaId], references: [id])
+  mestreId        String
+  mestre          User           @relation("MestreBossFights", fields: [mestreId], references: [id])
+  disciplinaId    String
+  disciplina      Disciplina     @relation(fields: [disciplinaId], references: [id])
+  
+  nomeBoss        String         // Ex: "O Arquemago do Raciocínio (Matemática)"
+  totalHp         Int            @default(300)
+  currentHp       Int            @default(300)
+  status          String         @default("ACTIVE") // ACTIVE, DEFEATED, EXPIRED
+  expiresAt       DateTime       // Data limite (ex: 3 dias)
+  createdAt       DateTime       @default(now())
+
+  quests          BossQuest[]
+}
+
+model BossQuest {
+  id              String         @id @default(uuid())
+  bossFightId     String
+  bossFight       BossFight      @relation(fields: [bossFightId], references: [id], onDelete: Cascade)
+  
+  enunciado       String
+  gabarito        String?
+  tipoResposta    String         @default("TEXTO") // FOTO_MATEMATICA, FOTO_REDACAO, TEXTO
+  nivel           String         @default("MEDIO")
+  xpBase          Int            @default(150)
+  
+  status          String         @default("AVAILABLE") // AVAILABLE, LOCKED, COMPLETED
+  
+  // Controle de Fila / Party
+  lockedByPartyId String?
+  lockedAt        DateTime?
+  lastActiveAt    DateTime?
+  currentResponderId String?
+  attemptedUserIds   String      @default("")
+  
+  // Contador Anônimo de Derrotas e Multiplicador de Drop
+  defeatCount     Int            @default(0)
+  
+  completedByPartyId String?
+  completedAt        DateTime?
+
+  createdAt       DateTime       @default(now())
+}
+

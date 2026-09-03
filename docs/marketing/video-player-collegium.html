@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>COLLEGIUM — Vídeo Promocional Oficial</title>
+  <style>
+    :root {
+      --bg: #070913;
+      --card-bg: #0b1124;
+      --primary: #00f3ff;
+      --accent: #eab308;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 2.2rem;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      margin-bottom: 6px;
+      text-shadow: 0 0 20px rgba(0, 243, 255, 0.4);
+    }
+    p.tagline {
+      color: var(--muted);
+      font-size: 1rem;
+    }
+    .video-container {
+      position: relative;
+      width: 100%;
+      max-width: 900px;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border: 2px solid rgba(0, 243, 255, 0.3);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 0 40px rgba(0, 243, 255, 0.2);
+    }
+    .slide-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 8s ease, opacity 0.8s ease;
+      opacity: 0;
+      position: absolute;
+      top: 0; left: 0;
+    }
+    .slide-img.active {
+      opacity: 1;
+      transform: scale(1.05);
+    }
+    .overlay-vignette {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, transparent 40%, rgba(0, 0, 0, 0.8) 100%),
+                  linear-gradient(to top, rgba(7, 9, 19, 0.95) 0%, transparent 40%);
+      pointer-events: none;
+    }
+    .subtitle-box {
+      position: absolute;
+      bottom: 60px;
+      left: 5%; right: 5%;
+      text-align: center;
+      background: rgba(11, 17, 36, 0.85);
+      border: 1px solid rgba(0, 243, 255, 0.4);
+      backdrop-filter: blur(8px);
+      padding: 14px 20px;
+      border-radius: 8px;
+      font-size: 1.15rem;
+      line-height: 1.5;
+      color: #fff;
+      font-weight: 500;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      transition: opacity 0.3s;
+    }
+    .subtitle-box span.highlight {
+      color: var(--primary);
+      font-weight: bold;
+    }
+    .hud-badge {
+      position: absolute;
+      top: 20px; left: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid var(--primary);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-family: monospace;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      width: 100%;
+      max-width: 900px;
+      margin-top: 16px;
+      background: var(--card-bg);
+      padding: 12px 20px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .btn-play {
+      background: var(--primary);
+      color: #000;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .btn-play:hover {
+      background: #38bdf8;
+      box-shadow: 0 0 15px rgba(0, 243, 255, 0.6);
+    }
+    .progress-bar {
+      flex: 1;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      transition: width 0.1s linear;
+    }
+    .time-display {
+      font-family: monospace;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Collegium</h1>
+    <p class="tagline">Vídeo Promocional Institucional — Apresentação B2B / B2G</p>
+  </header>
+
+  <div class="video-container">
+    <img id="slide1" class="slide-img active" src="collegium_keyart_ptbr_1787950893562.png" alt="Cena 1">
+    <img id="slide2" class="slide-img" src="collegium_scene_ai_tutor_1787950918602.png" alt="Cena 2">
+    <img id="slide3" class="slide-img" src="collegium_monarch_dash_1787950947596.png" alt="Cena 3">
+    <img id="slide4" class="slide-img" src="collegium_keyart_ptbr_1787950893562.png" alt="Cena 4">
+
+    <div class="overlay-vignette"></div>
+    <div id="hudBadge" class="hud-badge">CENA 1 • O DIAGNÓSTICO</div>
+
+    <div id="subtitleBox" class="subtitle-box">
+      Clique em <b>"ASSISTIR VÍDEO"</b> para iniciar a apresentação narrada da plataforma Collegium.
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="playBtn" class="btn-play">
+      ▶ ASSISTIR VÍDEO
+    </button>
+    <div id="progressBar" class="progress-bar">
+      <div id="progressFill" class="progress-fill"></div>
+    </div>
+    <div id="timeDisplay" class="time-display">00:00 / 01:30</div>
+  </div>
+
+  <script>
+    const scenes = [
+      {
+        start: 0,
+        end: 20,
+        slideId: 'slide1',
+        hud: 'CENA 1 • O DIAGNÓSTICO',
+        subtitle: 'Como ensinar uma geração que nasceu conectada... dentro de um modelo educacional desconectado da realidade deles? O desinteresse não é falta de capacidade. É falta de propósito.',
+        speech: 'Como ensinar uma geração que nasceu conectada... dentro de um modelo educacional desconectado da realidade deles? O desinteresse não é falta de capacidade. É falta de propósito.'
+      },
+      {
+        start: 20,
+        end: 50,
+        slideId: 'slide2',
+        hud: 'CENA 2 • IA TUTORA & QUESTS',
+        subtitle: 'E se cada tarefa se transformasse em uma <span class="highlight">Quest épica</span>? Apresentamos o <span class="highlight">COLLEGIUM</span>. Com IA Tutora integrada, o app analisa o raciocínio no caderno em tempo real e recompensa com <span class="highlight">XP</span>!',
+        speech: 'E se cada tarefa se transformasse em uma Quest épica? Apresentamos o Collegium. Com IA Tutora integrada, o aplicativo analisa o raciocínio no caderno em tempo real, corrigindo passos e recompensando cada conquista com XP!'
+      },
+      {
+        start: 50,
+        end: 75,
+        slideId: 'slide3',
+        hud: 'CENA 3 • MOTOR MONARCH',
+        subtitle: 'Para os gestores e professores, o <span class="highlight">Motor Monarch</span> oferece controle total da matriz curricular, métricas de desempenho por disciplina e dados em tempo real.',
+        speech: 'Para os gestores e professores, o Motor Monarch oferece controle total da matriz curricular, relatórios analíticos por disciplina e métricas em tempo real para a tomada de decisões.'
+      },
+      {
+        start: 75,
+        end: 90,
+        slideId: 'slide4',
+        hud: 'CENA 4 • O FUTURO',
+        subtitle: 'Não mude o aluno. Mude a forma de ensinar. Traga o <span class="highlight">COLLEGIUM</span> para a sua instituição e desperte os heróis do futuro hoje!',
+        speech: 'Não mude o aluno. Mude a forma de ensinar. Traga o Collegium para a sua instituição e desperte os heróis do futuro hoje!'
+      }
+    ];
+
+    let currentTime = 0;
+    let isPlaying = false;
+    let timerInterval = null;
+    const totalDuration = 90;
+
+    const playBtn = document.getElementById('playBtn');
+    const progressFill = document.getElementById('progressFill');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const hudBadge = document.getElementById('hudBadge');
+    const subtitleBox = document.getElementById('subtitleBox');
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60).toString().padStart(2, '0');
+      const s = Math.floor(sec % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function speakText(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'pt-BR';
+        utterance.rate = 1.0;
+        utterance.pitch = 0.95;
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
+    function updateScene() {
+      const currentScene = scenes.find(s => currentTime >= s.start && currentTime < s.end) || scenes[scenes.length - 1];
+
+      document.querySelectorAll('.slide-img').forEach(img => img.classList.remove('active'));
+      const activeImg = document.getElementById(currentScene.slideId);
+      if (activeImg) activeImg.classList.add('active');
+
+      hudBadge.innerText = currentScene.hud;
+      subtitleBox.innerHTML = currentScene.subtitle;
+
+      if (currentTime === currentScene.start && isPlaying) {
+        speakText(currentScene.speech);
+      }
+    }
+
+    function togglePlay() {
+      if (isPlaying) {
+        pauseVideo();
+      } else {
+        playVideo();
+      }
+    }
+
+    function playVideo() {
+      if (currentTime >= totalDuration) currentTime = 0;
+      isPlaying = true;
+      playBtn.innerText = '⏸ PAUSAR VÍDEO';
+      updateScene();
+
+      timerInterval = setInterval(() => {
+        currentTime += 1;
+        progressFill.style.width = `${(currentTime / totalDuration) * 100}%`;
+        timeDisplay.innerText = `${formatTime(currentTime)} / ${formatTime(totalDuration)}`;
+        updateScene();
+
+        if (currentTime >= totalDuration) {
+          pauseVideo();
+          currentTime = totalDuration;
+          subtitleBox.innerHTML = 'Apresentação concluída! Clique em <b>"ASSISTIR VÍDEO"</b> para rever.';
+        }
+      }, 1000);
+    }
+
+    function pauseVideo() {
+      isPlaying = false;
+      playBtn.innerText = '▶ ASSISTIR VÍDEO';
+      if (timerInterval) clearInterval(timerInterval);
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
+
+    playBtn.addEventListener('click', togglePlay);
+  </script>
+</body>
+</html>

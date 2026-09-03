@@ -33,7 +33,7 @@ export default fp(async (fastify: FastifyInstance) => {
         }).catch(err => console.error('Erro ao atualizar lastActiveAt:', err));
       }
     } catch (err) {
-      reply.status(401).send({ error: 'Não autorizado.' });
+      return reply.status(401).send({ error: 'Não autorizado. Token de sessão ausente ou inválido.' });
     }
   });
 });

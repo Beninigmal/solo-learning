@@ -219,6 +219,14 @@ export default function MestreDashboard() {
           handleApproveBatch={state.handleApproveBatch}
           duracaoDiasBoss={state.duracaoDiasBoss}
           setDuracaoDiasBoss={state.setDuracaoDiasBoss}
+          nomeBoss={state.nomeBoss}
+          setNomeBoss={state.setNomeBoss}
+          temaBoss={state.temaBoss}
+          setTemaBoss={state.setTemaBoss}
+          hpBoss={state.hpBoss}
+          setHpBoss={state.setHpBoss}
+          diasBoss={state.diasBoss}
+          setDiasBoss={state.setDiasBoss}
           loadingBoss={state.loadingBoss}
           handleInvocacaoRapidaBOSS={state.handleInvocacaoRapidaBOSS}
           sounds={sounds}

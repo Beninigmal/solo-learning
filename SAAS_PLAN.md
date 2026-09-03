@@ -1,6 +1,6 @@
-# 🔮 Solen SaaS — Plano de Negócios, Viabilidade de IA e Estratégia Antitransbordo
+# 🔮 Collegium SaaS — Plano de Negócios, Viabilidade de IA e Estratégia Antitransbordo
 
-Este documento apresenta a versão atualizada e revisada do plano estratégico para a transformação do **Solen (Solo Learning)** em um modelo **SaaS (Software as a Service) B2B** voltado para instituições de ensino. 
+Este documento apresenta a versão atualizada e revisada do plano estratégico para o **Collegium** em um modelo **SaaS (Software as a Service) B2B** voltado para instituições de ensino. 
 
 Esta revisão inclui a infraestrutura de cobrança e controle multi-tenant, os novos planos de faturamento, a análise legal de marcas e o detalhamento técnico do agente **Ordinator**.
 
@@ -8,12 +8,12 @@ Esta revisão inclui a infraestrutura de cobrança e controle multi-tenant, os n
 
 ## 🏛️ 1. Tiers e Planos de Precificação SaaS
 
-O Solen é comercializado como uma assinatura recorrente baseada na quantidade de **alunos ativos cadastrados**, cobrada diretamente da instituição de ensino (B2B):
+O Collegium é comercializado como uma assinatura recorrente baseada na quantidade de **alunos ativos cadastrados**, cobrada diretamente da instituição de ensino (B2B):
 
 ### 🚫 Plano Trial Gratuito (14 dias)
 *   **Valor**: Gratuito (R$ 0,00).
 *   **Recursos**: Acesso ao painel administrativo básico e à gamificação (quests, ranks, inventário).
-*   **Limitação Anti-Abuso**: O resolvedor do [Monarch Engine v3](file:///home/beni/Documentos/Estudos/Projetos/Solen/regras_grades_publica_privada.md) é limitado a gerar grades horárias para no máximo **2 turmas** (para impedir que a escola gere sua grade anual completa e cancele o serviço). Sem acesso ao agente assistente.
+*   **Limitação Anti-Abuso**: O resolvedor do [Monarch Engine v3](file:///home/beni/Documentos/Projetos/solo-learning/regras_grades_publica_privada.md) é limitado a gerar grades horárias para no máximo **2 turmas** (para impedir que a escola gere sua grade anual completa e cancele o serviço). Sem acesso ao agente assistente.
 
 ### 🛡️ Plano Rank B (Gamificação Pura — Idiomas, Cursos Livres e Preparatórios)
 *   **Valor Mensal**: **R$ 2,50 por aluno / mês**
@@ -43,7 +43,7 @@ O Solen é comercializado como uma assinatura recorrente baseada na quantidade d
     *   *Ação*: O agente roda queries nas tabelas de progresso das quests, correlaciona o XP ganho com o volume de alunos e retorna um relatório formatado destacando matérias com dificuldades conceituais.
 2.  **Remanejamento e Ajuste de Restrições (Monarch Engine)**:
     *   *Comando*: *"O professor Marcos de Português não poderá mais dar aulas nos dois últimos horários das quintas-feiras. Reajuste a grade e rode o Monarch novamente."*
-    *   *Ação*: O agente adiciona a restrição na tabela `TeacherUnavailability` correspondente ao professor Marcos, executa a função de agendamento [monarchSolveTurma](file:///home/beni/Documentos/Estudos/Projetos/Solen/backend/src/routes/quests.ts#L3753) em lote, valida a consistência da nova grade e exibe a alteração pronta para aprovação do administrador.
+    *   *Ação*: O agente adiciona a restrição na tabela `TeacherUnavailability` correspondente ao professor Marcos, executa a função de agendamento `monarchSolveTurma` em lote, valida a consistência da nova grade e exibe a alteração pronta para aprovação do administrador.
 3.  **Planejamento Acadêmico Futuro (Anos Letivos)**:
     *   *Comando*: *"Prepare o planejamento para o ano que vem. Remova o professor Fulano, adicione o professor Cícero com carga horária de 40h concursado, e aumente as aulas semanais de Matemática do 9º ano para 6 aulas."*
     *   *Ação*: O agente atualiza as cargas contratuais e vínculos das disciplinas nas tabelas do Prisma, deixando a matriz pronta para a simulação do Monarch do novo ano letivo.
@@ -118,14 +118,9 @@ Os custos fixos de banco de dados, servidores, autenticação e notificações p
 
 ## 🔒 6. Prevenção contra Infrações de Direitos Autorais (Copyright)
 
-À medida que o Solen transiciona para uma marca definitiva de mercado, é fundamental eliminar passivos legais de Propriedade Intelectual (PI).
+À medida que o Collegium transiciona para uma marca definitiva de mercado, é fundamental eliminar passivos legais de Propriedade Intelectual (PI).
 
-### A. Análise Legal sobre o nome "Igris"
-*   **A Origem**: "Igris" é um personagem fictício de criação original da Light Novel e Webtoon *Solo Leveling*, de autoria de Chugong, publicada e licenciada comercialmente pela Kakao Entertainment e D&C Media.
-*   **Risco Judicial**: O uso do nome exato de um personagem licenciado em um produto comercial (SaaS B2B) de software sem autorização explícita constitui **infração de direitos autorais (copyright)** e pode ser caracterizado como **concorrência desleal / aproveitamento parasita**. A editora Kakao Entertainment tem um histórico ativo de proteção de sua propriedade intelectual, podendo enviar notificações de *Cease & Desist* ou processar civilmente por perdas e danos.
-*   **Decisão Estratégica**: Substituir "Igris" no código e na comunicação por um nome livre de PI.
-
-### B. O Nome "Ordinator" como Alternativa Legal
+### A. O Nome "Ordinator" como Alternativa Legal
 *   **A Origem**: **Ordinator** é uma palavra do dicionário latino que significa "organizador", "coordenador" ou "aquele que coloca em ordem".
 *   **Viabilidade Legal**: Por ser um termo de dicionário de língua clássica, é de domínio público e não pode sofrer apropriação exclusiva de marca como palavra isolada. É foneticamente robusto, mantém a seriedade e o mistério cibernético dos sistemas de RPG mas é **100% blindado contra processos de direitos autorais**.
 *   **Outros Termos**: O uso de jargões comuns de RPG/D&D (como *Party*, *Dungeon*, *Quest*, *Mestre*) é totalmente livre, pois fazem parte do domínio público da ficção de fantasia medieval, estando inclusive protegidos sob a licença Creative Commons CC-BY 4.0 das regras SRD 5.1 da Wizards of the Coast.
@@ -137,17 +132,15 @@ Os custos fixos de banco de dados, servidores, autenticação e notificações p
 Para suportar a operação SaaS comercial de forma autônoma e segura, a arquitetura do backend e do banco de dados incorpora os seguintes controles de cobrança:
 
 ### A. Modelo de Dados de Assinaturas (Prisma ORM)
-Criaremos um modelo de configuração de Tenant (`TenantConfig`) associado ao identificador `instituicao` (chave primária da tenant-isolation do Solen):
+A tabela `Institution` no banco de dados armazena o status e faturamento do tenant:
 ```prisma
-model TenantConfig {
-  id              String   @id @default(uuid())
-  instituicao     String   @unique
-  plano           String   @default("TRIAL") // TRIAL, RANK_B, RANK_A, RANK_S
-  status          String   @default("ATIVO") // ATIVO, INADIMPLENTE, CANCELADO
-  trialExpiration DateTime
-  maxTurmasMonarch Int     @default(2) // Limite de turmas executáveis no Monarch
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+model Institution {
+  id            String       @id @default(uuid())
+  nome          String       @unique
+  plano         String       @default("TRIAL") // TRIAL, RANK_B, RANK_A, RANK_S
+  status        String       @default("ATIVO") // ATIVO, INADIMPLENTE, CANCELADO
+  trialExpiration DateTime?
+  maxTurmasMonarch Int       @default(2)
 }
 ```
 
@@ -170,11 +163,12 @@ Interface web de alto nível exclusiva para o operador geral do SaaS (Superadmin
 
 ## 🛡️ 8. Estratégia Trial Anti-Abuso: Monarch Engine Limit
 
-*   **Restrição Rígida**: O resolvedor de conflitos [monarchSolveTurma](file:///home/beni/Documentos/Estudos/Projetos/Solen/backend/src/routes/quests.ts#L3753) só permitirá a execução e alocação de horários para no máximo **2 turmas (classes)** no plano Trial.
-*   **Bloqueio Gamificado na UI**: Caso o coordenador adicione uma terceira turma e tente rodar o algoritmo de alocação de horários, a interface exibirá uma janela de sistema no estilo RPG de Solo Leveling:
+*   **Restrição Rígida**: O resolvedor de conflitos `monarchSolveTurma` só permitirá a execução e alocação de horários para no máximo **2 turmas (classes)** no plano Trial.
+*   **Bloqueio Gamificado na UI**: Caso o coordenador adicione uma terceira turma e tente rodar o algoritmo de alocação de horários, a interface exibirá uma janela de sistema no estilo cibernético RPG:
     
     > **⚠️ ALERTA DO SISTEMA DE MANA**
     > 
     > *Sua reserva de Mana atual é insuficiente para invocar o Monarch Engine em mais de 2 turmas simultâneas.*
     > 
     > *Para expandir os limites da sua Masmorra Escolar e gerenciar todas as suas turmas sem restrições, realize o upgrade para a licença **Premium de Caçador (SaaS Pro)**.*
+

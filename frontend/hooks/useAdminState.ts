@@ -1318,7 +1318,7 @@ export function useAdminState() {
   const handleResetStudentAccess = async (id: string) => {
     showAlert(
       'MENSAGEM DO PORTAL',
-      'Tem certeza de que deseja resetar o acesso deste caçador? Ele precisará usar o código de invocação da guilda.',
+      'Tem certeza de que deseja resetar o acesso deste caçador? Ele precisará usar o código da party da guilda.',
       'warning',
       [
         { text: 'Cancelar', onPress: () => setAlertVisible(false), style: 'cancel' },
@@ -1331,7 +1331,7 @@ export function useAdminState() {
               await resetStudentAccess(id);
               showAlert(
                 'MENSAGEM DO PORTAL',
-                'Acesso resetado com sucesso! O caçador precisará usar o código de invocação.',
+                'Acesso resetado com sucesso! O caçador precisará usar o código da party.',
                 'success'
               );
               fetchStudents(selectedTurmaId);

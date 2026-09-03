@@ -297,7 +297,7 @@ export default function FirstAccessScreen() {
           </View>
 
           <Text className="text-white/70 text-sm text-center mb-6 leading-5">
-            Você acessou o portal com o código de invocação. Agora, defina seu nickname e sua senha pessoal para continuar.
+            Você acessou o portal com o código da party. Agora, defina seu nickname e sua senha pessoal para continuar.
           </Text>
 
           <TextInput

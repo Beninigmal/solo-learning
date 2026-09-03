@@ -188,7 +188,7 @@ export function PartyTab({
                   <View className="w-full bg-black/40 border border-white/5 p-3 rounded-sm items-center">
                     <Text className="text-white/50 text-[10px] font-mono text-center">
                       {activeParty.raidModeActive 
-                        ? '⚡ Raid ativada pelo líder! Aguardando invocação de monstro...' 
+                        ? '⚡ Raid ativada pelo líder! Aguardando ativação de monstro...' 
                         : '💤 Aguardando o líder do grupo iniciar a Raid.'}
                     </Text>
                   </View>

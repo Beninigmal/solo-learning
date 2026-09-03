@@ -745,8 +745,58 @@ export const sendBountyQuestion = async (id: string, question: string) => {
   return response.data;
 };
 
-export const sendBountyResponse = async (id: string, responseStr: string) => {
-  const response = await api.post(`/bounty/${id}/response`, { response: responseStr });
+export const sendBountyResponse = async (bountyId: string, responseText: string) => {
+  const response = await api.post(`/bounty/${bountyId}/respond`, { responseText });
   return response.data;
 };
 
+export const getActiveMegaBoss = async () => {
+  try {
+    const res = await api.get('/boss/active');
+    return res.data.activeBoss || null;
+  } catch (err) {
+    return null;
+  }
+};
+
+export const invokeMegaBoss = async (data: {
+  turmaIds: string[];
+  disciplinaId: string;
+  tema: string;
+  nomeBoss?: string;
+  totalHp?: number;
+  duracaoDias?: number;
+}) => {
+  const response = await api.post('/boss/invoke', data);
+  return response.data;
+};
+
+export const transmuteBossQuest = async (questId: string, prompt?: string) => {
+  const response = await api.post(`/boss/transmute/${questId}`, { prompt });
+  return response.data;
+};
+
+export const getMestreBossFights = async () => {
+  const response = await api.get('/boss/mestre/fights');
+  return response.data.bossFights || [];
+};
+
+export const updateBossQuest = async (questId: string, enunciado: string) => {
+  const response = await api.put(`/boss/quests/${questId}`, { enunciado });
+  return response.data;
+};
+
+export const getBossBacklog = async (bossId: string) => {
+  const response = await api.get(`/boss/${bossId}/quests`);
+  return response.data.bossFight;
+};
+
+export const lockBossQuest = async (questId: string) => {
+  const response = await api.post(`/boss/quests/${questId}/lock`);
+  return response.data;
+};
+
+export const submitBossQuest = async (questId: string, data: { respostaTexto?: string; imagemBase64?: string }) => {
+  const response = await api.post(`/boss/quests/${questId}/submit`, data);
+  return response.data;
+};
