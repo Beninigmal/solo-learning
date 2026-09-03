@@ -157,10 +157,14 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
   };
 
   const handleGenerateAIEmenta = async () => {
-    const targetDiscId = forjaDisciplinaId || (disciplinas.length > 0 ? disciplinas[0].id : null);
+    sounds.playSelect?.();
+    const targetDiscId = forjaDisciplinaId || (disciplinas && disciplinas.length > 0 ? disciplinas[0].id : null);
     if (!targetDiscId) {
       Alert.alert('Aviso', 'Selecione uma disciplina primeiro.');
       return;
+    }
+    if (forjaDisciplinaId !== targetDiscId) {
+      setForjaDisciplinaId(targetDiscId);
     }
     try {
       setGeneratingAIEmenta(true);
@@ -169,16 +173,28 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
       const nivel = selectedTurma?.nivel || 'MEDIO';
       const instType = currentUser?.institutionType || 'PARTICULAR';
 
+      console.log('🤖 Disparando /curriculum/generate-ai:', { disciplinaId: targetDiscId, ano, nivel, instType });
+
       const res = await api.post('/curriculum/generate-ai', {
         disciplinaId: targetDiscId,
         ano,
         nivel,
         institutionType: instType
       });
-      setTopicosCurriculares(res.data.topicos || []);
-      Alert.alert('Sucesso', res.data.message || 'Ementa gerada com sucesso!');
+
+      console.log('✅ Resposta ementa IA:', res.data);
+      const topicos = res.data.topicos || [];
+      setTopicosCurriculares(topicos);
+
+      if (topicos.length > 0) {
+        const textFormatted = topicos.map((t: any, idx: number) => `${idx + 1}. ${t.nome}`).join('\n');
+        setRawEmentaText(textFormatted);
+      }
+
+      Alert.alert('Sucesso', res.data.message || 'Ementa gerada com sucesso pela IA!');
     } catch (err: any) {
-      Alert.alert('Erro', err.response?.data?.error || 'Erro ao gerar ementa.');
+      console.error('❌ Erro ao gerar ementa IA:', err);
+      Alert.alert('Erro', err.response?.data?.error || err.message || 'Erro ao gerar ementa.');
     } finally {
       setGeneratingAIEmenta(false);
     }
@@ -342,11 +358,17 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
           <View className="flex-row gap-3 mb-4">
             <TouchableOpacity
               onPress={handleGenerateAIEmenta}
-              disabled={generatingAIEmenta || disciplinas.length === 0}
-              className={`flex-1 ${generatingAIEmenta ? 'bg-purple-950/60' : 'bg-purple-900/50 hover:bg-purple-800/60'} border border-purple-400 py-3 rounded-sm items-center justify-center flex-row gap-2 cursor-pointer`}
+              activeOpacity={0.7}
+              disabled={generatingAIEmenta || (disciplinas && disciplinas.length === 0)}
+              className={`flex-1 ${generatingAIEmenta ? 'bg-purple-950/80 border-purple-500' : 'bg-purple-900/50 border-purple-400'} border py-3.5 rounded-sm items-center justify-center flex-row gap-2`}
             >
               {generatingAIEmenta ? (
-                <ActivityIndicator color="#c084fc" size="small" />
+                <>
+                  <ActivityIndicator color="#c084fc" size="small" />
+                  <Text className="text-purple-300 font-bold text-xs uppercase font-mono tracking-widest">
+                    Gerando Ementa com IA MEC...
+                  </Text>
+                </>
               ) : (
                 <>
                   <Feather name="cpu" size={14} color="#c084fc" />
