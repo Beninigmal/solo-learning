@@ -765,371 +765,329 @@ export const ForjaTab: React.FC<ForjaTabProps> = ({
       )}
 
       {/* ───────────────── GERENCIAMENTO DE MEGA BOSSES ATIVOS DO MESTRE ───────────────── */}
-      <View className="bg-[#14080c]/90 border border-red-500/40 p-5 sm:p-6 rounded-sm mb-6">
-        <View className="flex-row items-center justify-between mb-4">
-          <View className="flex-row items-center gap-2">
-            <Text className="text-red-400 text-sm font-bold uppercase tracking-widest font-mono">
-              ⚔️ Mega Bosses Ativos & Ver/Editar Quests
-            </Text>
-            {mestreBossFights.length > 0 && (
-              <View className="bg-red-500 px-2 py-0.5 rounded-sm">
-                <Text className="text-black text-[9px] font-bold font-mono">{mestreBossFights.length}</Text>
-              </View>
-            )}
+      {forjaMode === 'BOSS' && (
+        <View className="bg-[#14080c]/90 border border-red-500/40 p-5 sm:p-6 rounded-sm mb-6">
+          <View className="flex-row items-center justify-between mb-4">
+            <View className="flex-row items-center gap-2">
+              <Text className="text-red-400 text-sm font-bold uppercase tracking-widest font-mono">
+                ⚔️ Mega Bosses Ativos & Ver/Editar Quests
+              </Text>
+              {mestreBossFights.length > 0 && (
+                <View className="bg-red-500 px-2 py-0.5 rounded-sm">
+                  <Text className="text-black text-[9px] font-bold font-mono">{mestreBossFights.length}</Text>
+                </View>
+              )}
+            </View>
+            <TouchableOpacity onPress={fetchActiveMestreBosses} className="p-1">
+              {loadingMestreBosses ? (
+                <ActivityIndicator size="small" color="#ef4444" />
+              ) : (
+                <Feather name="refresh-cw" size={14} color="#ef4444" />
+              )}
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity onPress={fetchActiveMestreBosses} className="p-1">
-            {loadingMestreBosses ? (
-              <ActivityIndicator size="small" color="#ef4444" />
-            ) : (
-              <Feather name="refresh-cw" size={14} color="#ef4444" />
-            )}
-          </TouchableOpacity>
-        </View>
 
-        {mestreBossFights.length === 0 ? (
-          <View className="bg-black/40 border border-red-500/15 p-6 rounded-sm items-center justify-center">
-            <Feather name="shield" size={24} color="#ef444430" />
-            <Text className="text-white/30 text-[10px] font-mono mt-2 text-center uppercase tracking-wider">
-              Nenhum Mega Boss ativo no momento. Use a aba "Ativar Mega Boss" acima para forjar um evento!
-            </Text>
-          </View>
-        ) : (
-          mestreBossFights.map((bf) => {
-            const isExpanded = expandedBossId === bf.id;
-            const hpPercent = Math.max(0, Math.min(100, (bf.currentHp / bf.totalHp) * 100));
+          {mestreBossFights.length === 0 ? (
+            <View className="bg-black/40 border border-red-500/15 p-6 rounded-sm items-center justify-center">
+              <Feather name="shield" size={24} color="#ef444430" />
+              <Text className="text-white/30 text-[10px] font-mono mt-2 text-center uppercase tracking-wider">
+                Nenhum Mega Boss ativo no momento. Use a aba "Ativar Mega Boss" acima para forjar um evento!
+              </Text>
+            </View>
+          ) : (
+            mestreBossFights.map((bf) => {
+              const isExpanded = expandedBossId === bf.id;
+              const hpPercent = Math.max(0, Math.min(100, (bf.currentHp / bf.totalHp) * 100));
 
-            return (
-              <View key={bf.id} className="bg-black/60 border border-red-500/30 rounded-sm mb-4 overflow-hidden">
-                {/* Header do Boss */}
-                <TouchableOpacity
-                  onPress={() => {
-                    setExpandedBossId(isExpanded ? null : bf.id);
-                    sounds.playSelect?.();
-                  }}
-                  className="p-4 bg-red-950/20 border-b border-red-500/20 flex-row justify-between items-center"
-                >
-                  <View className="flex-1 pr-2">
-                    <View className="flex-row items-center gap-2 mb-1">
-                      <Text className="text-red-400 font-bold font-mono text-xs uppercase tracking-wider">
-                        {bf.nomeBoss}
-                      </Text>
-                      <View className="bg-red-500/20 border border-red-500/40 px-2 py-0.5 rounded-sm">
-                        <Text className="text-red-300 text-[9px] font-mono uppercase">{bf.turma?.nome}</Text>
+              return (
+                <View key={bf.id} className="bg-black/60 border border-red-500/30 rounded-sm mb-4 overflow-hidden">
+                  {/* Header do Boss */}
+                  <TouchableOpacity
+                    onPress={() => {
+                      setExpandedBossId(isExpanded ? null : bf.id);
+                      sounds.playSelect?.();
+                    }}
+                    className="p-4 bg-red-950/20 border-b border-red-500/20 flex-row justify-between items-center"
+                  >
+                    <View className="flex-1 pr-2">
+                      <View className="flex-row items-center gap-2 mb-1">
+                        <Text className="text-red-400 font-bold font-mono text-xs uppercase tracking-wider">
+                          {bf.nomeBoss}
+                        </Text>
+                        <View className="bg-red-500/20 border border-red-500/40 px-2 py-0.5 rounded-sm">
+                          <Text className="text-red-300 text-[9px] font-mono uppercase">{bf.turma?.nome}</Text>
+                        </View>
                       </View>
+                      <Text className="text-white/60 text-[10px] font-mono">
+                        {bf.disciplina?.nome} • HP: {bf.currentHp} / {bf.totalHp} ({hpPercent.toFixed(0)}%) • {bf.quests?.length || 0} Quests no Pool
+                      </Text>
                     </View>
-                    <Text className="text-white/60 text-[10px] font-mono">
-                      {bf.disciplina?.nome} • HP: {bf.currentHp} / {bf.totalHp} ({hpPercent.toFixed(0)}%) • {bf.quests?.length || 0} Quests no Pool
+
+                    <Feather name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color="#ef4444" />
+                  </TouchableOpacity>
+
+                  {/* Lista de Quests do Boss */}
+                  {isExpanded && (
+                    <View className="p-4 gap-3 bg-black/40">
+                      <Text className="text-red-400/80 text-[10px] font-mono font-bold uppercase mb-1">
+                        📋 LOTE DE QUESTS GERADAS (CLIQUE EM EDITAR OU TRANSMUTAR):
+                      </Text>
+
+                      {bf.quests?.map((q: any, qIdx: number) => {
+                        const isEditingThis = editingBossQuestId === q.id;
+                        const isTransmutingThis = transmutingQuestId === q.id;
+
+                        return (
+                          <View key={q.id} className="bg-[#0e0709] border border-red-500/20 p-3 rounded-sm">
+                            <View className="flex-row justify-between items-center mb-2 pb-2 border-b border-white/5">
+                              <Text className="text-red-400 font-bold font-mono text-[10px]">
+                                QUEST #{qIdx + 1} • {q.nivel} ({q.xpBase} XP)
+                              </Text>
+
+                              <View className="flex-row gap-2">
+                                {/* Botão Transmutar (IA) */}
+                                <TouchableOpacity
+                                  onPress={() => handleTransmuteBossQuest(q.id)}
+                                  disabled={isTransmutingThis}
+                                  className="bg-purple-950/40 px-2 py-1 rounded-sm border border-purple-500/30 flex-row items-center gap-1"
+                                >
+                                  {isTransmutingThis ? (
+                                    <ActivityIndicator size="small" color="#c084fc" style={{ transform: [{ scale: 0.6 }] }} />
+                                  ) : (
+                                    <>
+                                      <Feather name="zap" size={10} color="#c084fc" />
+                                      <Text className="text-purple-300 text-[9px] font-mono font-bold">Transmutar (IA)</Text>
+                                    </>
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+
+                            <Text className="text-white/90 text-xs font-mono leading-relaxed mt-1">
+                              {q.enunciado}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+              );
+            })
+          )}
+        </View>
+      )}
+
+      {/* ───────────────── ARSENAL DE RASCUNHOS / AFIAR MISSÕES ───────────────── */}
+      {(forjaMode === 'DIARIA' || forjaMode === 'FORJA') && (
+        <View className="bg-[#0a1128]/90 border border-neonBlue/30 p-5 sm:p-6 rounded-sm mb-6">
+          <View className="flex-row items-center justify-between mb-4">
+            <View className="flex-row items-center gap-2">
+              <Text className="text-neonBlue text-sm font-bold uppercase tracking-widest font-mono">
+                🗡️ Arsenal de Rascunhos / Afiar Missões
+              </Text>
+              {pendingBatches.length > 0 && (
+                <View className="bg-neonBlue px-2 py-0.5 rounded-sm">
+                  <Text className="text-black text-[9px] font-bold font-mono">{pendingBatches.length}</Text>
+                </View>
+              )}
+            </View>
+            <TouchableOpacity onPress={fetchPendingQuests} className="p-1">
+              {loadingPending ? (
+                <ActivityIndicator size="small" color="#00f3ff" />
+              ) : (
+                <Feather name="refresh-cw" size={14} color="#00f3ff" />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {pendingBatches.length === 0 ? (
+            <View className="bg-black/35 border border-neonBlue/15 p-6 rounded-sm items-center justify-center">
+              <Feather name="shield" size={24} color="#00f3ff20" />
+              <Text className="text-white/30 text-[10px] font-mono mt-2 text-center uppercase tracking-wider">
+                Nenhum rascunho aguardando na forja.
+              </Text>
+            </View>
+          ) : (
+            pendingBatches.map((batch) => (
+              <View key={batch.batchId} className="bg-[#0b122c] border border-neonBlue/40 p-4 rounded-sm mb-4 shadow-lg">
+                {/* Header do Lote */}
+                <View className="flex-row justify-between items-start border-b border-neonBlue/20 pb-2 mb-3">
+                  <View className="flex-1 pr-2">
+                    <Text className="text-white font-bold text-xs uppercase font-mono tracking-widest">{batch.tema}</Text>
+                    <Text className="text-neonBlue/60 text-[9px] font-mono mt-0.5">
+                      {batch.disciplinaNome} · {batch.turmaNome} · Semana {batch.semana}
                     </Text>
                   </View>
+                  <View className="bg-neonBlue/15 px-2 py-0.5 border border-neonBlue/30 rounded-sm">
+                    <Text className="text-neonBlue text-[8px] font-bold font-mono uppercase">RASCUNHO</Text>
+                  </View>
+                </View>
 
-                  <Feather name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color="#ef4444" />
-                </TouchableOpacity>
+                {/* Quests do Lote */}
+                <View className="gap-2.5 mb-4">
+                  {batch.quests.map((q: any) => {
+                    const isEditing = editingQuestId === q.id;
+                    const isRefining = refiningQuestId === q.id;
+                    const subColor = q.nivel === 'FACIL' ? '#22c55e' : q.nivel === 'MEDIO' ? '#eab308' : '#ef4444';
 
-                {/* Lista de Quests do Boss */}
-                {isExpanded && (
-                  <View className="p-4 gap-3 bg-black/40">
-                    <Text className="text-red-400/80 text-[10px] font-mono font-bold uppercase mb-1">
-                      📋 LOTE DE QUESTS GERADAS (CLIQUE EM EDITAR OU TRANSMUTAR):
-                    </Text>
-
-                    {bf.quests?.map((q: any, qIdx: number) => {
-                      const isEditingThis = editingBossQuestId === q.id;
-                      const isTransmutingThis = transmutingQuestId === q.id;
-
-                      return (
-                        <View key={q.id} className="bg-[#0e0709] border border-red-500/20 p-3 rounded-sm">
-                          <View className="flex-row justify-between items-center mb-2 pb-2 border-b border-white/5">
-                            <Text className="text-red-400 font-bold font-mono text-[10px]">
-                              QUEST #{qIdx + 1} • {q.nivel} ({q.xpBase} XP)
+                    return (
+                      <View key={q.id} className="bg-black/50 border border-white/5 p-3 rounded-sm">
+                        <View className="flex-row justify-between items-center flex-wrap gap-2 mb-2 pb-2 border-b border-white/5">
+                          <View className="flex-row items-center gap-1.5">
+                            <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: subColor }} />
+                            <Text className="font-mono text-[9px] font-bold" style={{ color: subColor }}>
+                              {q.nivel} (+{q.xp} XP)
                             </Text>
+                          </View>
+                          <View className="flex-row gap-2">
+                            <TouchableOpacity
+                              onPress={() => {
+                                sounds.playSelect?.();
+                                if (isEditing) {
+                                  setEditingQuestId(null);
+                                } else {
+                                  setEditingQuestId(q.id);
+                                  setEditingEnunciado(q.enunciado);
+                                  setRefiningQuestId(null);
+                                }
+                              }}
+                              className="bg-[#101b3a] px-2 py-1 rounded-sm border border-neonBlue/20"
+                            >
+                              <Feather name="edit" size={10} color="#00f3ff" />
+                            </TouchableOpacity>
 
+                            <TouchableOpacity
+                              onPress={() => {
+                                sounds.playSelect?.();
+                                if (isRefining) {
+                                  setRefiningQuestId(null);
+                                } else {
+                                  setRefiningQuestId(q.id);
+                                  setSharpenPrompt('');
+                                  setEditingQuestId(null);
+                                }
+                              }}
+                              className="bg-[#1e153b] px-2 py-1 rounded-sm border border-purple-500/25"
+                            >
+                              <Feather name="zap" size={10} color="#c084fc" />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              onPress={() => {
+                                sounds.playSelect?.();
+                                Alert.alert(
+                                  'Descartar & Re-forjar',
+                                  'Deseja descartar esta missão e gerar uma nova pela IA?',
+                                  [
+                                    { text: 'Cancelar', style: 'cancel' },
+                                    { text: 'Gerar Nova', onPress: () => handleRegenerateQuest(q.id) },
+                                  ]
+                                );
+                              }}
+                              className="bg-[#241212] px-2 py-1 rounded-sm border border-red-500/25"
+                              disabled={loadingActionId === q.id}
+                            >
+                              {loadingActionId === q.id ? (
+                                <ActivityIndicator size="small" color="#ef4444" style={{ transform: [{ scale: 0.7 }] }} />
+                              ) : (
+                                <Feather name="trash-2" size={10} color="#ef4444" />
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                        {isEditing ? (
+                          <View className="mt-2">
+                            <TextInput
+                              className="w-full bg-black border border-neonBlue/50 text-white p-2 text-xs rounded-sm mb-2 font-mono"
+                              multiline
+                              numberOfLines={3}
+                              value={editingEnunciado}
+                              onChangeText={setEditingEnunciado}
+                              keyboardAppearance="dark"
+                            />
                             <View className="flex-row gap-2">
-                              {/* Botão Editar Manual */}
                               <TouchableOpacity
-                                onPress={() => {
-                                  sounds.playSelect?.();
-                                  if (isEditingThis) {
-                                    setEditingBossQuestId(null);
-                                  } else {
-                                    setEditingBossQuestId(q.id);
-                                    setEditingBossEnunciado(q.enunciado);
-                                  }
-                                }}
-                                className="bg-red-950/40 px-2 py-1 rounded-sm border border-red-500/30 flex-row items-center gap-1"
+                                className="flex-1 bg-red-950/20 border border-red-500/30 py-1.5 rounded-sm items-center"
+                                onPress={() => setEditingQuestId(null)}
                               >
-                                <Feather name="edit" size={10} color="#ef4444" />
-                                <Text className="text-red-400 text-[9px] font-mono font-bold">Editar</Text>
+                                <Text className="text-red-400 text-[10px] uppercase font-bold font-mono">Cancelar</Text>
                               </TouchableOpacity>
-
-                              {/* Botão Transmutar (IA) */}
                               <TouchableOpacity
-                                onPress={() => handleTransmuteBossQuest(q.id)}
-                                disabled={isTransmutingThis}
-                                className="bg-purple-950/40 px-2 py-1 rounded-sm border border-purple-500/30 flex-row items-center gap-1"
+                                className="flex-1 bg-neonBlue/20 border border-neonBlue py-1.5 rounded-sm items-center flex-row justify-center gap-1"
+                                onPress={() => handleSaveManualQuest(q.id)}
                               >
-                                {isTransmutingThis ? (
-                                  <ActivityIndicator size="small" color="#c084fc" style={{ transform: [{ scale: 0.6 }] }} />
+                                <Text className="text-neonBlue text-[10px] uppercase font-bold font-mono">Salvar</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ) : isRefining ? (
+                          <View className="mt-2">
+                            <TextInput
+                              className="w-full bg-[#0a0715] border border-purple-500/40 text-white p-2 text-xs rounded-sm mb-2 font-mono"
+                              placeholder="Diga à IA: e.g. 'deixe mais simples', 'coloque mais números'"
+                              placeholderTextColor="#c084fc40"
+                              multiline
+                              numberOfLines={2}
+                              value={sharpenPrompt}
+                              onChangeText={setSharpenPrompt}
+                              keyboardAppearance="dark"
+                            />
+                            <View className="flex-row gap-2">
+                              <TouchableOpacity
+                                className="flex-1 bg-purple-950/20 border border-purple-500/30 py-1.5 rounded-sm items-center"
+                                onPress={() => setRefiningQuestId(null)}
+                              >
+                                <Text className="text-purple-400 text-[10px] uppercase font-bold font-mono">Cancelar</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                className="flex-1 bg-purple-900/40 border border-purple-400 py-1.5 rounded-sm items-center flex-row justify-center gap-1"
+                                onPress={() => handleRefineQuest(q.id)}
+                                disabled={loadingActionId === q.id}
+                              >
+                                {loadingActionId === q.id ? (
+                                  <ActivityIndicator size="small" color="#c084fc" style={{ transform: [{ scale: 0.7 }] }} />
                                 ) : (
                                   <>
                                     <Feather name="zap" size={10} color="#c084fc" />
-                                    <Text className="text-purple-300 text-[9px] font-mono font-bold">Transmutar (IA)</Text>
+                                    <Text className="text-purple-300 text-[10px] uppercase font-bold font-mono">Afiar com IA</Text>
                                   </>
                                 )}
                               </TouchableOpacity>
                             </View>
                           </View>
-
-                          {isEditingThis ? (
-                            <View className="mt-2">
-                              <TextInput
-                                className="w-full bg-black border border-red-500/50 text-white p-2 text-xs rounded-sm mb-2 font-mono"
-                                multiline
-                                numberOfLines={3}
-                                value={editingBossEnunciado}
-                                onChangeText={setEditingBossEnunciado}
-                                keyboardAppearance="dark"
-                              />
-                              <View className="flex-row gap-2">
-                                <TouchableOpacity
-                                  className="flex-1 bg-red-950/20 border border-red-500/30 py-1.5 rounded-sm items-center"
-                                  onPress={() => setEditingBossQuestId(null)}
-                                >
-                                  <Text className="text-red-400 text-[10px] uppercase font-bold font-mono">Cancelar</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                  className="flex-1 bg-red-900/40 border border-red-500 py-1.5 rounded-sm items-center flex-row justify-center gap-1"
-                                  onPress={() => handleSaveBossQuestEdit(q.id)}
-                                >
-                                  <Text className="text-red-300 text-[10px] uppercase font-bold font-mono">Salvar Edição</Text>
-                                </TouchableOpacity>
-                              </View>
-                            </View>
-                          ) : (
-                            <Text className="text-white/90 text-xs font-mono leading-relaxed mt-1">
-                              {q.enunciado}
-                            </Text>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
-              </View>
-            );
-          })
-        )}
-      </View>
-
-      {/* ───────────────── ARSENAL DE RASCUNHOS / AFIAR MISSÕES ───────────────── */}
-      <View className="bg-[#0a1128]/90 border border-neonBlue/30 p-5 sm:p-6 rounded-sm mb-6">
-        <View className="flex-row items-center justify-between mb-4">
-          <View className="flex-row items-center gap-2">
-            <Text className="text-neonBlue text-sm font-bold uppercase tracking-widest font-mono">
-              🗡️ Arsenal de Rascunhos / Afiar Missões
-            </Text>
-            {pendingBatches.length > 0 && (
-              <View className="bg-neonBlue px-2 py-0.5 rounded-sm">
-                <Text className="text-black text-[9px] font-bold font-mono">{pendingBatches.length}</Text>
-              </View>
-            )}
-          </View>
-          <TouchableOpacity onPress={fetchPendingQuests} className="p-1">
-            {loadingPending ? (
-              <ActivityIndicator size="small" color="#00f3ff" />
-            ) : (
-              <Feather name="refresh-cw" size={14} color="#00f3ff" />
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {pendingBatches.length === 0 ? (
-          <View className="bg-black/35 border border-neonBlue/15 p-6 rounded-sm items-center justify-center">
-            <Feather name="shield" size={24} color="#00f3ff20" />
-            <Text className="text-white/30 text-[10px] font-mono mt-2 text-center uppercase tracking-wider">
-              Nenhum rascunho aguardando na forja.
-            </Text>
-          </View>
-        ) : (
-          pendingBatches.map((batch) => (
-            <View key={batch.batchId} className="bg-[#0b122c] border border-neonBlue/40 p-4 rounded-sm mb-4 shadow-lg">
-              {/* Header do Lote */}
-              <View className="flex-row justify-between items-start border-b border-neonBlue/20 pb-2 mb-3">
-                <View className="flex-1 pr-2">
-                  <Text className="text-white font-bold text-xs uppercase font-mono tracking-widest">{batch.tema}</Text>
-                  <Text className="text-neonBlue/60 text-[9px] font-mono mt-0.5">
-                    {batch.disciplinaNome} · {batch.turmaNome} · Semana {batch.semana}
-                  </Text>
-                </View>
-                <View className="bg-neonBlue/15 px-2 py-0.5 border border-neonBlue/30 rounded-sm">
-                  <Text className="text-neonBlue text-[8px] font-bold font-mono uppercase">RASCUNHO</Text>
-                </View>
-              </View>
-
-              {/* Quests do Lote */}
-              <View className="gap-2.5 mb-4">
-                {batch.quests.map((q: any) => {
-                  const isEditing = editingQuestId === q.id;
-                  const isRefining = refiningQuestId === q.id;
-                  const subColor = q.nivel === 'FACIL' ? '#22c55e' : q.nivel === 'MEDIO' ? '#eab308' : '#ef4444';
-
-                  return (
-                    <View key={q.id} className="bg-black/50 border border-white/5 p-3 rounded-sm">
-                      <View className="flex-row justify-between items-center flex-wrap gap-2 mb-2 pb-2 border-b border-white/5">
-                        <View className="flex-row items-center gap-1.5">
-                          <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: subColor }} />
-                          <Text className="font-mono text-[9px] font-bold" style={{ color: subColor }}>
-                            {q.nivel} (+{q.xp} XP)
-                          </Text>
-                        </View>
-                        <View className="flex-row gap-2">
-                          <TouchableOpacity
-                            onPress={() => {
-                              sounds.playSelect?.();
-                              if (isEditing) {
-                                setEditingQuestId(null);
-                              } else {
-                                setEditingQuestId(q.id);
-                                setEditingEnunciado(q.enunciado);
-                                setRefiningQuestId(null);
-                              }
-                            }}
-                            className="bg-[#101b3a] px-2 py-1 rounded-sm border border-neonBlue/20"
-                          >
-                            <Feather name="edit" size={10} color="#00f3ff" />
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            onPress={() => {
-                              sounds.playSelect?.();
-                              if (isRefining) {
-                                setRefiningQuestId(null);
-                              } else {
-                                setRefiningQuestId(q.id);
-                                setSharpenPrompt('');
-                                setEditingQuestId(null);
-                              }
-                            }}
-                            className="bg-[#1e153b] px-2 py-1 rounded-sm border border-purple-500/25"
-                          >
-                            <Feather name="zap" size={10} color="#c084fc" />
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            onPress={() => {
-                              sounds.playSelect?.();
-                              Alert.alert(
-                                'Descartar & Re-forjar',
-                                'Deseja descartar esta missão e gerar uma nova pela IA?',
-                                [
-                                  { text: 'Cancelar', style: 'cancel' },
-                                  { text: 'Gerar Nova', onPress: () => handleRegenerateQuest(q.id) },
-                                ]
-                              );
-                            }}
-                            className="bg-[#241212] px-2 py-1 rounded-sm border border-red-500/25"
-                            disabled={loadingActionId === q.id}
-                          >
-                            {loadingActionId === q.id ? (
-                              <ActivityIndicator size="small" color="#ef4444" style={{ transform: [{ scale: 0.7 }] }} />
-                            ) : (
-                              <Feather name="trash-2" size={10} color="#ef4444" />
-                            )}
-                          </TouchableOpacity>
-                        </View>
+                        ) : (
+                          <Text className="text-white/80 text-xs font-mono leading-relaxed mt-1">{q.enunciado}</Text>
+                        )}
                       </View>
+                    );
+                  })}
+                </View>
 
-                      {isEditing ? (
-                        <View className="mt-2">
-                          <TextInput
-                            className="w-full bg-black border border-neonBlue/50 text-white p-2 text-xs rounded-sm mb-2 font-mono"
-                            multiline
-                            numberOfLines={3}
-                            value={editingEnunciado}
-                            onChangeText={setEditingEnunciado}
-                            keyboardAppearance="dark"
-                          />
-                          <View className="flex-row gap-2">
-                            <TouchableOpacity
-                              className="flex-1 bg-red-950/20 border border-red-500/30 py-1.5 rounded-sm items-center"
-                              onPress={() => setEditingQuestId(null)}
-                            >
-                              <Text className="text-red-400 text-[10px] uppercase font-bold font-mono">Cancelar</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              className="flex-1 bg-neonBlue/20 border border-neonBlue py-1.5 rounded-sm items-center flex-row justify-center gap-1"
-                              onPress={() => handleSaveManualQuest(q.id)}
-                            >
-                              <Text className="text-neonBlue text-[10px] uppercase font-bold font-mono">Salvar</Text>
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      ) : isRefining ? (
-                        <View className="mt-2">
-                          <TextInput
-                            className="w-full bg-[#0a0715] border border-purple-500/40 text-white p-2 text-xs rounded-sm mb-2 font-mono"
-                            placeholder="Diga à IA: e.g. 'deixe mais simples', 'coloque mais números'"
-                            placeholderTextColor="#c084fc40"
-                            multiline
-                            numberOfLines={2}
-                            value={sharpenPrompt}
-                            onChangeText={setSharpenPrompt}
-                            keyboardAppearance="dark"
-                          />
-                          <View className="flex-row gap-2">
-                            <TouchableOpacity
-                              className="flex-1 bg-purple-950/20 border border-purple-500/30 py-1.5 rounded-sm items-center"
-                              onPress={() => setRefiningQuestId(null)}
-                            >
-                              <Text className="text-purple-400 text-[10px] uppercase font-bold font-mono">Cancelar</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              className="flex-1 bg-purple-900/40 border border-purple-400 py-1.5 rounded-sm items-center flex-row justify-center gap-1"
-                              onPress={() => handleRefineQuest(q.id)}
-                              disabled={loadingActionId === q.id}
-                            >
-                              {loadingActionId === q.id ? (
-                                <ActivityIndicator size="small" color="#c084fc" style={{ transform: [{ scale: 0.7 }] }} />
-                              ) : (
-                                <>
-                                  <Feather name="zap" size={10} color="#c084fc" />
-                                  <Text className="text-purple-300 text-[10px] uppercase font-bold font-mono">Afiar com IA</Text>
-                                </>
-                              )}
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                      ) : (
-                        <Text className="text-white/80 text-xs font-mono leading-relaxed mt-1">{q.enunciado}</Text>
-                      )}
-                    </View>
-                  );
-                })}
+                {/* Botão para Liberar Lote */}
+                <TouchableOpacity
+                  className="w-full bg-neonBlue/10 border border-neonBlue py-3 rounded-sm items-center flex-row justify-center gap-2 shadow-sm"
+                  onPress={() => {
+                    sounds.playSelect?.();
+                    handleApproveBatch(batch.batchId);
+                  }}
+                  disabled={loadingActionId === batch.batchId}
+                >
+                  {loadingActionId === batch.batchId ? (
+                    <ActivityIndicator size="small" color="#00f3ff" />
+                  ) : (
+                    <>
+                      <Feather name="unlock" size={14} color="#00f3ff" />
+                      <Text className="text-neonBlue font-bold uppercase tracking-widest text-[11px] font-mono">
+                        Ativar & Liberar Lote
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
               </View>
-
-              {/* Botão para Liberar Lote */}
-              <TouchableOpacity
-                className="w-full bg-neonBlue/10 border border-neonBlue py-3 rounded-sm items-center flex-row justify-center gap-2 shadow-sm"
-                onPress={() => {
-                  sounds.playSelect?.();
-                  handleApproveBatch(batch.batchId);
-                }}
-                disabled={loadingActionId === batch.batchId}
-              >
-                {loadingActionId === batch.batchId ? (
-                  <ActivityIndicator size="small" color="#00f3ff" />
-                ) : (
-                  <>
-                    <Feather name="unlock" size={14} color="#00f3ff" />
-                    <Text className="text-neonBlue font-bold uppercase tracking-widest text-[11px] font-mono">
-                      Ativar & Liberar Lote
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          ))
-        )}
-      </View>
+            ))
+          )}
+        </View>
+      )}
     </View>
   );
 };
