@@ -23,6 +23,11 @@ O Collegium é um sistema **multi-tenant** isolado por instituição acadêmica.
 ### C. Isenção de Cunho Religioso e Caráter Lúdico
 *   **Declaração Oficial**: Todas as nomenclaturas, títulos, conquistas, mecânicas de RPG (como *Party*, *Quests*, *Mestres*, *Artefatos*, *Bosses*) presentes no Collegium possuem caráter estritamente fictício, lúdico e educacional. Elas foram desenvolvidas exclusivamente para motivar e engajar os alunos na jornada de aprendizado, não possuindo qualquer vínculo, conotação ou cunho religioso, espiritual ou ideológico.
 
+### D. Regime Letivo Dinâmico por Instituição (v1.3.20)
+*   **Divisão Acadêmica Customizável**: Cada instituição pode ser configurada com um regime letivo dinâmico (`tipoDivisao`: `UNIDADE`, `BIMESTRE`, `TRIMESTRE` ou `SEMESTRE`) e uma quantidade personalizada de períodos (`qtdUnidades`, ex: 2, 3, 4).
+*   **Gestão pelo Superadmin e Arquiteto**: O Superadmin pode definir o regime na criação/edição da escola, e a Coordenação (Arquiteto) pode ajustar o regime dinâmico da instituição via `/admin/institution/regime-letivo`.
+*   **Adaptação na Interface (Mestre e Arquiteto)**: O seletor e os badges de período das turmas se adaptam automaticamente ao regime configurado (ex: "1º Bimestre", "2º Trimestre", "1º Semestre" ou "Unidade 1").
+
 ---
 
 ## 📜 2. O Sistema de Quests e Notificações (Fila e Turnos)

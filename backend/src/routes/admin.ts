@@ -27,7 +27,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       const instId = request.user.institutionId;
       const inst = instId
         ? await prisma.institution.findUnique({ where: { id: instId } })
-        : await prisma.institution.findFirst({ where: { nome: request.user.instituicao } });
+        : await prisma.institution.findFirst({ where: { nome: request.user.instituicao! } });
       if (!inst) {
         return reply.status(404).send({ error: 'Instituição não encontrada.' });
       }
@@ -44,7 +44,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     try {
       const inst = instId
         ? await prisma.institution.findUnique({ where: { id: instId } })
-        : await prisma.institution.findFirst({ where: { nome: request.user.instituicao } });
+        : await prisma.institution.findFirst({ where: { nome: request.user.instituicao! } });
       if (!inst) {
         return reply.status(404).send({ error: 'Instituição não encontrada.' });
       }
