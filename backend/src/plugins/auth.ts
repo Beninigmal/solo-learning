@@ -4,15 +4,24 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { prisma } from '../prisma';
 
 export default fp(async (fastify: FastifyInstance) => {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error('FATAL: JWT_SECRET environment variable is not defined. Set JWT_SECRET in your .env file.');
+  }
+
   fastify.register(fastifyJwt, {
-    secret: process.env.JWT_SECRET || 'supersecret_solen_key_123'
+    secret: jwtSecret
   });
 
   fastify.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const queryToken = (request.query as any)?.token;
       if (queryToken && !request.headers.authorization) {
-        request.headers.authorization = `Bearer ${queryToken}`;
+        // AUTH-002: Aceita ?token= na URL exclusivamente para rotas de download de templates
+        const isDownloadRoute = request.url.includes('/admin/templates/');
+        if (isDownloadRoute) {
+          request.headers.authorization = `Bearer ${queryToken}`;
+        }
       }
 
       await request.jwtVerify();
@@ -24,7 +33,7 @@ export default fp(async (fastify: FastifyInstance) => {
         }).catch(err => console.error('Erro ao atualizar lastActiveAt:', err));
       }
     } catch (err) {
-      reply.status(401).send({ error: 'Não autorizado.' });
+      return reply.status(401).send({ error: 'Não autorizado. Token de sessão ausente ou inválido.' });
     }
   });
 });

@@ -4,6 +4,14 @@ import { prisma } from '../prisma';
 export const webhookRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   // Webhook para lidar com pagamentos Stripe / Asaas / Gateway Genérico
   fastify.post<{ Body: { type: string, data: any } }>('/billing/webhook', async (request, reply) => {
+    const webhookSecret = process.env.WEBHOOK_SECRET;
+    const incomingSecret = (request.headers['x-webhook-secret'] || request.headers['asaas-access-token'] || request.headers['stripe-signature']) as string | undefined;
+
+    if (webhookSecret && incomingSecret !== webhookSecret) {
+      request.log.warn('Tentativa de acesso não autorizada ao webhook de billing (Secret inválido/ausente).');
+      return reply.status(401).send({ error: 'Não autorizado: Segredo de webhook inválido ou ausente.' });
+    }
+
     const { type, data } = request.body;
     
     try {

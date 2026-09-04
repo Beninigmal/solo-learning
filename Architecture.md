@@ -1,31 +1,30 @@
-# Projeto: Solo Learning (MVP)
-**Estética:** Inspirada no Manhwa "Solo Leveling" (Status windows, Ranks, Daily Quests).
+# Projeto: Collegium
+**Estética:** Estilo cibernético e gamificado (Status windows, Ranks, Daily Quests).
 
 ## 1. Stack Tecnológica (Obrigatória)
 - **Frontend:** React Native com Expo (TypeScript).
-- **Backend:** Node.js com Fastify ou Express (TypeScript).
+- **Backend:** Node.js com Fastify (TypeScript).
 - **ORM:** Prisma com PostgreSQL.
-- **IA:** OpenAI API (GPT-4o para texto e Vision para correção de fotos).
+- **IA:** Google Generative AI (Gemini) e Nvidia AI API (Llama 3.1).
 - **Estilização:** NativeWind (Tailwind CSS para React Native).
 
 ## 2. Core Business Logic
-- **Personas:** Professor (Admin/Criador de Quests) e Aluno (Player).
+- **Personas:** Professor (Mestre) e Aluno (Caçador).
 - **Sistema de Quest:** - O Professor define o tema (ex: Equações de 1º Grau).
     - A IA gera o conteúdo da Quest (Enunciado + Gabarito lógico).
     - O Aluno responde via texto ou foto de resolução manuscrita.
 - **Sistema de Gamificação:** - Conclusão gera XP e aumento de Level.
-    - Falha ou expiração de tempo gera "Penalty Quest" (Penalidade).
-- **Social:** Sistema de "Party" para missões em grupo.
+    - Falha ou expiração de tempo envia a quest ao Baú de Quests Perdidas.
+- **Social:** Sistema de "Party" para missões em grupo e Mega Boss Raids.
 
 ## 3. Estrutura de Pastas Esperada
 /root
   /backend (Node.js API)
   /frontend (React Native App)
-  /shared (Interfaces TS e Tipagens comuns)
 
 ## 4. Arquitetura do Frontend (Evolução & Refatoração)
 
-Para combater a complexidade de arquivos monolíticos (que ultrapassavam milhares de linhas) e eliminar a duplicação de layouts e estilos, o frontend do Solen foi reestruturado de acordo com o **Plano de Evolução Arquitetural** aprovado. Esta nova estrutura separa completamente as preocupações de negócio, estados e representações visuais em três camadas independentes:
+Para combater a complexidade de arquivos monolíticos e eliminar a duplicação de layouts e estilos, o frontend do Collegium foi reestruturado de acordo com o **Plano de Evolução Arquitetural** aprovado. Esta nova estrutura separa completamente as preocupações de negócio, estados e representações visuais em três camadas independentes:
 
 ```mermaid
 graph TD
@@ -47,7 +46,7 @@ Toda a lógica de negócios, gerenciamento de estados (`useState`, `useRef`), ch
 *Benefício:* Reduz os arquivos de tela principais para menos de 100 linhas, mantendo-os puros e livres de lógica paralela.
 
 ### 4.2. CyberUI Component Kit (Shared UI)
-Componentes de interface de usuário padronizados com estética **Solo Leveling** (fundo escuro, glows neon dinâmicos e tipografias modernas) localizados em `components/ui/`:
+Componentes de interface de usuário padronizados com estética cibernética e neon (fundo escuro, glows neon dinâmicos e tipografias modernas) localizados em `components/ui/`:
 - **`CyberCard`** (`components/ui/CyberCard.tsx`): Contêineres modulares com sombras de glow neon customizadas para status de aviso, sucesso, falha ou BOSS.
 - **`CyberInput`** (`components/ui/CyberInput.tsx`): Inputs de texto cibernéticos com suporte a Feather icons, mensagens de erro dinâmicas e foco com transições suaves.
 - **`CyberBadge`** (`components/ui/CyberBadge.tsx`): Chips e tags estilizados com cores harmoniosas obtidas através do sistema HSL Tailored.
@@ -70,7 +69,7 @@ Arquivos do Expo Router responsáveis por inicializar os hooks de estado e distr
 
 ## 5. Arquitetura do Backend (Clean Architecture & SOLID)
 
-Para garantir escalabilidade, testabilidade e separação total de responsabilidades, o backend do Solen foi refatorado seguindo os princípios de **Clean Architecture (Arquitetura Limpa)** e padrões **SOLID**.
+Para garantir escalabilidade, testabilidade e separação total de responsabilidades, o backend do Collegium foi projetado seguindo os princípios de **Clean Architecture (Arquitetura Limpa)** e padrões **SOLID**.
 
 A estrutura de código está dividida em 3 camadas concêntricas e independentes:
 
@@ -105,7 +104,7 @@ graph TD
   - **`PrismaUserRepository`**: Lida com todas as queries relacionais de usuários e exclusões seguras em transação cascata via Prisma Client.
   - **`PrismaQuestRepository`**: Gerencia buscas e atualizações de masmorras de quests e filas de entrega do aluno.
 - **`src/infra/providers/`**: Serviços externos concretos acoplados à infraestrutura:
-  - **`GeminiAIProvider`**: Executa chamadas à API da Google Generative AI com mecanismo inteligente e autônomo de **rotação de API Keys** em caso de rate-limit/exaustão de cota.
+  - **`GeminiAIProvider`**: Executa chamadas à API da Google Generative AI com mecanismo inteligente de rotação de API Keys em caso de rate-limit.
   - **`ExpoNotificationProvider`**: Realiza o disparo assíncrono de Push Notifications para os dispositivos móveis dos alunos através do gateway da Expo.
 
 ### 5.3. Camada de Apresentação & Adaptadores HTTP

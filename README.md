@@ -1,15 +1,15 @@
 
-# 🔮 Solen — Solo Learning (Sistema de Gestão Educacional Gamificado)
+# 🔮 Collegium (Sistema de Gestão Educacional Gamificado)
 
 > *"Apenas os caçadores mais dedicados conseguirão alcançar o Rank S do conhecimento."*
 
-Solen é um **sistema de gestão educacional gamificado** que une administração escolar completa com mecânicas de RPG inspiradas no Manhwa **"Solo Leveling"**. O projeto nasceu como uma plataforma de engajamento estudantil e evoluiu para uma ferramenta completa que atende desde a coordenação pedagógica até o aluno, passando por gestão de instituições, grade curricular inteligente e conformidade legal.
+Collegium é um **sistema de gestão educacional gamificado** que une administração escolar completa com mecânicas de RPG inspiradas no universo de caçadores e mestres. O projeto nasceu como uma plataforma de engajamento estudantil e evoluiu para uma ferramenta completa que atende desde a coordenação pedagógica até o aluno, passando por gestão de instituições, grade curricular inteligente e conformidade legal.
 
 ---
 
 ## 🏛️ Visão Geral
 
-O Solen resolve dois problemas simultaneamente:
+O Collegium resolve dois problemas simultaneamente:
 
 1. **Gestão escolar**: Cadastro de instituições (multi-tenant), turmas, professores, alunos, disciplinas e alocação inteligente de grade horária respeitando a legislação (LDB, Piso do Magistério, CLT, REDA)
 2. **Engajamento estudantil**: Gamificação profunda com Ranks (E a S), Quests diárias geradas por IA, Raids em grupo, Baú de revisão e artefatos mágicos
@@ -28,7 +28,7 @@ O Solen resolve dois problemas simultaneamente:
 - Configuração da grade curricular
 
 ### ⚔️ MESTRE (Professor)
-- Forja de missões via IA (Gemini) com rascunho e aprovação
+- Forja de missões via IA (Gemini / Nvidia Llama 3.1) com rascunho e aprovação
 - Radar de XP da turma com alerta de risco
 - Agenda e histórico de missões
 
@@ -53,7 +53,7 @@ Algoritmo de **Constraint Satisfaction Problem (CSP)** para alocação automáti
 
 ---
 
-## 🎒 Gamificação (Solen Systems)
+## 🎒 Gamificação (Collegium Systems)
 
 ### 📜 Status Window & Ranks
 Rank E (iniciante) → Rank S (lendário). XP acumulado por quests concluídas, com barra de progresso visual.
@@ -67,7 +67,7 @@ Grupos de até 3 alunos para missões cooperativas em tempo real, com invasores,
 - **Martelo Mágico & Pergaminho do Oráculo:** Scaffolding e dicas pedagógicas
 - **Poeira Estelar & Varinha de Pinheiro:** Eliminam alternativas ou transmutam questões
 
-### 🧠 IA Generativa (Gemini)
+### 🧠 IA Generativa (Gemini / Nvidia)
 Geração de missões contextualizadas por série/ano, com complexidade cognitiva progressiva (5º ano Fundamental → 3º ano Ensino Médio).
 
 ---
@@ -89,7 +89,7 @@ Geração de missões contextualizadas por série/ano, com complexidade cognitiv
 | **Frontend** | React Native Web & Mobile via **Expo** (TypeScript + NativeWind/TailwindCSS) |
 | **Backend** | Node.js com **Fastify** (TypeScript) — Clean Architecture & SOLID |
 | **Banco de Dados & ORM** | **PostgreSQL** com **Prisma ORM** |
-| **Motor de IA** | **Google Generative AI (Gemini API)** — geração de enunciados, dicas e bosses |
+| **Motor de IA** | **Google Generative AI (Gemini API) & Nvidia AI** — geração de enunciados, dicas e bosses |
 | **Hospedagem** | **Vercel** (Frontend) + **Render** (Backend) |
 
 ---
@@ -124,7 +124,7 @@ npm install
 ```
 Configure `.env`:
 ```env
-DATABASE_URL="postgresql://usuario:senha@localhost:5432/solen_db"
+DATABASE_URL="postgresql://usuario:senha@localhost:5432/collegium_db"
 JWT_SECRET="sua_chave_jwt_secreta"
 GEMINI_API_KEY="sua_gemini_api_key"
 ```
@@ -147,4 +147,5 @@ npx expo start --web
 Desenvolvido por educadores e entusiastas de RPG para modernizar a gestão e o ensino no Brasil.
 
 **Lucas Araújo (Beni)** — beninigmal@gmail.com
+
 

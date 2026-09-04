@@ -1,15 +1,18 @@
-# 📜 Manual do Sistema Solen (Solo Learning)
+# 📜 Manual do Sistema Collegium
 *Guia completo para Professores, Administradores e Alunos*
 
-Bem-vindo ao **Solen**, um sistema de aprendizagem gamificado onde o ensino se transforma em uma jornada de RPG (Role Playing Game). Aqui, professores são **Mestres**, alunos são **Players** (Caçadores) e as atividades são **Missões**.
+Bem-vindo ao **Collegium**, um sistema de aprendizagem gamificado onde o ensino se transforma em uma jornada de RPG (Role Playing Game). Aqui, professores são **Mestres**, alunos são **Players** (Caçadores) e as atividades são **Missões**.
 
 Este guia foi feito para que você, Professor (Mestre), e sua equipe possam extrair o máximo do sistema.
+
+> **⚖️ Nota de Isenção Lúdica e Pedagógica**:
+> Todas as nomenclaturas, títulos, conquistas, itens e temas inspirados em RPG presentes no Collegium têm caráter estritamente fictício, lúdico e pedagógico. Foram desenvolvidos exclusivamente para motivar, engajar e entreter os alunos durante a jornada de aprendizado, não possuindo qualquer vínculo, conotação ou cunho religioso, espiritual ou ideológico.
 
 ---
 
 ## 👥 1. As Três Entidades do Sistema
 
-O Solen divide-se em três níveis de acesso:
+O Collegium divide-se em três níveis de acesso:
 
 1. **Arquiteto (Administrador)**: O criador do mundo. Responsável por cadastrar os Mestres, criar as Turmas e fazer os vínculos (quem ensina o quê e para quem).
 2. **Mestre (Professor)**: O mestre do jogo. Responsável por recrutar os alunos para suas turmas, criar missões personalizadas usando Inteligência Artificial e acompanhar o progresso.
@@ -45,20 +48,20 @@ Antes de enviar missões, você precisa colocar os alunos dentro das turmas.
 4.  **Vincular à Turma**: Selecione para qual turma esse aluno está sendo recrutado.
 
 ### ⚒️ Aba: Forja (Criar Missões com IA)
-Aqui você usa o poder do Oráculo (Inteligência Artificial Gemini) para criar questões inéditas.
+Aqui você usa o poder da Inteligência Artificial (Gemini / Nvidia Llama 3.1) para criar questões inéditas.
 1.  **Semana**: Identificador da missão (Ex: Semana 1).
 2.  **Turma**: Para quem vai a missão.
 3.  **Disciplina**: Matéria da missão.
-4.  **Complexidade**: Escolha entre Livre (ideal para pós-graduação ou temas abertos), Fácil, Médio ou Difícil.
+4.  **Complexidade**: Escolha entre Livre, Fácil, Médio ou Difícil.
 5.  **Tipo de Questão**:
     *   *Prática (Cálculo)*: A IA gerará questões que exigem contas.
     *   *Teórica (Texto)*: Questões conceituais.
-6.  **Tema**: Digite o assunto específico (Ex: "Freud e o Inconsciente", "Equações do 2º Grau").
+6.  **Tema**: Digite o assunto específico (Ex: "Equações do 2º Grau").
 
 O sistema gerará um lote de questões e as distribuirá automaticamente para os alunos da turma selecionada.
 
-### 👹 Invocação Rápida de BOSS
-Quer fazer um teste rápido ou um desafio surpresa? Use o botão vermelho **Invocação Rápida de BOSS**. Ele gerará uma missão especial de teste instantaneamente.
+### 👹 Ativação Rápida de BOSS
+Quer fazer um teste rápido ou um desafio surpresa? Use o botão vermelho **Ativação Rápida de BOSS**. Ele gerará uma missão especial de teste instantaneamente.
 
 ### 📊 Aba: Histórico
 Acompanhe o rendimento da sua turma.
@@ -79,12 +82,14 @@ Para que você possa orientar seu amigo, aqui está o que o aluno faz no app:
 
 ## 💡 Dicas para Testes
 1.  **Fluxo de Teste Sugerido**:
-    *   Arquiteto cria a Turma "Pós Freud".
-    *   Arquiteto cria o Mestre (Você ou seu amigo).
-    *   Arquiteto vincula o Mestre à Turma "Pós Freud" na matéria desejada.
+    *   Arquiteto cria a Turma "3º Ano A".
+    *   Arquiteto cria o Mestre.
+    *   Arquiteto vincula o Mestre à Turma "3º Ano A" na matéria desejada.
     *   Mestre loga, vai em "Recrutar" e adiciona um aluno de teste.
-    *   Mestre vai em "Forja", escolhe dificuldade "Livre" e digita o tema específico.
+    *   Mestre vai em "Forja", escolhe dificuldade e digita o tema específico.
     *   Verifique no Histórico a questão gerada!
 
 ---
-*Nota: Como sou uma IA de texto, não consigo gerar um arquivo `.pdf` diretamente para download automático, mas você pode copiar este texto e colá-lo no Word, Google Docs ou usar a função "Imprimir para PDF" do seu navegador/editor para gerar o arquivo perfeito para enviar pelo WhatsApp ou e-mail!*
+
+*Nota: Você pode imprimir este manual ou salvar como PDF para compartilhar com a equipe docente!*
+

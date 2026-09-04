@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -30,6 +30,9 @@ import { PartyTab } from '../../components/player/PartyTab';
 import { QuestWindowModal } from '../../components/player/QuestWindowModal';
 import { RankUpModal } from '../../components/player/RankUpModal';
 import { BountyTab } from '../../components/player/BountyTab';
+import { MegaBossModal } from '../../components/player/MegaBossModal';
+import { getActiveMegaBoss } from '../../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Helper function to dynamically map player XP to Solo Leveling Ranks
 export const getPlayerRankInfo = (xp: number) => {
@@ -159,9 +162,82 @@ export default function StatusScreen() {
     } as any;
   };
 
+  const [activeMegaBoss, setActiveMegaBoss] = useState<any | null>(null);
+  const [showMegaBossModal, setShowMegaBossModal] = useState(false);
+  const [userToken, setUserToken] = useState('');
+  const pulseAnim = useRef(new RNAnimated.Value(1)).current;
+
+  useEffect(() => {
+    RNAnimated.loop(
+      RNAnimated.sequence([
+        RNAnimated.timing(pulseAnim, { toValue: 1.03, duration: 800, useNativeDriver: true }),
+        RNAnimated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [pulseAnim]);
+
+  useEffect(() => {
+    const initBoss = async () => {
+      try {
+        const token = await AsyncStorage.getItem('@Solen:token');
+        if (token) setUserToken(token);
+        const boss = await getActiveMegaBoss();
+        setActiveMegaBoss(boss);
+      } catch (e) {}
+    };
+    initBoss();
+  }, []);
+
   return (
     <SafeAreaView className="flex-1 bg-transparent p-4 relative w-full lg:max-w-6xl lg:mx-auto">
       <RNAnimated.View style={getAnimatedStyle()} className="flex-1">
+        
+        {/* BANNER ANIMADO DE CONVOCAÇÃO DO MEGA BOSS */}
+        {activeMegaBoss && (
+          <RNAnimated.View style={{ transform: [{ scale: pulseAnim }] }}>
+            <TouchableOpacity
+              onPress={() => {
+                sounds.playSelect();
+                setShowMegaBossModal(true);
+              }}
+              className="bg-[#1a080c] border-2 border-red-500 p-3.5 rounded-sm mb-4 flex-row items-center justify-between shadow-2xl"
+              style={{
+                shadowColor: '#ef4444',
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.8,
+                shadowRadius: 10,
+                elevation: 10,
+              }}
+              activeOpacity={0.85}
+            >
+              <View className="flex-row items-center gap-3 flex-1 pr-2">
+                <View className="w-9 h-9 rounded-full bg-red-950/80 border border-red-500 items-center justify-center relative">
+                  <Feather name="shield" size={18} color="#ef4444" />
+                  <View className="w-2.5 h-2.5 rounded-full bg-red-500 absolute -top-0.5 -right-0.5 border border-black" />
+                </View>
+                <View className="flex-1">
+                  <View className="flex-row items-center gap-1.5 mb-0.5">
+                    <Text className="text-red-500 font-bold uppercase tracking-widest text-[11px] font-mono">
+                      ⚔️ CONVOCAÇÃO DE MEGA BOSS RAID
+                    </Text>
+                  </View>
+                  <Text className="text-white font-bold text-xs uppercase font-mono tracking-wider" numberOfLines={1}>
+                    {activeMegaBoss.nomeBoss}
+                  </Text>
+                  <Text className="text-red-300/70 text-[10px] font-mono mt-0.5">
+                    HP: {activeMegaBoss.currentHp} / {activeMegaBoss.totalHp} • Matéria: {activeMegaBoss.disciplina?.nome || 'Geral'}
+                  </Text>
+                </View>
+              </View>
+
+              <View className="bg-red-600/30 border border-red-500 px-3 py-2 rounded-sm items-center justify-center">
+                <Text className="text-red-400 text-[10px] font-mono font-bold uppercase tracking-wider">
+                  ENTRAR NA RAID ⚔️
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </RNAnimated.View>
+        )}
         <View className="flex-row justify-between items-center mb-4 mt-2 border-b border-neonBlue/30 pb-3">
           <View className="flex-1 mr-2">
             <View className="flex-row items-center gap-2">
@@ -679,11 +755,11 @@ export default function StatusScreen() {
           >
             <View className="border-b border-yellow-500/30 w-full pb-3 mb-6 items-center">
               <Feather name="shield" size={32} color="#eab308" style={{ marginBottom: 8 }} />
-              <Text className="text-yellow-500 text-lg font-bold uppercase tracking-[0.2em] text-center font-mono">Invocar Dungeon</Text>
+              <Text className="text-yellow-500 text-lg font-bold uppercase tracking-[0.2em] text-center font-mono">Ativar Desafio</Text>
             </View>
 
             <Text className="text-white text-sm text-center mb-8 font-mono leading-relaxed">
-              Gostaria de invocar uma nova missão de{" "}
+              Gostaria de iniciar uma nova missão de{" "}
               <Text className="text-yellow-500 font-bold">{state.selectedSubjectToInvoke?.nome}</Text>?{"\n\n"}
               Esta ação iniciará o portal de desafios para esta matéria!
             </Text>
@@ -697,7 +773,7 @@ export default function StatusScreen() {
                 }}
                 className="flex-1 bg-yellow-500/20 border border-yellow-500 py-3 rounded-sm items-center justify-center"
               >
-                <Text className="text-yellow-500 font-bold uppercase text-xs tracking-widest font-mono">Sim, Invocar</Text>
+                <Text className="text-yellow-500 font-bold uppercase text-xs tracking-widest font-mono">Sim, Ativar</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
@@ -1113,6 +1189,15 @@ export default function StatusScreen() {
           </TouchableOpacity>
         </KeyboardAvoidingView>
       )}
+      <MegaBossModal
+        visible={showMegaBossModal}
+        onClose={() => setShowMegaBossModal(false)}
+        activeBoss={activeMegaBoss}
+        userToken={userToken}
+        activeParty={state.activeParty}
+        sounds={sounds}
+        refreshUserData={state.loadInitialData}
+      />
     </SafeAreaView>
   );
 }

@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { prisma } from '../prisma';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { logAction } from '../services/actionLog';
 
 export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
@@ -17,8 +18,20 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
   });
 
   // ─── POST /institutions ───────────────────────────────────────────────────
-  fastify.post<{ Body: { nome: string; codigo?: string; tipo?: string; plano?: string; status?: string; trialExpiration?: string; maxTurmasMonarch?: number } }>('/institutions', async (request, reply) => {
-    const { nome, codigo, tipo, plano, status, trialExpiration, maxTurmasMonarch } = request.body;
+  fastify.post<{
+    Body: {
+      nome: string;
+      codigo?: string;
+      tipo?: string;
+      plano?: string;
+      status?: string;
+      trialExpiration?: string;
+      maxTurmasMonarch?: number;
+      qtdUnidades?: number;
+      tipoDivisao?: string;
+    }
+  }>('/institutions', async (request, reply) => {
+    const { nome, codigo, tipo, plano, status, trialExpiration, maxTurmasMonarch, qtdUnidades, tipoDivisao } = request.body;
     if (!nome || !nome.trim()) {
       return reply.status(400).send({ error: 'O nome da instituição é obrigatório.' });
     }
@@ -41,15 +54,40 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
         finalCodigo = String(nextCode).padStart(4, '0');
       }
 
+      const cleanTipo = tipo || 'MUNICIPAL';
+      let finalQtdUnidades = 3;
+      let finalTipoDivisao = 'UNIDADE';
+
+      if (cleanTipo === 'MUNICIPAL' || cleanTipo === 'ESTADUAL') {
+        // Público: Sempre 3 unidades (padrão MEC)
+        finalQtdUnidades = 3;
+        finalTipoDivisao = 'UNIDADE';
+      } else if (cleanTipo === 'PRIVADO') {
+        // Particular: Default 4 bimestres se não especificado, ou custom
+        finalQtdUnidades = qtdUnidades && qtdUnidades >= 1 && qtdUnidades <= 6 ? qtdUnidades : 4;
+        finalTipoDivisao = tipoDivisao || 'BIMESTRE';
+      } else if (cleanTipo === 'PRIVADO_LIVRE') {
+        // Livre: Livre escolha entre UNIDADE, BIMESTRE, TRIMESTRE, SEMESTRE
+        finalTipoDivisao = ['UNIDADE', 'BIMESTRE', 'TRIMESTRE', 'SEMESTRE'].includes(tipoDivisao || '')
+          ? tipoDivisao!
+          : 'UNIDADE';
+        if (finalTipoDivisao === 'BIMESTRE') finalQtdUnidades = qtdUnidades || 4;
+        else if (finalTipoDivisao === 'TRIMESTRE') finalQtdUnidades = qtdUnidades || 3;
+        else if (finalTipoDivisao === 'SEMESTRE') finalQtdUnidades = qtdUnidades || 2;
+        else finalQtdUnidades = qtdUnidades || 3;
+      }
+
       const institution = await prisma.institution.create({
         data: { 
           nome: nome.trim(),
           codigo: finalCodigo,
-          tipo: tipo || 'MUNICIPAL',
+          tipo: cleanTipo,
           plano: plano || 'TRIAL',
           status: status || 'ATIVO',
           trialExpiration: trialExpiration ? new Date(trialExpiration) : null,
-          maxTurmasMonarch: maxTurmasMonarch ?? 2
+          maxTurmasMonarch: maxTurmasMonarch ?? 2,
+          qtdUnidades: finalQtdUnidades,
+          tipoDivisao: finalTipoDivisao,
         }
       });
       return reply.status(201).send(institution);
@@ -62,6 +100,62 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
         return reply.status(400).send({ error: 'Uma instituição com este nome já existe.' });
       }
       return reply.status(500).send({ error: 'Erro ao criar instituição.' });
+    }
+  });
+
+  // ─── PUT /institutions/:id ─────────────────────────────────────────────────
+  fastify.put<{
+    Params: { id: string };
+    Body: {
+      nome?: string;
+      codigo?: string;
+      tipo?: string;
+      plano?: string;
+      status?: string;
+      trialExpiration?: string;
+      maxTurmasMonarch?: number;
+      qtdUnidades?: number;
+      tipoDivisao?: string;
+    }
+  }>('/institutions/:id', async (request, reply) => {
+    const { id } = request.params;
+    const { nome, codigo, tipo, plano, status, trialExpiration, maxTurmasMonarch, qtdUnidades, tipoDivisao } = request.body;
+
+    try {
+      const existing = await prisma.institution.findUnique({ where: { id } });
+      if (!existing) {
+        return reply.status(404).send({ error: 'Instituição não encontrada.' });
+      }
+
+      const updateData: any = {};
+      if (nome && nome.trim()) updateData.nome = nome.trim();
+      if (codigo && codigo.trim()) updateData.codigo = codigo.trim();
+      if (tipo) updateData.tipo = tipo;
+      if (plano) updateData.plano = plano;
+      if (status) updateData.status = status;
+      if (trialExpiration !== undefined) updateData.trialExpiration = trialExpiration ? new Date(trialExpiration) : null;
+      if (maxTurmasMonarch !== undefined) updateData.maxTurmasMonarch = maxTurmasMonarch;
+
+      const effectiveTipo = tipo || existing.tipo;
+      if (effectiveTipo === 'MUNICIPAL' || effectiveTipo === 'ESTADUAL') {
+        updateData.qtdUnidades = 3;
+        updateData.tipoDivisao = 'UNIDADE';
+      } else {
+        if (qtdUnidades !== undefined) updateData.qtdUnidades = qtdUnidades;
+        if (tipoDivisao !== undefined) updateData.tipoDivisao = tipoDivisao;
+      }
+
+      const updated = await prisma.institution.update({
+        where: { id },
+        data: updateData,
+      });
+
+      return reply.status(200).send(updated);
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        return reply.status(400).send({ error: 'Nome ou código de instituição já em uso.' });
+      }
+      return reply.status(500).send({ error: 'Erro ao atualizar instituição.' });
     }
   });
 
@@ -96,7 +190,7 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
           return reply.status(404).send({ error: 'Instituição não encontrada.' });
         }
 
-        const rawPassword = password || 'Solen2026';
+        const rawPassword = password || `Solen#${crypto.randomBytes(4).toString('hex')}`;
         const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
         const architect = await prisma.user.create({
@@ -113,12 +207,16 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
         });
 
         return reply.status(201).send({
-          id: architect.id,
-          matricula: architect.matricula,
-          nome: architect.nome,
-          nickname: architect.nickname,
-          role: architect.role,
-          instituicao: architect.instituicao
+          message: 'Arquiteto criado com sucesso!',
+          temporaryPassword: rawPassword,
+          architect: {
+            id: architect.id,
+            matricula: architect.matricula,
+            nome: architect.nome,
+            nickname: architect.nickname,
+            role: architect.role,
+            instituicao: architect.instituicao
+          }
         });
       } catch (error: any) {
         if (error.code === 'P2002') {
@@ -345,7 +443,8 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
         return reply.status(404).send({ error: 'Arquiteto não encontrado.' });
       }
 
-      const defaultPassword = await bcrypt.hash('Solen2026', 10);
+      const rawPassword = `Solen#${crypto.randomBytes(4).toString('hex')}`;
+      const defaultPassword = await bcrypt.hash(rawPassword, 10);
       await prisma.user.update({
         where: { id },
         data: { 
@@ -355,7 +454,7 @@ export const superadminRoutes: FastifyPluginAsync = async (fastify: FastifyInsta
         }
       });
 
-      return reply.send({ message: 'Acesso do arquiteto resetado com sucesso! A senha padrão voltou a ser "Solen2026" e ele fará o primeiro acesso novamente.' });
+      return reply.send({ message: `Acesso do arquiteto resetado com sucesso! A nova senha temporária é "${rawPassword}".`, temporaryPassword: rawPassword });
     } catch (error) {
       return reply.status(500).send({ error: 'Erro ao resetar arquiteto.' });
     }

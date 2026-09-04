@@ -131,17 +131,17 @@ export const getPlayerRankInfo = (xp: number) => {
 
 const allAvailableArtifacts = [
   { id: 'sussurros_sabios', name: 'Sussurros Sábios', type: 'legendary', description: 'Envia um pedido de ajuda ao Mestre para liberar uma dica pedagógica. Concede tentativa extra e +50% de XP.' },
-  { id: 'becker_alquimista', name: 'Becker do Alquimista', type: 'legendary', description: 'Consome a essência alquímica para ganhar instantaneamente +500 XP flat!' },
-  { id: 'olhar_monarca', name: 'Olhar do Monarca', type: 'legendary', description: 'Revela os tópicos conceituais e fórmulas conceituais que serão exigidos nas próximas missões do Mini Boss ou Boss Geral.' },
-  { id: 'elixir_dourado', name: 'Elixir Dourado', type: 'epic', description: 'Dobra todo o XP ganho na missão em que for ativado.' },
-  { id: 'pocao_cura', name: 'Poção de Cura', type: 'epic', description: 'Restaura a integridade de uma quest do Baú para 100% de XP, limpando as penalidades de erros.' },
-  { id: 'relogio_tempo', name: 'Relógio Ganha Tempo', type: 'epic', description: 'Estende o prazo de expiração de uma missão ativa por mais 24 horas, evitando que ela expire.' },
+  { id: 'becker_alquimista', name: 'Becker do Alquimista', type: 'legendary', description: 'Concede instantaneamente +500 XP ao jogador.' },
+  { id: 'olhar_monarca', name: 'Olhar do Monarca', type: 'legendary', description: 'Revela o próximo tópico curricular e dicas de estudo. Se a 1ª quest desse tópico for acertada pela Party, todos ganham +25% de XP bônus.' },
+  { id: 'elixir_dourado', name: 'Elixir Dourado', type: 'epic', description: 'Dobra o XP ganho ao acertar a missão ativa (200 XP vira 400 XP).' },
+  { id: 'pocao_cura', name: 'Poção de Cura', type: 'epic', description: 'Remove a penalidade de 25% de uma missão falhada enviada ao Baú.' },
+  { id: 'relogio_tempo', name: 'Relógio Ganha Tempo', type: 'epic', description: 'Adiciona 24 horas adicionais ao prazo limite da missão ativa antes de expirar.' },
   { id: 'anel_serpente', name: 'Anel da Serpente', type: 'epic', description: 'Aumenta a taxa de drop de artefatos em Mini Bosses em +35% para toda a Party durante 7 dias.' },
-  { id: 'lagrima_fenix', name: 'Lágrima da Fênix', type: 'epic', description: 'Reseta as tentativas e o temporizador de uma missão de Mini Boss falhada para permitir nova investida imediata.' },
+  { id: 'lagrima_fenix', name: 'Lágrima da Fênix', type: 'epic', description: 'Reseta o cooldown de erro de uma quest falhada, permitindo nova resposta imediata.' },
   { id: 'bandeira_guerra', name: 'Bandeira de Guerra da Guilda', type: 'epic', description: 'Ao ser fincado, concede +20% de ganho de XP para toda a party nas próximas 24 horas (apenas Party).' },
-  { id: 'orbe_perspicacia', name: 'Orbe de Perspicácia', type: 'epic', description: 'Permite ver o próximo tópico conceitual ou área de conhecimento no caminho de missões da Party/Guilda.' },
-  { id: 'chave_mestra', name: 'Chave Mestra', type: 'epic', description: 'Permite entrar em qualquer party ativa, mesmo se o limite de membros já tiver sido atingido.' },
-  { id: 'cetro_exilio', name: 'Cetro do Exílio', type: 'epic', description: 'Expulsa um invasor indesejado de uma masmorra/party ativa, revertendo XP roubado.' },
+  { id: 'orbe_perspicacia', name: 'Orbe de Perspicácia', type: 'epic', description: 'Dispara um Pack de 3 Quests Nível Difícil do tópico atual para a Party por 24h, com taxa de drop elevada e registro no Mestre.' },
+  { id: 'chave_mestra', name: 'Chave Mestra', type: 'epic', description: 'Permite invadir uma Raid ativa da sua turma, mesmo que o grupo esteja completo.' },
+  { id: 'cetro_exilio', name: 'Cetro do Exílio', type: 'epic', description: 'Bane um invasor da Party e reverte a transferência de XP.' },
   { id: 'sapatilhas_veloz', name: 'Sapatilhas do Mundo Lento', type: 'magic', description: 'Reduz a dificuldade da missão diária ativa em 1 nível (não afeta Bosses).' },
   { id: 'martelo_magico', name: 'Martelo Mágico', type: 'magic', description: 'Decompõe o problema ativo em passos lógicos de raciocínio lógico/pedagógico sequencial.' },
   { id: 'poeira_estelar', name: 'Poeira Estelar', type: 'magic', description: 'Elimina uma das alternativas incorretas em missões de Múltipla Escolha.' },
@@ -353,7 +353,7 @@ export function usePlayerState() {
         }
 
         setRankUpMessage(
-          `Parabéns Caçador! Você ascendeu para o Rank "${newRankInfo.currentRank}"!\nSeu poder acaba de invocar um novo artefato de poder para o seu inventário!`
+          `Parabéns Caçador! Você ascendeu para o Rank "${newRankInfo.currentRank}"!\nSeu progresso acaba de conceder um novo artefato de poder para o seu inventário!`
         );
         setShowRankUp(true);
         sounds.playSuccess?.() || sounds.playSelect();
@@ -1223,7 +1223,7 @@ export function usePlayerState() {
       loadPartyData();
     } catch (e: any) {
       const msg = e?.response?.data?.error || e?.message || 'Erro ao criar grupo.';
-      showAlert('FALHA DE INVOCAÇÃO', msg, 'error');
+      showAlert('FALHA DE CRIAÇÃO DE GRUPO', msg, 'error');
     } finally {
       setLoadingParty(false);
     }

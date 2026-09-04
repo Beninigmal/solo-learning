@@ -30,6 +30,29 @@ export const HistoricoTab: React.FC<HistoricoTabProps> = ({
           <View className="gap-4">
             {history.map(item => (
               <View key={item.id} className="bg-[#0a1128]/90 border border-neonBlue/30 p-4 rounded-sm">
+                {item.unlockedByArtifact === 'ORBE_PERSPICACIA' && (
+                  <View className="bg-purple-950/90 border border-purple-400 p-3 rounded-sm mb-3">
+                    <View className="flex-row items-center gap-2 mb-1">
+                      <Feather name="zap" size={14} color="#c084fc" />
+                      <Text className="text-purple-300 font-bold text-xs uppercase font-mono tracking-wider">
+                        🔮 PACK DE APROFUNDAMENTO (GERADO POR ARTEFATO)
+                      </Text>
+                    </View>
+                    {item.partyMembersSnapshotJson && (() => {
+                      try {
+                        const members = JSON.parse(item.partyMembersSnapshotJson);
+                        return (
+                          <Text className="text-purple-200/80 text-[10px] font-mono mt-1">
+                            👥 Integrantes Registrados na Ativação da Party: {members.map((m: any) => m.nome).join(', ')}
+                          </Text>
+                        );
+                      } catch (e) {
+                        return null;
+                      }
+                    })()}
+                  </View>
+                )}
+
                 <View className="flex-row justify-between items-center mb-2">
                   <Text className="text-white font-bold">Semana {item.semana}</Text>
                   <Text className="text-neonBlue text-xs uppercase font-bold">{item.turmaAlvo?.nome}</Text>

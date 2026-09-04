@@ -32,6 +32,16 @@ const BOUNTY_ARTIFACTS = [
   'chronomancia_netheril'
 ];
 
+function escapeHtml(unsafe: string): string {
+  if (!unsafe) return '';
+  return String(unsafe)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 async function sendBugEmail(bugDetail: any) {
   const { developerEmail = 'beninigmal@gmail.com', studentName, studentMatricula, turma, institution, description, imageUrl, ticketCode } = bugDetail;
 
@@ -89,19 +99,26 @@ async function sendBugEmail(bugDetail: any) {
       });
     }
 
+    const safeDescription = escapeHtml(description).replace(/\n/g, '<br/>');
+    const safeStudentName = escapeHtml(studentName);
+    const safeStudentMatricula = escapeHtml(studentMatricula);
+    const safeTurma = escapeHtml(turma);
+    const safeInstitution = escapeHtml(institution);
+    const safeTicketCode = escapeHtml(ticketCode);
+
     const mailOptions = {
       from: `"Solen Bounty Hunter" <${process.env.SMTP_USER}>`,
       to: developerEmail,
       subject: `${ticketCode} Novo Bug Reportado por ${studentName}`,
       attachments,
       html: `
-        <h2>🚨 Caçador de Bugs - Novo Relato (${ticketCode})</h2>
-        <p><strong>Caçador (Aluno):</strong> ${studentName} (${studentMatricula})</p>
-        <p><strong>Turma:</strong> ${turma}</p>
-        <p><strong>Instituição:</strong> ${institution}</p>
+        <h2>🚨 Caçador de Bugs - Novo Relato (${safeTicketCode})</h2>
+        <p><strong>Caçador (Aluno):</strong> ${safeStudentName} (${safeStudentMatricula})</p>
+        <p><strong>Turma:</strong> ${safeTurma}</p>
+        <p><strong>Instituição:</strong> ${safeInstitution}</p>
         <p><strong>Descrição do Bug:</strong></p>
         <blockquote style="background: #f4f4f4; padding: 15px; border-left: 5px solid #00f3ff;">
-          ${description.replace(/\n/g, '<br/>')}
+          ${safeDescription}
         </blockquote>
         ${imageUrl ? `<p><strong>Anexo:</strong> Screenshot enviado em anexo a este e-mail.</p>` : '<p><em>Nenhuma imagem anexada.</em></p>'}
       `
@@ -191,7 +208,9 @@ export const bountyRoutes: FastifyPluginAsync = async (fastify: FastifyInstance)
   // Get active wanted bugs (wanted posters for students/all roles)
   fastify.get('/active', async (request, reply) => {
     try {
+      const userInst = request.user.instituicao;
       const bugs = await prisma.bountyBug.findMany({
+        where: request.user.role === 'ADMIN' ? {} : (userInst ? { instituicao: userInst } : {}),
         include: {
           user: {
             select: {

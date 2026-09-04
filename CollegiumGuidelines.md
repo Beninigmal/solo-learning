@@ -1,6 +1,6 @@
-# 🛡️ Solen High-Fidelity UI & Architecture Guidelines
+# 🛡️ Collegium High-Fidelity UI & Architecture Guidelines
 
-Este documento reúne todas as diretrizes de design, paleta de cores, componentes e regras de arquitetura que estruturam o aplicativo **Solen (Solo Learning)**. Ele serve como o guia oficial de contexto para que novas funcionalidades sempre sigam a identidade premium inspirada no sistema de "Solo Leveling".
+Este documento reúne todas as diretrizes de design, paleta de cores, componentes e regras de arquitetura que estruturam o aplicativo **Collegium**. Ele serve como o guia oficial de contexto para que novas funcionalidades sempre sigam a identidade premium inspirada no universo cibernético e gamificado.
 
 ---
 
@@ -57,7 +57,7 @@ Todos os campos de texto seguem um padrão visual centralizado, com borda neon e
 ## 💾 3. Diretrizes de Desenvolvimento e DRY
 *   **Evitar Repetição de Código**: Reutilize sempre as classes utilitárias do Nativewind/Tailwind já declaradas e estabelecidas no projeto.
 *   **Componentes Compartilhados**:
-    *   **Alertas**: Utilize sempre o componente `<SystemAlert />` importado de `../../components/SystemAlert` para exibir avisos e modais customizados com o visual Solo Leveling, evitando `Alert.alert` do SO.
+    *   **Alertas**: Utilize sempre o componente `<SystemAlert />` importado de `../../components/SystemAlert` para exibir avisos e modais customizados com o visual Collegium, evitando `Alert.alert` do SO.
     *   **Submissões**: Utilize `<CyberSubmitButton />` importado de `../../components/CyberSubmitButton` para garantir loaders integrados e estilo cibernético nos botões de salvamento.
 
 ---
@@ -65,12 +65,12 @@ Todos os campos de texto seguem um padrão visual centralizado, com borda neon e
 ## ⚙️ 4. Regras de Negócio e Arquitetura de Dados
 
 ### A. Multi-tenant (Instituição)
-A separação de dados escolares é realizada através da coluna string `instituicao` nas tabelas `User`, `Turma` e `Disciplina`.
-*   O **Arquiteto** possui a coluna `instituicao` populada com a escola correspondente.
+A separação de dados escolares é realizada através da coluna string `instituicao` ou `institutionId` nas tabelas do sistema.
+*   O **Arquiteto** possui vínculo com a escola correspondente.
 *   Ao logar, o Arquiteto e o Mestre filtram automaticamente turmas, alunos e disciplinas baseados estritamente na instituição da qual fazem parte.
 
 ### B. Permissões de Perfis (Roles)
-*   `ADMIN` (Superadmin/Diretor da Matrix): Acesso global.
+*   `ADMIN` (Superadmin): Acesso global.
 *   `ARQUITETO` (Coordenação Acadêmica): Responsável por criar turmas, professores, matérias e configurar a grade de horários.
 *   `PROFESSOR` (Mestre): Responsável por gerar quests e visualizar sua agenda.
 *   `ALUNO` (Caçador/Player): Consome as quests e visualiza o cronograma escolar.
@@ -80,6 +80,9 @@ Para acomodar turnos na mesma tabela sem precisar de migrations, utilizamos índ
 *   **MATUTINO**: Posições `1` a `5`.
 *   **VESPERTINO**: Posições `6` a `10` (Exibido no front como 1º ao 5º horário da tarde).
 *   **NOTURNO**: Posições `11` a `15` (Exibido no front como 1º ao 5º horário da noite).
+
+### D. Isenção de Cunho Religioso e Caráter Lúdico
+Todas as nomenclaturas, títulos, temas e mecânicas inspiradas em RPG possuem caráter estritamente fictício, lúdico e educacional, com o propósito exclusivo de engajamento pedagógico, sem qualquer vínculo, conotação ou cunho religioso, espiritual ou ideológico.
 
 ---
 

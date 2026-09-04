@@ -8,6 +8,8 @@ import { ordinatorRoutes } from './routes/ordinator';
 import { webhookRoutes } from './routes/webhooks';
 import { logsRoutes } from './routes/logs';
 import { bountyRoutes } from './routes/bounty';
+import { bossRoutes } from './routes/boss';
+import { curriculumRoutes } from './routes/curriculum';
 
 import cors from '@fastify/cors';
 import authPlugin from './plugins/auth';
@@ -20,8 +22,12 @@ const server = Fastify({
 });
 
 // Registrando plugins
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+  : '*';
+
 server.register(cors, {
-  origin: '*',
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
 });
@@ -38,6 +44,8 @@ server.register(superadminRoutes, { prefix: '/superadmin' });
 server.register(webhookRoutes, { prefix: '/webhooks' });
 server.register(logsRoutes, { prefix: '/logs' });
 server.register(bountyRoutes, { prefix: '/bounty' });
+server.register(bossRoutes, { prefix: '/boss' });
+server.register(curriculumRoutes, { prefix: '/curriculum' });
 
 
 import { autoMigrateInstitutions } from './utils/autoMigrate';

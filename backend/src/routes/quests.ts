@@ -559,6 +559,26 @@ Regras:
     }
 
     try {
+      const existingQuest = await prisma.quest.findUnique({
+        where: { id },
+        select: { id: true, turmaAlvoId: true, disciplinaId: true }
+      });
+      if (!existingQuest) {
+        return reply.status(404).send({ error: 'Quest não encontrada.' });
+      }
+
+      if (request.user.role === 'PROFESSOR') {
+        const link = await prisma.turmaDisciplina.findFirst({
+          where: {
+            professorId: request.user.id,
+            ...(existingQuest.turmaAlvoId ? { turmaId: existingQuest.turmaAlvoId } : {})
+          }
+        });
+        if (!link) {
+          return reply.status(403).send({ error: 'Acesso negado: Você não leciona nesta turma.' });
+        }
+      }
+
       const updated = await prisma.quest.update({
         where: { id },
         data: { enunciado: enunciado.trim() }
@@ -570,6 +590,7 @@ Regras:
       return reply.status(500).send({ error: 'Erro ao atualizar quest.', details: error.message });
     }
   });
+
   // ─── POST /quests/mock-boss ────────────────────────────────────────────────
   fastify.post<{ Body: { turmaId: string; tema: string; semana: string; duracaoDias?: number } }>('/mock-boss', { preValidation: [fastify.authenticate] }, async (request, reply) => {
     if (request.user.role !== 'PROFESSOR' && request.user.role !== 'ADMIN') {
@@ -582,6 +603,15 @@ Regras:
     try {
       const turma = await prisma.turma.findUnique({ where: { id: turmaId } });
       if (!turma) return reply.status(404).send({ error: 'Turma não encontrada.' });
+
+      if (request.user.role === 'PROFESSOR') {
+        const link = await prisma.turmaDisciplina.findFirst({
+          where: { turmaId, professorId: request.user.id }
+        });
+        if (!link) {
+          return reply.status(403).send({ error: 'Acesso negado: Você não leciona nesta turma.' });
+        }
+      }
 
       let disciplina = await prisma.disciplina.findFirst({ where: { nome: 'Missões Gerais', instituicao: request.user.instituicao || null } });
       if (!disciplina) {
@@ -665,10 +695,10 @@ Exemplo de formato esperado:
         }
       }
 
-      return reply.status(201).send({ message: 'BOSS invocado com sucesso!', batchId });
+      return reply.status(201).send({ message: 'BOSS ativado com sucesso!', batchId });
     } catch (error: any) {
       request.log.error(error);
-      return reply.status(500).send({ error: 'Erro ao invocar BOSS com IA.', details: error.message });
+      return reply.status(500).send({ error: 'Erro ao ativar BOSS com IA.', details: error.message });
     }
   });
   // ─── POST /quests/wait ─────────────────────────────────────────────────────
@@ -841,7 +871,7 @@ Exemplo de formato esperado:
       return reply.status(404).send({ error: 'Todas as dungeons desta matéria estão seladas no momento.' });
     } catch (error: any) {
       request.log.error(error);
-      return reply.status(500).send({ error: 'Erro ao invocar missão.', details: error.message });
+      return reply.status(500).send({ error: 'Erro ao ativar missão.', details: error.message });
     }
   });
 
@@ -2808,7 +2838,7 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
     try {
       const student = await prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, nome: true, turmaId: true }
+        select: { id: true, nome: true, turmaId: true, institutionId: true, instituicao: true }
       });
 
       console.log(`[Backend] Student found:`, student);
@@ -2816,6 +2846,17 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       if (!student || !student.turmaId) {
         console.log(`[Backend] Student has no turmaId or was not found.`);
         return reply.send([]);
+      }
+
+      // Validação de Tenant: PROFESSOR e ARQUITETO só podem ver alunos da própria instituição
+      if (request.user.role !== 'ADMIN') {
+        const callerInstId = request.user.institutionId;
+        const callerInstName = request.user.instituicao;
+        const isSameTenant = (callerInstId && student.institutionId === callerInstId) ||
+                             (callerInstName && student.instituicao === callerInstName);
+        if (!isSameTenant) {
+          return reply.status(403).send({ error: 'Acesso negado. O aluno não pertence à sua instituição.' });
+        }
       }
 
       const turmaDisciplinas = await prisma.turmaDisciplina.findMany({
@@ -3077,9 +3118,22 @@ Seja inteligente e flexível na correspondência de letras e textos!`;
       }
       const { id } = request.params;
       const { unidade } = request.body;
-      if (unidade < 1 || unidade > 3) {
-        return reply.status(400).send({ error: 'Unidade inválida. Escolha entre 1, 2 ou 3.' });
+
+      const turma = await prisma.turma.findUnique({
+        where: { id },
+        include: { institution: true }
+      });
+      if (!turma) {
+        return reply.status(404).send({ error: 'Turma não encontrada.' });
       }
+
+      const maxUnidades = turma.institution?.qtdUnidades || 3;
+      if (unidade < 1 || unidade > maxUnidades) {
+        return reply.status(400).send({
+          error: `Período letivo inválido. Deve ser entre 1 e ${maxUnidades}.`
+        });
+      }
+
       const updated = await prisma.turma.update({
         where: { id },
         data: { unidade }
@@ -5702,29 +5756,51 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
         }
 
         if (artifactId === 'olhar_monarca') {
-          const activeQuests = await prisma.quest.findMany({
-            where: {
-              turmaAlvoId: user.turmaId || undefined,
-              status: 'ATIVA',
-              deliveries: {
-                none: {
-                  userId,
-                  status: 'COMPLETED'
-                }
-              }
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 3
+          const raidParticipant = await prisma.raidParticipant.findFirst({
+            where: { userId, raid: { status: 'OPEN' } },
+            include: { raid: true }
           });
 
-          const topics = activeQuests.length > 0
-            ? activeQuests.map(q => q.tema || q.enunciado.substring(0, 45) + '...').join(', ')
-            : 'Equações Quadráticas, Crase Gramatical, Leis de Newton';
+          const userObj = await prisma.user.findUnique({ where: { id: userId } });
+          const userTurma = userObj?.turmaId
+            ? await prisma.turma.findUnique({
+                where: { id: userObj.turmaId },
+                include: {
+                  turmaDisciplinas: {
+                    include: { disciplina: { include: { topicos: { orderBy: { ordem: 'asc' } } } } }
+                  }
+                }
+              })
+            : null;
+
+          let nextTopic: any = null;
+          if (userTurma && userTurma.turmaDisciplinas.length > 0) {
+            for (const td of userTurma.turmaDisciplinas) {
+              if (td.disciplina?.topicos && td.disciplina.topicos.length > 0) {
+                nextTopic = td.disciplina.topicos[0];
+                break;
+              }
+            }
+          }
+
+          const topicName = nextTopic?.nome || 'Equações Quadráticas e Geometria Espacial';
+          const tips = nextTopic?.dicasEstudo || 'Revisar fórmulas principais e propriedades operatórias.';
+
+          if (raidParticipant) {
+            await prisma.raid.update({
+              where: { id: raidParticipant.raidId },
+              data: {
+                firstQuestBonusTopicId: nextTopic?.id || null,
+                firstQuestBonusTopicName: topicName,
+                firstQuestBonusActive: true
+              }
+            });
+          }
 
           await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({
             success: true,
-            message: `Sua visão brilha com o Olhar do Monarca! As próximas ameaças envolverão os seguintes tópicos: ${topics}. Prepare-se!`
+            message: `👁️ Visão do Futuro ativada com o Olhar do Monarca!\n\nPróximo Tópico Curricular: "${topicName}"\n💡 Dica de Estudo: ${tips}\n\n✨ Bônus de Party: Se a 1ª quest desse tópico for respondida corretamente por qualquer membro do grupo, todos ganham +25% de XP Bônus!`
           });
         }
 
@@ -5791,17 +5867,101 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
         }
 
         if (artifactId === 'orbe_perspicacia') {
-          const nextDelivery = await prisma.questDelivery.findFirst({
-            where: { userId, status: 'SCHEDULED' },
-            include: { quest: { include: { disciplina: true } } },
-            orderBy: { scheduledAt: 'asc' }
+          const raidParticipant = await prisma.raidParticipant.findFirst({
+            where: { userId, raid: { status: 'OPEN' } },
+            include: {
+              raid: {
+                include: {
+                  participantes: {
+                    include: { user: { select: { id: true, nome: true } } }
+                  }
+                }
+              }
+            }
           });
 
-          const topic = nextDelivery?.quest?.tema || nextDelivery?.quest?.disciplina?.nome || 'Estudos Gerais (Mini Boss)';
+          if (!raidParticipant) {
+            return reply.status(400).send({
+              error: 'O Orbe de Perspicácia exige a energia de uma guilda! Você precisa estar em uma Party ativa para ativar o Pack de Aprofundamento.'
+            });
+          }
+
+          const partyMembers = raidParticipant.raid.participantes.map((p) => ({
+            id: p.user.id,
+            nome: p.user.nome
+          }));
+          const partyMembersSnapshotJson = JSON.stringify(partyMembers);
+
+          const userObj = await prisma.user.findUnique({ where: { id: userId } });
+          let disciplinaIdTarget = '';
+          let topicName = 'Aprofundamento Geral';
+
+          if (userObj?.turmaId) {
+            const turmaDisc = await prisma.turmaDisciplina.findFirst({
+              where: { turmaId: userObj.turmaId },
+              include: { disciplina: { include: { topicos: { orderBy: { ordem: 'asc' } } } } }
+            });
+            if (turmaDisc) {
+              disciplinaIdTarget = turmaDisc.disciplinaId;
+              if (turmaDisc.disciplina.topicos && turmaDisc.disciplina.topicos.length > 0) {
+                topicName = turmaDisc.disciplina.topicos[0].nome;
+              } else {
+                topicName = turmaDisc.disciplina.nome;
+              }
+            }
+          }
+
+          if (!disciplinaIdTarget) {
+            const firstDisc = await prisma.disciplina.findFirst();
+            disciplinaIdTarget = firstDisc?.id || '';
+          }
+
+          const expires24h = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 horas
+
+          // Gerar Pack de 3 Quests de Nível Difícil (XP 300 padrão de quest difícil)
+          const questBatchData = [1, 2, 3].map((idx) => ({
+            disciplinaId: disciplinaIdTarget,
+            enunciado: `[PACK DE APROFUNDAMENTO - QUEST ${idx}/3] Abordando ${topicName}: Resolva a questão avançada de fixação com base nos conceitos aprendidos.`,
+            gabarito: 'A',
+            xp: 300, // XP padrão de nível difícil
+            nivel: 'DIFICIL',
+            status: 'ATIVA',
+            tema: topicName,
+            tags: ['PACK_APROFUNDAMENTO', 'ORBE_PERSPICACIA'],
+            turmaAlvoId: userObj?.turmaId || null,
+            expiresAt: expires24h,
+            unlockedByArtifact: 'ORBE_PERSPICACIA',
+            unlockedByPartyId: raidParticipant.raidId,
+            partyMembersSnapshotJson
+          }));
+
+          const createdQuests = await prisma.$transaction(
+            questBatchData.map((q) => prisma.quest.create({ data: q }))
+          );
+
+          // Criar QuestDeliveries para os membros da Party
+          const deliveriesData: any[] = [];
+          for (const q of createdQuests) {
+            for (const member of partyMembers) {
+              deliveriesData.push({
+                questId: q.id,
+                userId: member.id,
+                status: 'DELIVERED',
+                scheduledAt: now,
+                deliveredAt: now,
+                expiresAt: expires24h
+              });
+            }
+          }
+
+          if (deliveriesData.length > 0) {
+            await prisma.questDelivery.createMany({ data: deliveriesData, skipDuplicates: true });
+          }
+
           await consumeArtifactIfPresent(userId, artifactId);
           return reply.send({
             success: true,
-            message: `A Orbe de Perspicácia canaliza energia e revela: seu próximo desafio acadêmico abordará o tópico: "${topic}".`
+            message: `🔮 Orbe de Perspicácia ativada!\n\nUm Pack Especial de 3 Quests de Nível Difícil (${topicName}) foi gerado para a sua Party com validade de 24 horas.\n\n✨ Todas as 3 quests concedem XP de nível difícil e alta chance de drop de artefatos!`
           });
         }
 
@@ -5940,7 +6100,7 @@ Retorne APENAS o texto da dica pedagógica gerada, sem nenhum outro elemento.`;
 
           if (!activeRaidParticipant) {
             return reply.status(400).send({
-              error: 'A Pedra de Chronomancia de Netheril exige a ressonância de uma guilda! Você precisa estar em uma Party ativa para invocar a Esfera Cronológica.'
+              error: 'A Pedra de Chronomancia de Netheril exige a ressonância de uma guilda! Você precisa estar em uma Party ativa para ativar a Esfera Cronológica.'
             });
           }
 

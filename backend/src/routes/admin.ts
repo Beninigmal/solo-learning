@@ -21,19 +21,74 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     }
   });
 
+  // ─── GESTÃO DO REGIME LETIVO DA INSTITUIÇÃO ─────────────────────────────
+  fastify.get('/institution/current', async (request, reply) => {
+    try {
+      const instId = request.user.institutionId;
+      const inst = instId
+        ? await prisma.institution.findUnique({ where: { id: instId } })
+        : await prisma.institution.findFirst({ where: { nome: request.user.instituicao } });
+      if (!inst) {
+        return reply.status(404).send({ error: 'Instituição não encontrada.' });
+      }
+      return reply.status(200).send(inst);
+    } catch (e: any) {
+      return reply.status(500).send({ error: 'Erro ao buscar dados da instituição.' });
+    }
+  });
+
+  fastify.patch<{ Body: { qtdUnidades: number; tipoDivisao: string } }>('/institution/regime-letivo', async (request, reply) => {
+    const { qtdUnidades, tipoDivisao } = request.body;
+    const instId = request.user.institutionId;
+
+    try {
+      const inst = instId
+        ? await prisma.institution.findUnique({ where: { id: instId } })
+        : await prisma.institution.findFirst({ where: { nome: request.user.instituicao } });
+      if (!inst) {
+        return reply.status(404).send({ error: 'Instituição não encontrada.' });
+      }
+
+      if (inst.tipo === 'MUNICIPAL' || inst.tipo === 'ESTADUAL') {
+        return reply.status(400).send({ error: 'Instituições públicas seguem o regime padrão MEC fixado em 3 unidades.' });
+      }
+
+      if (!qtdUnidades || qtdUnidades < 1 || qtdUnidades > 6) {
+        return reply.status(400).send({ error: 'A quantidade de períodos deve ser entre 1 e 6.' });
+      }
+
+      const validDivisoes = ['UNIDADE', 'BIMESTRE', 'TRIMESTRE', 'SEMESTRE'];
+      const finalDivisao = validDivisoes.includes(tipoDivisao) ? tipoDivisao : 'UNIDADE';
+
+      const updated = await prisma.institution.update({
+        where: { id: inst.id },
+        data: {
+          qtdUnidades,
+          tipoDivisao: finalDivisao,
+        }
+      });
+
+      await logAction('Regime Letivo Atualizado', `Regime alterado para ${qtdUnidades} ${finalDivisao}s`, request.user.id, inst.id);
+
+      return reply.status(200).send(updated);
+    } catch (e: any) {
+      return reply.status(500).send({ error: 'Erro ao atualizar regime letivo.' });
+    }
+  });
+
   // ─── GESTÃO DE MESTRES ──────────────────────────────────────────────────
 
   // Criar Mestre
-  fastify.post<{ Body: { matricula: string; nome: string; novaMateria?: string; maxAulasSemanais?: number; categoria?: string } }>('/masters', async (request, reply) => {
-    const { matricula, nome, novaMateria, maxAulasSemanais, categoria } = request.body;
+  fastify.post<{ Body: { matricula: string; nome: string; password?: string; novaMateria?: string; maxAulasSemanais?: number; categoria?: string } }>('/masters', async (request, reply) => {
+    const { matricula, nome, password, novaMateria, maxAulasSemanais, categoria } = request.body;
     const instituicao = request.user.instituicao!;
 
-    if (!matricula || !nome) {
-      return reply.status(400).send({ error: 'Matrícula e Nome são obrigatórios.' });
+    if (!matricula || !nome || !password || !password.trim()) {
+      return reply.status(400).send({ error: 'Matrícula, Nome e Senha são obrigatórios para cadastrar um Mestre.' });
     }
 
     try {
-      const defaultPassword = await bcrypt.hash('1234', 10);
+      const defaultPassword = await bcrypt.hash(password.trim(), 10);
       
       // Se tiver nova matéria, criar ou buscar
       if (novaMateria) {
@@ -226,11 +281,12 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         finalNivel = 'FUNDAMENTAL';
       }
 
+      const randomCode = Math.floor(1000 + Math.random() * 9000).toString();
       const turma = await prisma.turma.create({
         data: {
           nome: formattedNome,
           ano: ano.trim(),
-          codigoInvocacao: codigoInvocacao ? codigoInvocacao.trim() : "1234",
+          codigoInvocacao: (codigoInvocacao && codigoInvocacao.trim()) ? codigoInvocacao.trim() : randomCode,
           nivel: finalNivel,
           instituicao,
           institutionId: request.user.institutionId || null
@@ -249,6 +305,9 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     const turmas = await prisma.turma.findMany({
       where: { instituicao },
       include: {
+        institution: {
+          select: { id: true, nome: true, tipo: true, qtdUnidades: true, tipoDivisao: true }
+        },
         users: {
           where: { role: 'ALUNO' },
           orderBy: { nome: 'asc' }
@@ -527,19 +586,27 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       });
 
       if (existingStudent) {
-        // Atualiza a turma e turno do aluno existente
+        const callerInstId = request.user.institutionId;
+        const callerInstName = request.user.instituicao;
+        const isSameInst = (callerInstId && existingStudent.institutionId === callerInstId) ||
+                           (callerInstName && existingStudent.instituicao === callerInstName);
+
+        if (!isSameInst) {
+          return reply.status(403).send({ error: 'Acesso negado. A matrícula informada pertence a um aluno de outra instituição.' });
+        }
+
+        // Atualiza a turma e turno do aluno existente da mesma instituição
         const updatedStudent = await prisma.user.update({
           where: { id: existingStudent.id },
           data: {
             turmaId,
-            turno,
-            instituicao: request.user.instituicao,
-            institutionId: request.user.institutionId || null
+            turno
           }
         });
         return reply.status(200).send(updatedStudent);
       }
 
+      const initialPasswordHash = await bcrypt.hash('SUMMONING_CODE', 10);
       const student = await prisma.user.create({
         data: {
           matricula: matricula.toLowerCase().trim(),
@@ -547,7 +614,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           role: 'ALUNO',
           turmaId,
           turno,
-          password: 'INITIAL_SUMMONING_CODE_LOGIN', // Placeholder
+          password: initialPasswordHash, // Hash seguro para primeiro acesso
           isFirstAccess: true,
           instituicao: request.user.instituicao,
           institutionId: request.user.institutionId || null
@@ -601,12 +668,13 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
                 finalNivel = 'MEDIO';
              }
            }
+           const randomCode = Math.floor(1000 + Math.random() * 9000).toString();
            turma = await prisma.turma.create({
               data: {
                  nome: turmaName,
                  ano: String(new Date().getFullYear()),
                  nivel: finalNivel,
-                 codigoInvocacao: '1234',
+                 codigoInvocacao: randomCode,
                  instituicao: request.user.instituicao,
                  institutionId: request.user.institutionId || null
               }
@@ -620,6 +688,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
 
       let createdCount = 0;
       let errors: string[] = [];
+      const batchPasswordHash = await bcrypt.hash('SUMMONING_CODE', 10);
 
       for (const s of students) {
         if (!s.nome || !s.matricula) {
@@ -635,7 +704,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
               role: 'ALUNO',
               turno: s.turno || 'MATUTINO',
               turmaId: turma.id,
-              password: 'SUMMONING_CODE',
+              password: batchPasswordHash,
               isFirstAccess: true,
               instituicao: request.user.instituicao,
               institutionId: request.user.institutionId || null
@@ -644,7 +713,19 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           createdCount++;
         } catch (e: any) {
           if (e.code === 'P2002') {
-            errors.push(`Matrícula ${s.matricula} já existe.`);
+            const existing = await prisma.user.findUnique({
+              where: { matricula: s.matricula.toLowerCase().trim() },
+              select: { instituicao: true, institutionId: true }
+            });
+            const callerInstId = request.user.institutionId;
+            const callerInstName = request.user.instituicao;
+            const isSameInst = existing && ((callerInstId && existing.institutionId === callerInstId) ||
+                                           (callerInstName && existing.instituicao === callerInstName));
+            if (!isSameInst) {
+              errors.push(`Matrícula ${s.matricula} pertence a outra instituição.`);
+            } else {
+              errors.push(`Matrícula ${s.matricula} já está cadastrada nesta instituição.`);
+            }
           } else {
             errors.push(`Erro ao criar ${s.nome}: ${e.message}`);
           }
@@ -668,6 +749,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     const { id } = request.params;
 
     try {
+      const resetPasswordHash = await bcrypt.hash('SUMMONING_CODE', 10);
       await prisma.user.update({
         where: { 
           id, 
@@ -677,7 +759,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         data: { 
           isFirstAccess: true,
           nickname: null,
-          password: 'RESET_TO_SUMMONING_CODE'
+          password: resetPasswordHash
         }
       });
       return reply.send({ message: 'Acesso do aluno resetado com sucesso! Ele deve usar o Código de Invocação da Turma.' });
@@ -687,12 +769,17 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
   });
 
   // Resetar Mestre (Voltar para primeiro acesso)
-  fastify.post<{ Params: { id: string } }>('/masters/:id/reset', async (request, reply) => {
+  fastify.post<{ Params: { id: string }; Body: { newPassword?: string } }>('/masters/:id/reset', async (request, reply) => {
     const { id } = request.params;
+    const { newPassword } = (request.body as any) || {};
     const instituicao = request.user.instituicao!;
 
+    if (!newPassword || !newPassword.trim()) {
+      return reply.status(400).send({ error: 'A nova senha do professor é obrigatória para efetuar o reset.' });
+    }
+
     try {
-      const defaultPassword = await bcrypt.hash('1234', 10);
+      const defaultPassword = await bcrypt.hash(newPassword.trim(), 10);
       await prisma.user.update({
         where: { 
           id, 
@@ -1044,9 +1131,11 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
 
       try {
         let targetInst: any = null;
-        if (institutionId) {
+        const isSuperAdmin = request.user.role === 'ADMIN';
+
+        if (isSuperAdmin && institutionId) {
           targetInst = await prisma.institution.findUnique({ where: { id: institutionId } });
-        } else if (targetInstName) {
+        } else if (isSuperAdmin && targetInstName) {
           targetInst = await prisma.institution.findUnique({ where: { nome: targetInstName } });
         } else if (request.user.institutionId) {
           targetInst = await prisma.institution.findUnique({ where: { id: request.user.institutionId } });
@@ -1322,7 +1411,13 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         };
         if (disciplinaId) deliveryWhere.quest = { disciplinaId };
 
-        const unitPerformance = await Promise.all([1, 2, 3].map(async (u) => {
+        const inst = request.user.institutionId
+          ? await prisma.institution.findUnique({ where: { id: request.user.institutionId }, select: { qtdUnidades: true, tipoDivisao: true } })
+          : await prisma.institution.findFirst({ where: { nome: instituicao }, select: { qtdUnidades: true, tipoDivisao: true } });
+        const maxU = inst?.qtdUnidades || 3;
+        const unitsList = Array.from({ length: maxU }, (_, i) => i + 1);
+
+        const unitPerformance = await Promise.all(unitsList.map(async (u) => {
           const uTurmas = turmas.filter(t => t.unidade === u).map(t => t.id);
           if (uTurmas.length === 0) return { unidade: u, total: 0, correct: 0, hitRate: 0 };
 

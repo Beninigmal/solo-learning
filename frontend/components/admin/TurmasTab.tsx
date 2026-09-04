@@ -490,7 +490,7 @@ export function TurmasTab({
 
         <TextInput
           className="w-full bg-black/50 border border-neonBlue/50 text-white text-center text-base py-3 rounded-sm mb-4"
-          placeholder="Código de Invocação (Padrão: 1234)"
+          placeholder="Código da Party (Padrão: 1234)"
           placeholderTextColor="#00f3ff40"
           value={turmaCodigo}
           onChangeText={setTurmaCodigo}
@@ -570,33 +570,57 @@ export function TurmasTab({
                   >
                     <Feather name="edit-2" size={12} color="#00f3ff" />
                   </TouchableOpacity>
-                  <View className="bg-neonBlue/10 border border-neonBlue/30 px-2 py-1.5 rounded-sm">
-                    <Text className="text-neonBlue font-bold text-[10px] uppercase">Unidade {t.unidade || 1}</Text>
-                  </View>
+                  {(() => {
+                    const tipoDiv = t.institution?.tipoDivisao || 'UNIDADE';
+                    const getUnitFullName = (num: number) => {
+                      if (tipoDiv === 'BIMESTRE') return `${num}º Bimestre`;
+                      if (tipoDiv === 'TRIMESTRE') return `${num}º Trimestre`;
+                      if (tipoDiv === 'SEMESTRE') return `${num}º Semestre`;
+                      return `Unidade ${num}`;
+                    };
+                    return (
+                      <View className="bg-neonBlue/10 border border-neonBlue/30 px-2 py-1.5 rounded-sm">
+                        <Text className="text-neonBlue font-bold text-[10px] uppercase">{getUnitFullName(t.unidade || 1)}</Text>
+                      </View>
+                    );
+                  })()}
                 </View>
               </View>
 
               {/* Unidade Selector Grid */}
-              <View className="flex-row items-center justify-between border-t border-neonBlue/10 pt-3">
-                <Text className="text-white/40 text-[10px] font-bold uppercase tracking-wider">Definir Unidade:</Text>
-                <View className="flex-row gap-1">
-                  {[1, 2, 3].map((unit) => (
-                    <TouchableOpacity
-                      key={unit}
-                      onPress={() => { handleUpdateUnidade(t.id, unit); sounds.playSelect(); }}
-                      className={`w-8 h-8 rounded-sm items-center justify-center border ${
-                        (t.unidade || 1) === unit
-                          ? 'bg-neonBlue/30 border-neonBlue'
-                          : 'bg-black/50 border-neonBlue/20'
-                      }`}
-                    >
-                      <Text className={`font-bold text-xs ${(t.unidade || 1) === unit ? 'text-white' : 'text-neonBlue/50'}`}>
-                        {unit}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
+              {(() => {
+                const maxUnits = t.institution?.qtdUnidades || 3;
+                const tipoDiv = t.institution?.tipoDivisao || 'UNIDADE';
+                const unitsArray = Array.from({ length: maxUnits }, (_, i) => i + 1);
+                const getLabel = () => {
+                  if (tipoDiv === 'BIMESTRE') return 'Definir Bimestre:';
+                  if (tipoDiv === 'TRIMESTRE') return 'Definir Trimestre:';
+                  if (tipoDiv === 'SEMESTRE') return 'Definir Semestre:';
+                  return 'Definir Unidade:';
+                };
+                return (
+                  <View className="flex-row items-center justify-between border-t border-neonBlue/10 pt-3">
+                    <Text className="text-white/40 text-[10px] font-bold uppercase tracking-wider">{getLabel()}</Text>
+                    <View className="flex-row gap-1">
+                      {unitsArray.map((unit) => (
+                        <TouchableOpacity
+                          key={unit}
+                          onPress={() => { handleUpdateUnidade(t.id, unit); sounds.playSelect(); }}
+                          className={`w-8 h-8 rounded-sm items-center justify-center border ${
+                            (t.unidade || 1) === unit
+                              ? 'bg-neonBlue/30 border-neonBlue'
+                              : 'bg-black/50 border-neonBlue/20'
+                          }`}
+                        >
+                          <Text className={`font-bold text-xs ${(t.unidade || 1) === unit ? 'text-white' : 'text-neonBlue/50'}`}>
+                            {unit}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                );
+              })()}
             </View>
           ))
         )}

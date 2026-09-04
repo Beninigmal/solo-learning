@@ -627,7 +627,7 @@ export function QuestWindowModal({
               >
                 <View style={{ borderBottomWidth: 1, borderColor: 'rgba(255,159,0,0.3)', width: '100%', paddingBottom: 12, marginBottom: 24, alignItems: 'center' }}>
                   <Text style={{ color: '#ff9f00', fontSize: 22, fontWeight: 'bold', letterSpacing: 4, textTransform: 'uppercase', textAlign: 'center' }}>
-                    ⚔ Mini Bosses Invocados!
+                    ⚔ Mini Bosses Ativados!
                   </Text>
                   <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginTop: 6, textAlign: 'center', letterSpacing: 1 }}>
                     Escolha qual inimigo enfrentar primeiro
@@ -1030,7 +1030,7 @@ export function QuestWindowModal({
                       disabled={submitting}
                     >
                       <Feather name="share-2" size={14} color="#3b82f6" style={{ marginRight: 8 }} />
-                      <Text className="text-[#3b82f6] font-bold text-xs uppercase tracking-widest font-mono">Invocar na Raid ⚔️</Text>
+                      <Text className="text-[#3b82f6] font-bold text-xs uppercase tracking-widest font-mono">Ativar na Raid ⚔️</Text>
                     </TouchableOpacity>
                   )
                 )}

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Alert, Modal } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { YearPicker } from '../YearPicker';
 import { SelectPicker } from '../SelectPicker';
+import { getCurrentInstitution, updateInstitutionRegimeLetivo } from '../../services/api';
 
 interface ArquitetoTabProps {
   turmas: any[];
@@ -134,7 +135,50 @@ export function ArquitetoTab({
   handleUpdateStudent,
   cancelEditStudent
 }: ArquitetoTabProps) {
-  const [subTab, setSubTab] = useState<'VISAO_GERAL' | 'SISTEMA' | 'MESTRES' | 'PLAYERS'>('VISAO_GERAL');
+  const [subTab, setSubTab] = useState<'VISAO_GERAL' | 'REGIME_LETIVO' | 'SISTEMA' | 'MESTRES' | 'PLAYERS'>('VISAO_GERAL');
+
+  const [currentInst, setCurrentInst] = useState<any>(null);
+  const [loadingInst, setLoadingInst] = useState(false);
+  const [savingRegime, setSavingRegime] = useState(false);
+  const [regimeQtd, setRegimeQtd] = useState(3);
+  const [regimeDivisao, setRegimeDivisao] = useState('UNIDADE');
+
+  const fetchInst = async () => {
+    try {
+      setLoadingInst(true);
+      const data = await getCurrentInstitution();
+      setCurrentInst(data);
+      setRegimeQtd(data.qtdUnidades || 3);
+      setRegimeDivisao(data.tipoDivisao || 'UNIDADE');
+    } catch (e) {
+      console.error('Erro ao carregar dados da instituição:', e);
+    } finally {
+      setLoadingInst(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInst();
+  }, []);
+
+  const handleSaveRegime = async () => {
+    try {
+      setSavingRegime(true);
+      sounds.playSelect();
+      await updateInstitutionRegimeLetivo(regimeQtd, regimeDivisao);
+      sounds.playSuccess();
+      if (showAlert) showAlert('SUCESSO', 'Regime letivo atualizado com sucesso!', 'success');
+      else Alert.alert('Sucesso', 'Regime letivo atualizado com sucesso!');
+      fetchInst();
+    } catch (e: any) {
+      const msg = e.response?.data?.error || 'Erro ao atualizar regime letivo.';
+      sounds.playError();
+      if (showAlert) showAlert('ERRO', msg, 'error');
+      else Alert.alert('Erro', msg);
+    } finally {
+      setSavingRegime(false);
+    }
+  };
 
   const currentYear = new Date().getFullYear().toString();
   const [filterMasterYear, setFilterMasterYear] = useState(currentYear);
@@ -175,16 +219,19 @@ export function ArquitetoTab({
       {/* Sub-tabs Arquiteto */}
       <View className="flex-row mb-6 bg-black/40 border border-neonBlue/20 rounded-sm p-1">
         <TouchableOpacity className={`flex-1 py-2 items-center rounded-sm ${subTab === 'VISAO_GERAL' ? 'bg-neonBlue/30' : ''}`} onPress={() => { setSubTab('VISAO_GERAL'); sounds.playSelect(); }}>
-          <Text className={`font-bold uppercase text-[10px] ${subTab === 'VISAO_GERAL' ? 'text-white' : 'text-neonBlue/50'}`}>Visão Geral</Text>
+          <Text className={`font-bold uppercase text-[9px] ${subTab === 'VISAO_GERAL' ? 'text-white' : 'text-neonBlue/50'}`}>Visão Geral</Text>
+        </TouchableOpacity>
+        <TouchableOpacity className={`flex-1 py-2 items-center rounded-sm ${subTab === 'REGIME_LETIVO' ? 'bg-neonBlue/30' : ''}`} onPress={() => { setSubTab('REGIME_LETIVO'); sounds.playSelect(); }}>
+          <Text className={`font-bold uppercase text-[9px] ${subTab === 'REGIME_LETIVO' ? 'text-white' : 'text-neonBlue/50'}`}>Regime Letivo</Text>
         </TouchableOpacity>
         <TouchableOpacity className={`flex-1 py-2 items-center rounded-sm ${subTab === 'SISTEMA' ? 'bg-neonBlue/30' : ''}`} onPress={() => { setSubTab('SISTEMA'); sounds.playSelect(); }}>
-          <Text className={`font-bold uppercase text-[10px] ${subTab === 'SISTEMA' ? 'text-white' : 'text-neonBlue/50'}`}>Sistema LGPD</Text>
+          <Text className={`font-bold uppercase text-[9px] ${subTab === 'SISTEMA' ? 'text-white' : 'text-neonBlue/50'}`}>Sistema LGPD</Text>
         </TouchableOpacity>
         <TouchableOpacity className={`flex-1 py-2 items-center rounded-sm ${subTab === 'MESTRES' ? 'bg-neonBlue/30' : ''}`} onPress={() => { setSubTab('MESTRES'); sounds.playSelect(); }}>
-          <Text className={`font-bold uppercase text-[10px] ${subTab === 'MESTRES' ? 'text-white' : 'text-neonBlue/50'}`}>Mestres</Text>
+          <Text className={`font-bold uppercase text-[9px] ${subTab === 'MESTRES' ? 'text-white' : 'text-neonBlue/50'}`}>Mestres</Text>
         </TouchableOpacity>
         <TouchableOpacity className={`flex-1 py-2 items-center rounded-sm ${subTab === 'PLAYERS' ? 'bg-neonBlue/30' : ''}`} onPress={() => { setSubTab('PLAYERS'); sounds.playSelect(); }}>
-          <Text className={`font-bold uppercase text-[10px] ${subTab === 'PLAYERS' ? 'text-white' : 'text-neonBlue/50'}`}>Players</Text>
+          <Text className={`font-bold uppercase text-[9px] ${subTab === 'PLAYERS' ? 'text-white' : 'text-neonBlue/50'}`}>Players</Text>
         </TouchableOpacity>
       </View>
 
@@ -383,6 +430,153 @@ export function ArquitetoTab({
               })
             )}
           </View>
+        </View>
+      )}
+
+      {/* ─── REGIME LETIVO DA INSTITUIÇÃO ─── */}
+      {subTab === 'REGIME_LETIVO' && (
+        <View>
+          <Text className="text-white text-base font-bold uppercase tracking-widest mb-1">Regime Letivo da Instituição</Text>
+          <Text className="text-white/40 text-xs mb-6 font-mono">Gerenciamento do calendário e das divisões de estudo do ano letivo.</Text>
+
+          {loadingInst ? (
+            <ActivityIndicator size="large" color="#00f3ff" className="my-8" />
+          ) : !currentInst ? (
+            <Text className="text-white/40 text-center py-6 font-mono text-xs">Dados da instituição não encontrados.</Text>
+          ) : (
+            <View className="bg-black/50 border border-neonBlue/30 p-5 rounded-sm">
+              <View className="flex-row items-center justify-between pb-4 border-b border-neonBlue/20 mb-4">
+                <View>
+                  <Text className="text-white font-bold font-mono text-sm uppercase">{currentInst.nome}</Text>
+                  <Text className="text-neonBlue/60 text-xs font-mono mt-0.5 uppercase">
+                    Tipo: {currentInst.tipo || 'MUNICIPAL'} • Plano: {currentInst.plano || 'TRIAL'}
+                  </Text>
+                </View>
+                <View className="bg-neonBlue/10 border border-neonBlue/30 px-3 py-1 rounded-sm">
+                  <Text className="text-neonBlue font-mono text-xs font-bold uppercase">
+                    {currentInst.qtdUnidades || 3} {currentInst.tipoDivisao === 'BIMESTRE' ? 'Bimestres' : currentInst.tipoDivisao === 'TRIMESTRE' ? 'Trimestres' : currentInst.tipoDivisao === 'SEMESTRE' ? 'Semestres' : 'Unidades'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Se for pública: Aviso e trava */}
+              {(currentInst.tipo === 'MUNICIPAL' || currentInst.tipo === 'ESTADUAL') ? (
+                <View className="bg-neonBlue/10 border border-neonBlue/30 p-4 rounded-sm">
+                  <View className="flex-row items-center gap-2 mb-2">
+                    <Feather name="lock" size={16} color="#00f3ff" />
+                    <Text className="text-neonBlue font-mono text-xs font-bold uppercase">Regime Público Padrão MEC</Text>
+                  </View>
+                  <Text className="text-white/70 text-xs font-mono leading-5">
+                    Como instituição pública ({currentInst.tipo === 'MUNICIPAL' ? 'Rede Municipal' : 'Rede Estadual'}), o regime letivo é padronizado e fixado em <Text className="text-neonBlue font-bold">3 Unidades</Text> anuais conforme as diretrizes pedagógicas da BNCC e MEC.
+                  </Text>
+                </View>
+              ) : (
+                /* Se for privada ou livre: Gestão flexível */
+                <View>
+                  <Text className="text-white/70 text-xs font-mono mb-3 uppercase font-bold">
+                    {currentInst.tipo === 'PRIVADO_LIVRE' ? 'Divisão do Curso / Ano Letivo Livre:' : 'Divisão do Ano Letivo da Escola:'}
+                  </Text>
+
+                  {currentInst.tipo === 'PRIVADO' ? (
+                    <View className="flex-row gap-3 mb-6">
+                      {[
+                        { label: '4 Bimestres', qtd: 4, tipo: 'BIMESTRE' },
+                        { label: '3 Trimestres', qtd: 3, tipo: 'TRIMESTRE' },
+                        { label: '3 Unidades', qtd: 3, tipo: 'UNIDADE' }
+                      ].map((opt) => {
+                        const isSelected = regimeQtd === opt.qtd && regimeDivisao === opt.tipo;
+                        return (
+                          <TouchableOpacity
+                            key={opt.label}
+                            onPress={() => {
+                              setRegimeQtd(opt.qtd);
+                              setRegimeDivisao(opt.tipo);
+                              sounds.playSelect();
+                            }}
+                            className={`flex-1 py-3 px-2 rounded-sm border items-center justify-center ${
+                              isSelected ? 'bg-neonBlue/30 border-neonBlue' : 'bg-black/60 border-neonBlue/20'
+                            }`}
+                          >
+                            <Text className={`font-mono text-xs font-bold uppercase ${isSelected ? 'text-white' : 'text-neonBlue/60'}`}>
+                              {opt.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    /* PRIVADO_LIVRE */
+                    <View className="mb-6">
+                      <View className="flex-row flex-wrap gap-2 mb-4">
+                        {[
+                          { id: 'BIMESTRE', label: 'Bimestres (4)', defaultQtd: 4 },
+                          { id: 'TRIMESTRE', label: 'Trimestres (3)', defaultQtd: 3 },
+                          { id: 'SEMESTRE', label: 'Semestres (2)', defaultQtd: 2 },
+                          { id: 'UNIDADE', label: 'Unidades', defaultQtd: 3 }
+                        ].map((opt) => {
+                          const isSelected = regimeDivisao === opt.id;
+                          return (
+                            <TouchableOpacity
+                              key={opt.id}
+                              onPress={() => {
+                                setRegimeDivisao(opt.id);
+                                setRegimeQtd(opt.defaultQtd);
+                                sounds.playSelect();
+                              }}
+                              className={`py-2.5 px-4 rounded-sm border ${
+                                isSelected ? 'bg-neonBlue/30 border-neonBlue' : 'bg-black/60 border-neonBlue/20'
+                              }`}
+                            >
+                              <Text className={`font-mono text-xs font-bold uppercase ${isSelected ? 'text-white' : 'text-neonBlue/60'}`}>
+                                {opt.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+
+                      {regimeDivisao === 'UNIDADE' && (
+                        <View className="flex-row items-center gap-3 pt-3 border-t border-neonBlue/20">
+                          <Text className="text-white/60 font-mono text-xs uppercase">Quantidade de Unidades:</Text>
+                          {[2, 3, 4, 5, 6].map((num) => (
+                            <TouchableOpacity
+                              key={num}
+                              onPress={() => { setRegimeQtd(num); sounds.playSelect(); }}
+                              className={`w-9 h-9 rounded-sm items-center justify-center border ${
+                                regimeQtd === num ? 'bg-neonBlue/40 border-neonBlue' : 'bg-black/60 border-neonBlue/30'
+                              }`}
+                            >
+                              <Text className={`font-mono text-sm font-bold ${regimeQtd === num ? 'text-white' : 'text-neonBlue/60'}`}>
+                                {num}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  <TouchableOpacity
+                    onPress={handleSaveRegime}
+                    disabled={savingRegime}
+                    className="bg-neonBlue/20 border border-neonBlue py-3.5 rounded-sm items-center justify-center flex-row gap-2"
+                    activeOpacity={0.7}
+                  >
+                    {savingRegime ? (
+                      <ActivityIndicator size="small" color="#00f3ff" />
+                    ) : (
+                      <>
+                        <Feather name="save" size={15} color="#00f3ff" />
+                        <Text className="text-neonBlue font-mono font-bold uppercase text-xs tracking-wider">
+                          Salvar Configuração do Regime Letivo
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
         </View>
       )}
 

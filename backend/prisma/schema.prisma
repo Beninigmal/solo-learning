@@ -65,6 +65,7 @@ model User {
   actionLogs ActionLog[]
   chatSessions ChatSession[]
   bountyBugs   BountyBug[]
+  bossFightsCreated BossFight[] @relation("MestreBossFights")
 }
 
 model Turma {
@@ -85,6 +86,7 @@ model Turma {
   users           User[]   @relation("TurmaAlunos")
   quests          Quest[]  @relation("TurmaQuests")
   goldenQuestions GoldenQuestion[]
+  bossFights      BossFight[]
 }
 
 model Disciplina {
@@ -97,6 +99,8 @@ model Disciplina {
   quests      Quest[]
   turmaDisciplinas TurmaDisciplina[]
   timetableSlots  TimetableSlot[]
+  bossFights    BossFight[]
+  topicos       TopicoCurricular[]
 }
 
 model DisciplinaProfessor {
@@ -109,11 +113,44 @@ model DisciplinaProfessor {
   @@id([professorId, disciplinaId])
 }
 
+model TopicoCurricular {
+  id           String     @id @default(uuid())
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  nome         String
+  ordem        Int        @default(1)
+  descricao    String?
+  dicasEstudo  String?
+  quests       Quest[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model CurriculumTemplate {
+  id              String   @id @default(uuid())
+  institutionType String   // "PUBLICA" ou "PARTICULAR"
+  nivel           String   // "FUNDAMENTAL" ou "MEDIO"
+  ano             String   // ex: "1º Ano", "9º Ano"
+  disciplinaNome  String   // ex: "Matemática", "Português - Gramática"
+  topicosJson     String   // JSON string com array de { nome, ordem, descricao?, dicasEstudo? }
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([institutionType, nivel, ano, disciplinaNome])
+}
+
 model Quest {
   id           String     @id @default(uuid())
   disciplinaId String
   disciplina   Disciplina @relation(fields: [disciplinaId], references: [id])
   
+  topicoId     String?
+  topico       TopicoCurricular? @relation(fields: [topicoId], references: [id])
+
+  unlockedByArtifact       String? // ex: "ORBE_PERSPICACIA"
+  unlockedByPartyId        String?
+  partyMembersSnapshotJson String?
+
   enunciado    String
   gabarito     String?
   xp           Int        @default(200)
@@ -202,6 +239,10 @@ model Raid {
   currentResponderId    String?
   lastResponderId       String?
   partyCooldownUntil    DateTime?
+
+  firstQuestBonusTopicId   String?
+  firstQuestBonusTopicName String?
+  firstQuestBonusActive    Boolean         @default(false)
 }
 
 model RaidMessage {
@@ -331,6 +372,10 @@ model Institution {
   trialExpiration DateTime?
   maxTurmasMonarch Int         @default(2)
   actionLogs      ActionLog[]
+
+  // Regime Letivo
+  qtdUnidades     Int          @default(3) // Ex: 3 (Público/Trimestre), 4 (Bimestre), 2 (Semestre)
+  tipoDivisao     String       @default("UNIDADE") // UNIDADE, BIMESTRE, TRIMESTRE, SEMESTRE
 }
 
 model InstitutionShiftSetting {
@@ -464,3 +509,52 @@ model BountyBug {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
+
+model BossFight {
+  id              String         @id @default(uuid())
+  turmaId         String
+  turma           Turma          @relation(fields: [turmaId], references: [id])
+  mestreId        String
+  mestre          User           @relation("MestreBossFights", fields: [mestreId], references: [id])
+  disciplinaId    String
+  disciplina      Disciplina     @relation(fields: [disciplinaId], references: [id])
+  
+  nomeBoss        String         // Ex: "O Arquemago do Raciocínio (Matemática)"
+  totalHp         Int            @default(300)
+  currentHp       Int            @default(300)
+  status          String         @default("ACTIVE") // ACTIVE, DEFEATED, EXPIRED
+  expiresAt       DateTime       // Data limite (ex: 3 dias)
+  createdAt       DateTime       @default(now())
+
+  quests          BossQuest[]
+}
+
+model BossQuest {
+  id              String         @id @default(uuid())
+  bossFightId     String
+  bossFight       BossFight      @relation(fields: [bossFightId], references: [id], onDelete: Cascade)
+  
+  enunciado       String
+  gabarito        String?
+  tipoResposta    String         @default("TEXTO") // FOTO_MATEMATICA, FOTO_REDACAO, TEXTO
+  nivel           String         @default("MEDIO")
+  xpBase          Int            @default(150)
+  
+  status          String         @default("AVAILABLE") // AVAILABLE, LOCKED, COMPLETED
+  
+  // Controle de Fila / Party
+  lockedByPartyId String?
+  lockedAt        DateTime?
+  lastActiveAt    DateTime?
+  currentResponderId String?
+  attemptedUserIds   String      @default("")
+  
+  // Contador Anônimo de Derrotas e Multiplicador de Drop
+  defeatCount     Int            @default(0)
+  
+  completedByPartyId String?
+  completedAt        DateTime?
+
+  createdAt       DateTime       @default(now())
+}
+

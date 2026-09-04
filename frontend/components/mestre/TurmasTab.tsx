@@ -117,11 +117,22 @@ export const TurmasTab: React.FC<TurmasTabProps> = ({
             <View className="flex-row justify-between items-center mb-3">
               <View>
                 <Text className="text-white font-bold text-base">{t.nome}</Text>
-                <Text className="text-neonBlue/50 text-xs">{t.ano} · Code: {t.codigoInvocacao}</Text>
+                <Text className="text-neonBlue/50 text-xs">{t.ano} · Código da Party: {t.codigoInvocacao}</Text>
               </View>
-              <View className="bg-neonBlue/10 px-3 py-1 border border-neonBlue/30 rounded-sm">
-                <Text className="text-neonBlue font-bold text-[10px] uppercase">Unidade {t.unidade || 1}</Text>
-              </View>
+              {(() => {
+                const tipoDiv = t.institution?.tipoDivisao || 'UNIDADE';
+                const getFullName = (num: number) => {
+                  if (tipoDiv === 'BIMESTRE') return `${num}º Bimestre`;
+                  if (tipoDiv === 'TRIMESTRE') return `${num}º Trimestre`;
+                  if (tipoDiv === 'SEMESTRE') return `${num}º Semestre`;
+                  return `Unidade ${num}`;
+                };
+                return (
+                  <View className="bg-neonBlue/10 px-3 py-1 border border-neonBlue/30 rounded-sm">
+                    <Text className="text-neonBlue font-bold text-[10px] uppercase">{getFullName(t.unidade || 1)}</Text>
+                  </View>
+                );
+              })()}
             </View>
           </View>
         ))

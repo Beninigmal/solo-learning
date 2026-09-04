@@ -43,6 +43,8 @@ import {
   regenerateQuest,
   refineQuest,
   updateQuest,
+  invokeMegaBoss,
+  transmuteBossQuest,
   getGoldenHelpRequests,
   replyGoldenHelpRequest,
   registerPushToken,
@@ -158,7 +160,11 @@ export function useMestreState() {
   const [loadingBoss, setLoadingBoss] = useState(false);
   const [disciplinas, setDisciplinas] = useState<any[]>([]);
   const [forjaDisciplinaId, setForjaDisciplinaId] = useState('');
-  const [duracaoDiasBoss, setDuracaoDiasBoss] = useState('1');
+  const [duracaoDiasBoss, setDuracaoDiasBoss] = useState('3');
+  const [nomeBoss, setNomeBoss] = useState('');
+  const [temaBoss, setTemaBoss] = useState('');
+  const [hpBoss, setHpBoss] = useState('300');
+  const [diasBoss, setDiasBoss] = useState('3');
 
   // Turmas State
   const [turmas, setTurmas] = useState<any[]>([]);
@@ -603,9 +609,11 @@ export function useMestreState() {
         }
       }
 
-      getMasters()
-        .then((data) => setMasters(data))
-        .catch(() => {});
+      if (localUser?.role === 'ADMIN' || freshUser?.role === 'ADMIN') {
+        getMasters()
+          .then((data) => setMasters(data))
+          .catch(() => {});
+      }
       fetchDisciplinasWithProfessores();
       fetchDisciplinas();
       fetchCalendarEvents();
@@ -687,7 +695,7 @@ export function useMestreState() {
 
 
   const disciplinasFiltradas = useMemo(() => {
-    if (forjaTurmaIds.length === 0) return [];
+    if (forjaTurmaIds.length === 0) return disciplinas || [];
     
     let allDisciplinas: any[] = [];
     for (const tId of forjaTurmaIds) {
@@ -713,7 +721,7 @@ export function useMestreState() {
     } else {
       setForjaDisciplinaId('');
     }
-  }, [disciplinasFiltradas]);
+  }, [disciplinasFiltradas, forjaDisciplinaId]);
 
   const fetchPendingQuests = useCallback(async () => {
     try {
@@ -989,27 +997,40 @@ export function useMestreState() {
     }
   };
 
-  const handleInvocacaoRapidaBOSS = async () => {
-    if (!tema || forjaTurmaIds.length === 0) {
-      showAlert('Aviso', 'Preencha as Turmas e o Tema.', 'warning');
+  const handleInvocacaoRapidaBOSS = async (customData?: any) => {
+    const turmaIds = customData?.turmaIds || forjaTurmaIds;
+    const disciplinaId = customData?.disciplinaId || forjaDisciplinaId;
+    const temaTarget = customData?.tema || temaBoss || tema;
+    const hp = customData?.totalHp || parseInt(hpBoss) || parseInt(duracaoDiasBoss) || 300;
+    const dias = customData?.duracaoDias || parseInt(diasBoss) || 3;
+    const bossName = customData?.nomeBoss || nomeBoss || 'Mega Boss';
+
+    if (!temaTarget || turmaIds.length === 0 || !disciplinaId) {
+      showAlert('Aviso', 'Preencha a(s) Turma(s), Disciplina e o Tema do Boss.', 'warning');
       return;
     }
-    const dias = parseInt(duracaoDiasBoss) || 1;
-    const semana = new Date().toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
+
     try {
       setLoadingBoss(true);
-      // Pega apenas a primeira turma por ser mock simples
-      await mockBossQuest(forjaTurmaIds[0], tema, semana, dias);
-      showAlert('Sucesso', 'Missão BOSS invocada para teste!', 'success');
+      await invokeMegaBoss({
+        turmaIds,
+        disciplinaId,
+        tema: temaTarget,
+        nomeBoss: bossName,
+        totalHp: hp,
+        duracaoDias: dias
+      });
+      showAlert(
+        '⚔️ MEGA BOSS INVOCADO',
+        `O Mega Boss "${bossName}" (HP: ${hp}) foi forjado com sucesso! Os alunos da(s) turma(s) já receberam a convocação animada no dashboard.`,
+        'success'
+      );
+      setTemaBoss('');
+      setNomeBoss('');
       setTema('');
-      setDuracaoDiasBoss('1');
     } catch (error: any) {
-      const msg = error.response?.data?.error || 'Erro ao invocar BOSS.';
-      showAlert('Erro', msg, 'error');
+      const msg = error.response?.data?.error || 'Erro ao ativar Mega BOSS.';
+      showAlert('Erro ao Ativar Mega Boss', msg, 'error');
     } finally {
       setLoadingBoss(false);
     }
@@ -1287,6 +1308,14 @@ export function useMestreState() {
     setForjaDisciplinaId,
     duracaoDiasBoss,
     setDuracaoDiasBoss,
+    nomeBoss,
+    setNomeBoss,
+    temaBoss,
+    setTemaBoss,
+    hpBoss,
+    setHpBoss,
+    diasBoss,
+    setDiasBoss,
     turmas,
     loadingTurmas,
     newTurmaNome,
