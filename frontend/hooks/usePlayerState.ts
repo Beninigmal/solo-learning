@@ -816,6 +816,8 @@ export function usePlayerState() {
         setUser(u);
         if (!u.acceptedTermsAt) {
           setShowTerms(true);
+        } else {
+          setShowTerms(false);
         }
       }
 
@@ -861,8 +863,17 @@ export function usePlayerState() {
   const handleAcceptTerms = async (parentConsentName?: string) => {
     setTermsLoading(true);
     try {
-      await acceptTerms(parentConsentName);
+      const res = await acceptTerms(parentConsentName);
       setShowTerms(false);
+      if (user) {
+        const updatedUser = {
+          ...user,
+          acceptedTermsAt: res.user?.acceptedTermsAt || new Date().toISOString(),
+          parentConsentName: res.user?.parentConsentName || parentConsentName
+        };
+        setUser(updatedUser);
+        await AsyncStorage.setItem('@Solen:user', JSON.stringify(updatedUser));
+      }
       showAlert(
         '🛡️ ALIANÇA FIRMADA',
         'O Protocolo de Privacidade foi assinado com sucesso. Boa jornada, Caçador!',

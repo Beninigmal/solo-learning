@@ -20,33 +20,34 @@ export class LoginUseCase {
       throw new Error('Matrícula e Senha são obrigatórios.');
     }
 
-    let user = await this.userRepository.findByMatriculaOrNickname(matricula);
+    const candidates = await this.userRepository.findAllByMatriculaOrNickname(matricula);
 
-    if (!user) {
+    if (!candidates || candidates.length === 0) {
       throw new Error('Credenciais inválidas.');
     }
 
-    if (user.blocked) {
-      throw new Error('Sua conta está bloqueada pelo Administrador.');
-    }
+    let matchedUser: any = null;
+    for (const candidate of candidates) {
+      if (candidate.blocked) continue;
 
-    // Se for o PRIMEIRO ACESSO de um ALUNO, a senha é o Código de Invocação da Turma
-    if (user.role === 'ALUNO' && user.isFirstAccess) {
-      if (!user.turma || !user.turma.codigoInvocacao) {
-        throw new Error('Erro na configuração da turma. Contate o mestre.');
-      }
-
-      if (password !== user.turma.codigoInvocacao) {
-        throw new Error('Código de Invocação inválido.');
-      }
-    } else {
-      // Acesso normal ou Mestre/Admin: validar hash da senha
-      const isPasswordValid = await bcrypt.compare(password, user.password);
-      if (!isPasswordValid) {
-        throw new Error('Credenciais inválidas.');
+      if (candidate.role === 'ALUNO' && candidate.isFirstAccess) {
+        if (candidate.turma?.codigoInvocacao && password === candidate.turma.codigoInvocacao) {
+          matchedUser = candidate;
+          break;
+        }
+      } else {
+        const isPasswordValid = await bcrypt.compare(password, candidate.password);
+        if (isPasswordValid) {
+          matchedUser = candidate;
+          break;
+        }
       }
     }
 
-    return { user };
+    if (!matchedUser) {
+      throw new Error('Credenciais inválidas.');
+    }
+
+    return { user: matchedUser };
   }
 }

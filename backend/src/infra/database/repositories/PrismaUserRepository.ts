@@ -25,6 +25,22 @@ export class PrismaUserRepository implements IUserRepository {
     });
   }
 
+  async findAllByMatriculaOrNickname(key: string): Promise<any[]> {
+    const searchKey = key.trim();
+    const isNickname = searchKey.startsWith('@');
+    const cleanKey = isNickname ? searchKey.substring(1) : searchKey;
+
+    return prisma.user.findMany({
+      where: {
+        OR: [
+          { matricula: { equals: cleanKey, mode: 'insensitive' } },
+          { nickname: { equals: cleanKey, mode: 'insensitive' } }
+        ]
+      },
+      include: { turma: true, institution: true }
+    });
+  }
+
   async findByNicknameInInstitution(nickname: string, institutionId: string, excludeUserId: string): Promise<any | null> {
     return prisma.user.findFirst({
       where: {

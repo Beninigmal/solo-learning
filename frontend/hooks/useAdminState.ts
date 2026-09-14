@@ -530,6 +530,8 @@ export function useAdminState() {
         setCurrentUser(u);
         if (!u.acceptedTermsAt) {
           setShowTerms(true);
+        } else {
+          setShowTerms(false);
         }
       } else {
         router.replace('/login');
@@ -564,8 +566,17 @@ export function useAdminState() {
   const handleAcceptTerms = async (parentConsentName?: string) => {
     setTermsLoading(true);
     try {
-      await acceptTerms(parentConsentName);
+      const res = await acceptTerms(parentConsentName);
       setShowTerms(false);
+      if (currentUser) {
+        const updatedUser = {
+          ...currentUser,
+          acceptedTermsAt: res.user?.acceptedTermsAt || new Date().toISOString(),
+          parentConsentName: res.user?.parentConsentName || parentConsentName
+        };
+        setCurrentUser(updatedUser);
+        await AsyncStorage.setItem('@Solen:user', JSON.stringify(updatedUser));
+      }
       showAlert(
         '🛡️ ALIANÇA FIRMADA',
         'O Protocolo de Privacidade foi assinado com sucesso. Boa jornada, Arquiteto!',

@@ -11,7 +11,7 @@ model User {
   id            String   @id @default(uuid())
   nome          String
   nickname      String?
-  matricula     String   @unique
+  matricula     String
   password      String
   isFirstAccess Boolean  @default(true)
   role          String   @default("ALUNO") // ADMIN, PROFESSOR, ALUNO
@@ -66,6 +66,8 @@ model User {
   chatSessions ChatSession[]
   bountyBugs   BountyBug[]
   bossFightsCreated BossFight[] @relation("MestreBossFights")
+
+  @@index([matricula])
 }
 
 model Turma {
