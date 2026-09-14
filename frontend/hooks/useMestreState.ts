@@ -594,6 +594,8 @@ export function useMestreState() {
         setCurrentUserRole(u.role || 'PROFESSOR');
         if (!u.acceptedTermsAt) {
           setShowTerms(true);
+        } else {
+          setShowTerms(false);
         }
       }
 
@@ -625,8 +627,17 @@ export function useMestreState() {
   const handleAcceptTerms = async (parentConsentName?: string) => {
     setTermsLoading(true);
     try {
-      await acceptTerms(parentConsentName);
+      const res = await acceptTerms(parentConsentName);
       setShowTerms(false);
+      if (currentUser) {
+        const updatedUser = {
+          ...currentUser,
+          acceptedTermsAt: res.user?.acceptedTermsAt || new Date().toISOString(),
+          parentConsentName: res.user?.parentConsentName || parentConsentName
+        };
+        setCurrentUser(updatedUser);
+        await AsyncStorage.setItem('@Solen:user', JSON.stringify(updatedUser));
+      }
       showAlert(
         '🛡️ ALIANÇA FIRMADA',
         'O Protocolo de Privacidade foi assinado com sucesso. Boa jornada, Mestre!',

@@ -683,7 +683,7 @@ Campos obrigatórios:
                            systemAppendedStatus += `- Disciplina criada com sucesso.\n`;
                         }
                      } else if (callName === 'updateUser') {
-                        let target = await prisma.user.findUnique({ where: { matricula: callArgs.matricula } });
+                        let target = await prisma.user.findFirst({ where: { matricula: callArgs.matricula, instituicao } });
                         if (target && target.instituicao === instituicao) {
                            const data: any = {};
                            if (callArgs.novoNome) data.nome = callArgs.novoNome;
@@ -1333,7 +1333,7 @@ Campos obrigatórios:
             }
           } else if (call.name === 'updateUser') {
             const { matricula, novoNome, novaMatricula, turno, categoria } = call.args as any;
-            let target = await prisma.user.findUnique({ where: { matricula } });
+            let target = await prisma.user.findFirst({ where: { matricula, instituicao } });
             if (target && target.instituicao === instituicao) {
               const data: any = {};
               if (novoNome) data.nome = novoNome;
@@ -1518,7 +1518,7 @@ Campos obrigatórios:
             turmaId = existingTurma.id;
           }
 
-          const existingUser = await prisma.user.findUnique({ where: { matricula: matString } });
+          const existingUser = await prisma.user.findFirst({ where: { matricula: matString, instituicao } });
           if (!existingUser) {
             await prisma.user.create({
               data: {

@@ -83,12 +83,30 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
     const { matricula, nome, password, novaMateria, maxAulasSemanais, categoria } = request.body;
     const instituicao = request.user.instituicao!;
 
-    if (!matricula || !nome || !password || !password.trim()) {
-      return reply.status(400).send({ error: 'Matrícula, Nome e Senha são obrigatórios para cadastrar um Mestre.' });
+    if (!matricula || !nome) {
+      return reply.status(400).send({ error: 'Matrícula e Nome são obrigatórios para cadastrar um Mestre.' });
     }
 
     try {
-      const defaultPassword = await bcrypt.hash(password.trim(), 10);
+      const cleanMatricula = matricula.toLowerCase().trim();
+      const callerInstId = request.user.institutionId;
+      const callerInstName = request.user.instituicao;
+
+      const existingMaster = await prisma.user.findFirst({
+        where: {
+          matricula: cleanMatricula,
+          OR: [
+            ...(callerInstId ? [{ institutionId: callerInstId }] : []),
+            ...(callerInstName ? [{ instituicao: callerInstName }] : [])
+          ]
+        }
+      });
+      if (existingMaster) {
+        return reply.status(400).send({ error: 'Matrícula já cadastrada nesta instituição.' });
+      }
+
+      const passToHash = (password && password.trim()) ? password.trim() : '1234';
+      const defaultPassword = await bcrypt.hash(passToHash, 10);
       
       // Se tiver nova matéria, criar ou buscar
       if (novaMateria) {
@@ -119,7 +137,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
 
       const user = await prisma.user.create({
         data: {
-          matricula: matricula.toLowerCase().trim(),
+          matricula: cleanMatricula,
           nome: nome.trim(),
           nickname: null,
           role: 'PROFESSOR',
@@ -134,9 +152,6 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       await logAction('Cadastro de Professor', `Professor cadastrado: ${user.nome} (${user.matricula})`, request.user.id, request.user.institutionId);
       return reply.status(201).send({ message: 'Mestre cadastrado com sucesso!', user });
     } catch (error: any) {
-      if (error.code === 'P2002') {
-        return reply.status(400).send({ error: 'Matrícula já cadastrada.' });
-      }
       return reply.status(500).send({ error: 'Erro ao cadastrar mestre.' });
     }
   });
@@ -581,20 +596,21 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
       });
       if (!turma) return reply.status(403).send({ error: 'Turma não encontrada ou sem permissão.' });
 
-      const existingStudent = await prisma.user.findUnique({
-        where: { matricula: matricula.toLowerCase().trim() }
+      const cleanMatricula = matricula.toLowerCase().trim();
+      const callerInstId = request.user.institutionId;
+      const callerInstName = request.user.instituicao;
+
+      const existingStudent = await prisma.user.findFirst({
+        where: {
+          matricula: cleanMatricula,
+          OR: [
+            ...(callerInstId ? [{ institutionId: callerInstId }] : []),
+            ...(callerInstName ? [{ instituicao: callerInstName }] : [])
+          ]
+        }
       });
 
       if (existingStudent) {
-        const callerInstId = request.user.institutionId;
-        const callerInstName = request.user.instituicao;
-        const isSameInst = (callerInstId && existingStudent.institutionId === callerInstId) ||
-                           (callerInstName && existingStudent.instituicao === callerInstName);
-
-        if (!isSameInst) {
-          return reply.status(403).send({ error: 'Acesso negado. A matrícula informada pertence a um aluno de outra instituição.' });
-        }
-
         // Atualiza a turma e turno do aluno existente da mesma instituição
         const updatedStudent = await prisma.user.update({
           where: { id: existingStudent.id },
@@ -697,10 +713,28 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         }
 
         try {
+          const cleanMat = s.matricula.toLowerCase().trim();
+          const callerInstId = request.user.institutionId;
+          const callerInstName = request.user.instituicao;
+
+          const existing = await prisma.user.findFirst({
+            where: {
+              matricula: cleanMat,
+              OR: [
+                ...(callerInstId ? [{ institutionId: callerInstId }] : []),
+                ...(callerInstName ? [{ instituicao: callerInstName }] : [])
+              ]
+            }
+          });
+          if (existing) {
+            errors.push(`Matrícula ${s.matricula} já está cadastrada nesta instituição.`);
+            continue;
+          }
+
           await prisma.user.create({
             data: {
               nome: s.nome.trim(),
-              matricula: s.matricula.toLowerCase().trim(),
+              matricula: cleanMat,
               role: 'ALUNO',
               turno: s.turno || 'MATUTINO',
               turmaId: turma.id,
@@ -712,23 +746,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           });
           createdCount++;
         } catch (e: any) {
-          if (e.code === 'P2002') {
-            const existing = await prisma.user.findUnique({
-              where: { matricula: s.matricula.toLowerCase().trim() },
-              select: { instituicao: true, institutionId: true }
-            });
-            const callerInstId = request.user.institutionId;
-            const callerInstName = request.user.instituicao;
-            const isSameInst = existing && ((callerInstId && existing.institutionId === callerInstId) ||
-                                           (callerInstName && existing.instituicao === callerInstName));
-            if (!isSameInst) {
-              errors.push(`Matrícula ${s.matricula} pertence a outra instituição.`);
-            } else {
-              errors.push(`Matrícula ${s.matricula} já está cadastrada nesta instituição.`);
-            }
-          } else {
-            errors.push(`Erro ao criar ${s.nome}: ${e.message}`);
-          }
+          errors.push(`Erro ao criar ${s.nome}: ${e.message}`);
         }
       }
 
@@ -966,10 +984,28 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
         }
 
         try {
+          const cleanMat = t.matricula.toLowerCase().trim();
+          const callerInstId = request.user.institutionId;
+          const callerInstName = request.user.instituicao;
+
+          const existing = await prisma.user.findFirst({
+            where: {
+              matricula: cleanMat,
+              OR: [
+                ...(callerInstId ? [{ institutionId: callerInstId }] : []),
+                ...(callerInstName ? [{ instituicao: callerInstName }] : [])
+              ]
+            }
+          });
+          if (existing) {
+            errors.push(`Mestre com matrícula ${t.matricula} já existe nesta instituição.`);
+            continue;
+          }
+
           const user = await prisma.user.create({
             data: {
               nome: t.nome.trim(),
-              matricula: t.matricula.toLowerCase().trim(),
+              matricula: cleanMat,
               role: 'PROFESSOR',
               password: defaultPassword,
               isFirstAccess: true,
@@ -1001,11 +1037,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) 
           
           createdCount++;
         } catch (e: any) {
-          if (e.code === 'P2002') {
-            errors.push(`Mestre com matrícula ${t.matricula} já existe.`);
-          } else {
-            errors.push(`Erro ao criar ${t.nome}: ${e.message}`);
-          }
+          errors.push(`Erro ao criar ${t.nome}: ${e.message}`);
         }
       }
 
