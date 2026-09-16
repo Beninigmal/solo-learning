@@ -12,7 +12,7 @@ const prisma = new PrismaClient({ adapter });
 
 async function main() {
   try {
-    const user = await prisma.user.findUnique({ where: { matricula: 'admin' } });
+    const user = await prisma.user.findFirst({ where: { matricula: 'admin' } });
     console.log('User found:', user);
   } catch (e: any) {
     console.error('Error connecting to DB:', e.message);
